@@ -56,6 +56,17 @@ and camera possession are off, as is New Age's radiation nausea, and so are Nucl
 distortion shaders. FOV-effect, darkness-pulse, distortion and damage-tilt scaling are all zero.
 Radiation still hurts; it just doesn't move your screen. Details in [docs/DESIGN.md](docs/DESIGN.md).
 
+## What's next: The Hive Remembers
+
+[docs/TDD.md](docs/TDD.md) is the technical design for the next phase. None of it is built yet. It
+covers three systems:
+
+- **The Resonance.** Procedurally rendered dread audio, driven by a pacing director. It uses no real
+  infrasound, and comfort mode is on by default.
+- **The Hive Genome.** A deterministic genetic algorithm that evolves the parasites to counter how
+  you play, without punishing you while you're weak.
+- **The Oracle.** A small player-state model, run on the CPU or on an optional Coral Edge TPU.
+
 ## Fixes to the base pack
 
 - **"Survive 100 days" completed after 10 days.** The quest checked `play_time >= 240000`, which is
@@ -126,7 +137,8 @@ Disabled: **Redirected**. Two of its patches were skipped due to conflicts, and 
 overrides/   files copied into the instance: kubejs/, config/, defaultconfigs/
 mods/        manifest.json: the added mods, with hashes
 tools/       apply.py, fix_instance.py, gen_loot_overrides.py, validate.py
-docs/        DESIGN.md (systems and decisions), TESTING.md (in-game checklist)
+docs/        DESIGN.md (systems and decisions), TESTING.md (in-game checklist),
+             TDD.md (design for the next phase)
 ```
 
 ## Credits
