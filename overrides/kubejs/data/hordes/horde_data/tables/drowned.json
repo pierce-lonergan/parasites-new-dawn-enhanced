@@ -1,0 +1,30 @@
+[
+  {
+    "entity": "epca:infested_drowned",
+    "weight": 90,
+    "first_day": 0,
+    "last_day": 0,
+    "nbt": "{Tags:[\"pne_horde_mob\"]}"
+  },
+  {
+    "entity": "epca:fins",
+    "weight": 45,
+    "first_day": 0,
+    "last_day": 0,
+    "nbt": "{Tags:[\"pne_horde_mob\"]}"
+  },
+  {
+    "entity": "spore:inf_drowned",
+    "weight": 12,
+    "first_day": 14,
+    "last_day": 0,
+    "nbt": "{Tags:[\"pne_horde_mob\"]}"
+  },
+  {
+    "entity": "epca:walking_drowned_head",
+    "weight": 24,
+    "first_day": 21,
+    "last_day": 0,
+    "nbt": "{Tags:[\"pne_horde_mob\"]}"
+  }
+]

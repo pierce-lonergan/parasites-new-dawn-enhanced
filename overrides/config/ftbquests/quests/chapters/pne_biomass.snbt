@@ -1,0 +1,187 @@
+{
+	default_hide_dependency_lines: false
+	default_quest_shape: ""
+	filename: "pne_biomass"
+	group: "33F52EEFB606DD2F"
+	icon: "pne:parasitic_biomass"
+	id: "2394BF7B62C52676"
+	order_index: 0
+	quest_links: [ ]
+	quests: [
+		{
+			description: [
+				"Every parasite drops Infested Flesh."
+				"Stop feeding it to the lava."
+			]
+			icon: "epca:infested_flesh"
+			id: "156B81385795C56E"
+			rewards: [{
+				id: "2023CB1F600F70AB"
+				type: "xp_levels"
+				xp_levels: 2
+			}]
+			subtitle: "Collect parasite flesh"
+			tasks: [{
+				count: 8L
+				id: "5C067A61F22DD205"
+				item: "epca:infested_flesh"
+				type: "item"
+			}]
+			title: "Meat That Hates"
+			x: 0.0d
+			y: 0.0d
+		}
+		{
+			description: [
+				"4 Infested Flesh + 1 Bone Meal = 1 Parasitic Biomass."
+				"It burns as long as coal."
+			]
+			icon: "pne:parasitic_biomass"
+			id: "528E371C3599A909"
+			rewards: [{
+				id: "19551B1DDF20A413"
+				type: "xp_levels"
+				xp_levels: 2
+			}]
+			subtitle: "Hand-craft Parasitic Biomass"
+			tasks: [{
+				id: "5C4180B1CF8A1DF0"
+				item: "pne:parasitic_biomass"
+				type: "item"
+			}]
+			title: "Rendered Down"
+			x: 0.0d
+			y: 1.5d
+		}
+		{
+			dependencies: ["528E371C3599A909"]
+			description: [
+				"A Mixer renders 4 flesh into 2 biomass: double the hand-crafted yield."
+				"Viscera, tendons and minced flesh work too."
+			]
+			icon: "create:mechanical_mixer"
+			id: "40E6FEDDF23782E5"
+			rewards: [{
+				id: "4839E44F073515D7"
+				type: "xp_levels"
+				xp_levels: 3
+			}]
+			subtitle: "Build a Mechanical Mixer"
+			tasks: [{
+				id: "321431A00B558660"
+				item: "create:mechanical_mixer"
+				type: "item"
+			}]
+			title: "Proper Rendering"
+			x: 0.0d
+			y: 3.0d
+		}
+		{
+			description: [
+				"A Millstone grinds Infested and Twisted Bones into 3-5 Bone Meal,"
+				"with a 25% chance of biomass."
+			]
+			icon: "create:millstone"
+			id: "3E5B98CCA643FA98"
+			rewards: [{
+				id: "001B49B231B481E3"
+				type: "xp_levels"
+				xp_levels: 2
+			}]
+			subtitle: "Grind infested bones"
+			tasks: [{
+				id: "1A9F9C01FF3AFE35"
+				item: "create:millstone"
+				type: "item"
+			}]
+			title: "Bone Mill"
+			x: 2.0d
+			y: 3.0d
+		}
+		{
+			icon: "pne:parasitic_biomass"
+			id: "26A35B5B22A4976C"
+			rewards: [{
+				count: 16
+				id: "604018425DE859DC"
+				item: "create:andesite_alloy"
+				type: "item"
+			}]
+			subtitle: "Hold 32 Parasitic Biomass"
+			tasks: [{
+				count: 32L
+				id: "47DCAEFF21A8C342"
+				item: "pne:parasitic_biomass"
+				type: "item"
+			}]
+			title: "Stockpile"
+			x: 0.0d
+			y: 4.5d
+		}
+		{
+			description: [
+				"A Mechanical Press over a Basin compacts 4 biomass into 250 mB of Plant Oil."
+				"Mix Plant Oil with Ethanol for Biodiesel."
+			]
+			icon: "createdieselgenerators:plant_oil_bucket"
+			id: "0F55DCA54723C28C"
+			rewards: [{
+				id: "3BDB181FFBDB04B9"
+				type: "xp_levels"
+				xp_levels: 4
+			}]
+			subtitle: "Compact biomass into plant oil"
+			tasks: [{
+				id: "71DC397E788A5621"
+				item: "createdieselgenerators:plant_oil_bucket"
+				type: "item"
+			}]
+			title: "Black Gold"
+			x: -2.0d
+			y: 6.0d
+		}
+		{
+			description: ["Your base now runs on the enemy."]
+			icon: "createdieselgenerators:diesel_engine"
+			id: "213BF9B05A351571"
+			rewards: [{
+				id: "7DF107644F4F99A5"
+				type: "xp_levels"
+				xp_levels: 5
+			}]
+			subtitle: "Build a Diesel Engine"
+			tasks: [{
+				id: "6DA4B336A0F63163"
+				item: "createdieselgenerators:diesel_engine"
+				type: "item"
+			}]
+			title: "Corpse-Powered"
+			x: -2.0d
+			y: 7.5d
+		}
+		{
+			description: [
+				"A Mekanism Crusher turns 1 biomass into 6 Bio Fuel."
+				"Seeds give 1-2. Parasites are richer."
+			]
+			icon: "mekanismgenerators:bio_generator"
+			id: "777668D4CB67EB8E"
+			rewards: [{
+				id: "1485263B23866BDD"
+				type: "xp_levels"
+				xp_levels: 5
+			}]
+			subtitle: "The Mekanism route"
+			tasks: [{
+				id: "2C2721992FA2DFF3"
+				item: "mekanismgenerators:bio_generator"
+				type: "item"
+			}]
+			title: "Bio-Generator"
+			x: 2.0d
+			y: 6.0d
+		}
+	]
+	subtitle: ["Parasites are a resource."]
+	title: "Biomass"
+}

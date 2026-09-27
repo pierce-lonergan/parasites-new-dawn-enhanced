@@ -1,0 +1,26 @@
+{
+  "buildings": [ "lostcities:building1", "lostcities:building2", "lostcities:building3" ],
+  "multibuildings": [],
+  "mobs": [
+    { "name": "epca:infested_zombie", "weight": 0.30 },
+    { "name": "epca:infested_husk", "weight": 0.15 },
+    { "name": "epca:infested_villager", "weight": 0.15 },
+    { "name": "epca:infested_zombie_villager", "weight": 0.10 },
+    { "name": "epca:infested_skeleton", "weight": 0.15 },
+    { "name": "epca:ripper", "weight": 0.15 },
+    { "name": "epca:walking_zombie_head", "weight": 0.10 },
+    { "name": "epca:walking_villager_head", "weight": 0.06 },
+    { "name": "epca:infested_vindicator", "weight": 0.06 },
+    { "name": "epca:infested_pillager", "weight": 0.06 },
+    { "name": "epca:small_incomplete_form", "weight": 0.05 },
+    { "name": "spore:inf_human", "weight": 0.08 },
+    { "name": "spore:inf_villager", "weight": 0.05 }
+  ],
+  "weapons": [],
+  "helmets": [],
+  "chestplates": [],
+  "leggings": [],
+  "boots": [],
+  "effects": [],
+  "hauntedchance": 0.6
+}

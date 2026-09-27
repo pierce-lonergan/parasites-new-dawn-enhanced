@@ -1,0 +1,145 @@
+[
+  {
+    "entity": "epca:infested_zombie",
+    "weight": 90,
+    "first_day": 0,
+    "last_day": 62,
+    "nbt": "{Tags:[\"pne_horde_mob\"]}"
+  },
+  {
+    "entity": "epca:infested_husk",
+    "weight": 36,
+    "first_day": 0,
+    "last_day": 62,
+    "nbt": "{Tags:[\"pne_horde_mob\"]}"
+  },
+  {
+    "entity": "epca:ripper",
+    "weight": 60,
+    "first_day": 0,
+    "last_day": 55,
+    "nbt": "{Tags:[\"pne_horde_mob\"]}"
+  },
+  {
+    "entity": "epca:infested_skeleton",
+    "weight": 30,
+    "first_day": 0,
+    "last_day": 0,
+    "nbt": "{Tags:[\"pne_horde_mob\"]}"
+  },
+  {
+    "entity": "epca:infested_drowned",
+    "weight": 18,
+    "first_day": 0,
+    "last_day": 0,
+    "nbt": "{Tags:[\"pne_horde_mob\"]}"
+  },
+  {
+    "entity": "epca:infested_zombie_villager",
+    "weight": 18,
+    "first_day": 14,
+    "last_day": 69,
+    "nbt": "{Tags:[\"pne_horde_mob\"]}"
+  },
+  {
+    "entity": "spore:inf_human",
+    "weight": 12,
+    "first_day": 14,
+    "last_day": 0,
+    "nbt": "{Tags:[\"pne_horde_mob\"]}"
+  },
+  {
+    "entity": "spore:inf_villager",
+    "weight": 9,
+    "first_day": 21,
+    "last_day": 0,
+    "nbt": "{Tags:[\"pne_horde_mob\"]}"
+  },
+  {
+    "entity": "spore:inf_husk",
+    "weight": 9,
+    "first_day": 28,
+    "last_day": 0,
+    "nbt": "{Tags:[\"pne_horde_mob\"]}"
+  },
+  {
+    "entity": "epca:walking_zombie_head",
+    "weight": 30,
+    "first_day": 21,
+    "last_day": 0,
+    "nbt": "{Tags:[\"pne_horde_mob\"]}"
+  },
+  {
+    "entity": "epca:walking_husk_head",
+    "weight": 15,
+    "first_day": 21,
+    "last_day": 0,
+    "nbt": "{Tags:[\"pne_horde_mob\"]}"
+  },
+  {
+    "entity": "epca:walking_skeleton_head",
+    "weight": 12,
+    "first_day": 21,
+    "last_day": 0,
+    "nbt": "{Tags:[\"pne_horde_mob\"]}"
+  },
+  {
+    "entity": "epca:walking_villager_head",
+    "weight": 12,
+    "first_day": 28,
+    "last_day": 0,
+    "nbt": "{Tags:[\"pne_horde_mob\"]}"
+  },
+  {
+    "entity": "epca:infested_vindicator",
+    "weight": 18,
+    "first_day": 28,
+    "last_day": 0,
+    "nbt": "{Tags:[\"pne_horde_mob\"]}"
+  },
+  {
+    "entity": "epca:infested_pillager",
+    "weight": 15,
+    "first_day": 28,
+    "last_day": 0,
+    "nbt": "{Tags:[\"pne_horde_mob\"]}"
+  },
+  {
+    "entity": "epca:small_incomplete_form",
+    "weight": 24,
+    "first_day": 35,
+    "last_day": 0,
+    "nbt": "{Tags:[\"pne_horde_mob\"]}"
+  },
+  {
+    "entity": "epca:medium_incomplete_form",
+    "weight": 18,
+    "first_day": 49,
+    "last_day": 0,
+    "nbt": "{Tags:[\"pne_horde_mob\"]}"
+  },
+  {
+    "entity": "epca:large_incomplete_form",
+    "weight": 2,
+    "first_day": 63,
+    "last_day": 0,
+    "max_spawns": 1,
+    "nbt": "{Tags:[\"pne_horde_mob\"]}"
+  },
+  {
+    "entity": "epca:reshape_yelloweye",
+    "weight": 1,
+    "first_day": 77,
+    "last_day": 0,
+    "max_spawns": 1,
+    "nbt": "{Tags:[\"pne_horde_mob\"]}"
+  },
+  {
+    "entity": "epca:reshape_longarms",
+    "weight": 1,
+    "first_day": 91,
+    "last_day": 0,
+    "max_spawns": 1,
+    "nbt": "{Tags:[\"pne_horde_mob\"]}"
+  }
+]

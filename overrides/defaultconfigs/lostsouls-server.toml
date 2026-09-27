@@ -1,0 +1,28 @@
+#PNE pre-seed (Lost Souls 1.20-4.1.7). SERVER config: Forge copies this into each new world's serverconfig/.
+#Keys, section and the "weight=entity" format are verified against the jar (Config.makeRlList, Tools.getRandomFromList).
+#Only the haunted-building mob pool and equipment are set; every other key is filled in with defaults on first load.
+#Haunted Lost Cities buildings are infested by EPCA parasites with a small share of the allied Spore strain.
+
+[general]
+	#List of mobs that can spawn in buildings together with their rarity
+	mobs = [".30=epca:infested_zombie", ".15=epca:infested_husk", ".15=epca:infested_villager", ".10=epca:infested_zombie_villager", ".15=epca:infested_skeleton", ".15=epca:ripper", ".10=epca:walking_zombie_head", ".06=epca:walking_villager_head", ".06=epca:infested_vindicator", ".06=epca:infested_pillager", ".05=epca:small_incomplete_form", ".08=spore:inf_human", ".05=spore:inf_villager"]
+	#List of weapons that the mobs can have together with their rarity
+	randomWeapons = []
+	#List of helmets that the mobs can have together with their rarity
+	randomHelmets = []
+	#List of chestplates that the mobs can have together with their rarity
+	randomChestplates = []
+	#List of leggings that the mobs can have together with their rarity
+	randomLeggings = []
+	#List of boots that the mobs can have together with their rarity
+	randomBoots = []
+	#PNE: no random potion effects. The jar default gives ~30% each of Regeneration IV, Speed IV and Fire Resistance IV
+	#(ForgeEventHandlers.boostEntity passes the number as the amplifier, duration 1,000,000 ticks).
+	randomEffects = []
+	#PNE: boostEntity multiplies the mob's BASE max health and attack damage by min + rand*(max-min), read straight from
+	#these keys for every haunted-building spawn. Jar defaults are 2.0-5.0 for both (up to 5x damage), which on top of
+	#EPCA Expert health is far past "terrifying but survivable". 1.0 means no bonus.
+	minHealthBonus = 1.0
+	maxHealthBonus = 1.5
+	minDamageBonus = 1.0
+	maxDamageBonus = 1.2

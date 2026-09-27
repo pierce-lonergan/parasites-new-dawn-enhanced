@@ -1,0 +1,183 @@
+{
+	default_hide_dependency_lines: false
+	default_quest_shape: ""
+	filename: "pne_new_ground"
+	group: "33F52EEFB606DD2F"
+	icon: "mekanism:ingot_osmium"
+	id: "3A15BFBF8603E4DE"
+	order_index: 2
+	quest_links: [ ]
+	quests: [
+		{
+			icon: "mekanism:ingot_osmium"
+			id: "213022E5757FDB2B"
+			rewards: [{
+				id: "45608DDEAE97F2C0"
+				type: "xp_levels"
+				xp_levels: 2
+			}]
+			subtitle: "The Mekanism backbone metal"
+			tasks: [{
+				id: "0A350C49787FC48D"
+				item: "mekanism:ingot_osmium"
+				type: "item"
+			}]
+			title: "Osmium"
+			x: 0.0d
+			y: 0.0d
+		}
+		{
+			dependencies: ["213022E5757FDB2B"]
+			description: [
+				"The duplicate NuclearCraft ores for tin, lead, uranium and zinc are switched off,"
+				"so each metal has a single ore."
+			]
+			icon: "mekanism:ingot_tin"
+			id: "2DEC2EF6A081A0DF"
+			rewards: [{
+				id: "06E7EC1172DD468E"
+				type: "xp_levels"
+				xp_levels: 3
+			}]
+			subtitle: "One ore per metal"
+			tasks: [
+				{
+					id: "66005DB50980E408"
+					item: "mekanism:ingot_tin"
+					type: "item"
+				}
+				{
+					id: "6CF1BDDC16D209B3"
+					item: "mekanism:ingot_lead"
+					type: "item"
+				}
+			]
+			title: "Tin and Lead"
+			x: 0.0d
+			y: 1.5d
+		}
+		{
+			dependencies: ["213022E5757FDB2B"]
+			description: ["Fluorite is an ingredient in Hive Serum."]
+			icon: "mekanism:fluorite_gem"
+			id: "2A9716C576B8D7C7"
+			rewards: [{
+				id: "2F03B362F768F266"
+				type: "xp_levels"
+				xp_levels: 3
+			}]
+			subtitle: "You will need it"
+			tasks: [{
+				count: 4L
+				id: "3694927693C68DD2"
+				item: "mekanism:fluorite_gem"
+				type: "item"
+			}]
+			title: "Fluorite"
+			x: 2.0d
+			y: 1.5d
+		}
+		{
+			dependencies: ["213022E5757FDB2B"]
+			icon: "createmetallurgy:tungsten_ingot"
+			id: "1A38EF0CF010E25F"
+			rewards: [{
+				id: "640850B4FCB5E85D"
+				type: "xp_levels"
+				xp_levels: 3
+			}]
+			subtitle: "The foundry metal"
+			tasks: [{
+				id: "09E683F8849B16D3"
+				item: "createmetallurgy:tungsten_ingot"
+				type: "item"
+			}]
+			title: "Tungsten"
+			x: -2.0d
+			y: 1.5d
+		}
+		{
+			dependencies: ["2DEC2EF6A081A0DF"]
+			description: [
+				"Boron, lithium, magnesium, cobalt, platinum, silver and thorium"
+				"are found only in NuclearCraft ore."
+			]
+			icon: "nuclearcraft:boron_ingot"
+			id: "60CA1550F9523D40"
+			rewards: [{
+				id: "193F218D0CB27D1A"
+				type: "xp_levels"
+				xp_levels: 4
+			}]
+			subtitle: "The unique NuclearCraft ores"
+			tasks: [
+				{
+					id: "448931E85DFB8425"
+					item: "nuclearcraft:boron_ingot"
+					type: "item"
+				}
+				{
+					id: "2B6C87F0D9115A3D"
+					item: "nuclearcraft:lithium_ingot"
+					type: "item"
+				}
+				{
+					id: "2D673312ED3A5ECE"
+					item: "nuclearcraft:magnesium_ingot"
+					type: "item"
+				}
+			]
+			title: "Light Elements"
+			x: 0.0d
+			y: 3.0d
+		}
+		{
+			dependencies: ["60CA1550F9523D40"]
+			description: [
+				"NuclearCraft thorium ore is now the only thorium ore."
+				"A Thorium Chunk crafts straight into Create: New Age thorium."
+			]
+			icon: "nuclearcraft:thorium_chunk"
+			id: "7EADDBE6BC408EEE"
+			rewards: [{
+				id: "286F2C409F7031CC"
+				type: "xp_levels"
+				xp_levels: 4
+			}]
+			subtitle: "A single source"
+			tasks: [{
+				id: "18A4BA04F96FF0BF"
+				item: "nuclearcraft:thorium_chunk"
+				type: "item"
+			}]
+			title: "One Thorium"
+			x: 0.0d
+			y: 4.5d
+		}
+		{
+			dependencies: ["213022E5757FDB2B"]
+			description: [
+				"Alex's Caves hides five cave biomes underground."
+				"The Magnetic Caves hold neodymium."
+			]
+			icon: "alexscaves:scarlet_neodymium_ingot"
+			id: "2DC17FF2AEB847FB"
+			rewards: [{
+				id: "4AE00FA99A4F779D"
+				type: "xp_levels"
+				xp_levels: 4
+			}]
+			subtitle: "Neodymium"
+			tasks: [{
+				id: "72A61AD369A16700"
+				item: "alexscaves:scarlet_neodymium_ingot"
+				type: "item"
+			}]
+			title: "Magnetic Caves"
+			x: -2.0d
+			y: 3.0d
+		}
+	]
+	subtitle: ["The world got deeper."]
+	title: "New Ground"
+}

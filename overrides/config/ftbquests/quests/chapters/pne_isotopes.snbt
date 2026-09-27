@@ -1,0 +1,169 @@
+{
+	default_hide_dependency_lines: false
+	default_quest_shape: ""
+	filename: "pne_isotopes"
+	group: "33F52EEFB606DD2F"
+	icon: "mekanism:pellet_polonium"
+	id: "52E23B64336CE1CA"
+	order_index: 4
+	quest_links: [ ]
+	quests: [
+		{
+			icon: "mekanism:ingot_uranium"
+			id: "60ED19A2BB10992C"
+			rewards: [{
+				id: "67F5CF63EFE2A7E9"
+				type: "xp_levels"
+				xp_levels: 3
+			}]
+			subtitle: "Refine it"
+			tasks: [{
+				count: 8L
+				id: "553B87853E9B95ED"
+				item: "mekanism:ingot_uranium"
+				type: "item"
+			}]
+			title: "Uranium"
+			x: 0.0d
+			y: 0.0d
+		}
+		{
+			dependencies: ["60ED19A2BB10992C"]
+			description: [
+				"The Mekanism Fission Reactor burns fissile fuel and needs serious cooling."
+				"A meltdown is not a figure of speech."
+			]
+			icon: "mekanismgenerators:fission_reactor_casing"
+			id: "16188F02B9C8B42C"
+			rewards: [{
+				id: "0B01FDF8C3BE5C7E"
+				type: "xp_levels"
+				xp_levels: 5
+			}]
+			subtitle: "Build a reactor"
+			tasks: [{
+				count: 16L
+				id: "739D1C54C1A6005F"
+				item: "mekanismgenerators:fission_reactor_casing"
+				type: "item"
+			}]
+			title: "Fission"
+			x: 0.0d
+			y: 1.5d
+		}
+		{
+			dependencies: ["60ED19A2BB10992C"]
+			description: ["Create: New Age builds its reactor from Create parts and runs it on thorium."]
+			icon: "create_new_age:nuclear_fuel"
+			id: "791BEE59AE78E3CA"
+			rewards: [{
+				id: "45030895E077F036"
+				type: "xp_levels"
+				xp_levels: 5
+			}]
+			subtitle: "Create: New Age"
+			tasks: [{
+				id: "2351664FC92CB43A"
+				item: "create_new_age:nuclear_fuel"
+				type: "item"
+			}]
+			title: "Thorium Reactor"
+			x: 2.0d
+			y: 1.5d
+		}
+		{
+			dependencies: ["16188F02B9C8B42C"]
+			description: ["Spent fuel leaves radioactive waste. Store it; do not dump it."]
+			icon: "mekanism:radioactive_waste_barrel"
+			id: "4D8B0CEF7E1F4FDC"
+			rewards: [{
+				id: "4D58A87833441A82"
+				type: "xp_levels"
+				xp_levels: 3
+			}]
+			subtitle: "Contain it"
+			tasks: [{
+				id: "76D3045ABEE3084B"
+				item: "mekanism:radioactive_waste_barrel"
+				type: "item"
+			}]
+			title: "Waste"
+			x: -2.0d
+			y: 3.0d
+		}
+		{
+			dependencies: ["4D8B0CEF7E1F4FDC"]
+			description: [
+				"Run waste through a Solar Neutron Activator."
+				"Hive hunters have a shortcut: see Counter-Infection."
+			]
+			icon: "mekanism:pellet_polonium"
+			id: "451F92556235787C"
+			rewards: [{
+				id: "2AA802B158F0D554"
+				type: "xp_levels"
+				xp_levels: 5
+			}]
+			subtitle: "Activate the waste"
+			tasks: [{
+				id: "618A252D36375C9A"
+				item: "mekanism:pellet_polonium"
+				type: "item"
+			}]
+			title: "Polonium"
+			x: -2.0d
+			y: 4.5d
+		}
+		{
+			dependencies: ["4D8B0CEF7E1F4FDC"]
+			icon: "mekanism:pellet_plutonium"
+			id: "2E3FD9ACA16852A2"
+			rewards: [{
+				id: "10738B9BEE4B1DB9"
+				type: "xp_levels"
+				xp_levels: 5
+			}]
+			subtitle: "Breed it"
+			tasks: [{
+				id: "12CEC7C96D275C65"
+				item: "mekanism:pellet_plutonium"
+				type: "item"
+			}]
+			title: "Plutonium"
+			x: 0.0d
+			y: 4.5d
+		}
+		{
+			dependencies: ["2E3FD9ACA16852A2"]
+			description: [
+				"NuclearCraft tracks every isotope, from boron-10 to californium."
+				"This is the deep end."
+			]
+			icon: "nuclearcraft:plutonium_239"
+			id: "63651DEDF0572175"
+			rewards: [{
+				id: "3365B71C5C729D9C"
+				type: "xp_levels"
+				xp_levels: 8
+			}]
+			subtitle: "The NuclearCraft deep end"
+			tasks: [
+				{
+					id: "3C95DEFD04FB7933"
+					item: "nuclearcraft:plutonium_239"
+					type: "item"
+				}
+				{
+					id: "27003FDAC119B309"
+					item: "nuclearcraft:americium_241"
+					type: "item"
+				}
+			]
+			title: "The Full Table"
+			x: 0.0d
+			y: 6.0d
+		}
+	]
+	subtitle: ["Split the atom."]
+	title: "Isotopes"
+}

@@ -1,0 +1,26 @@
+# Never commit other authors' mods: install them from mods/manifest.json
+*.jar
+*.jar.disabled
+
+# Generated from your local EPCA jar by tools/gen_loot_overrides.py (closed-source data)
+overrides/kubejs/data/epca/loot_tables/
+
+# Personal or machine-specific instance files
+minecraftinstance.json
+options.txt
+usercache.json
+usernamecache.json
+logs/
+crash-reports/
+saves/
+screenshots/
+essential/
+local/
+*.bak-pne
+*.log
+
+# Python / editor noise
+__pycache__/
+*.pyc
+.vscode/
+.idea/

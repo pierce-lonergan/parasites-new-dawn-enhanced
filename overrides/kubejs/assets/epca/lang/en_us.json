@@ -1,0 +1,20 @@
+{
+  "epca.stage.-2": "\u00a77The world's barrier is whole here. Nothing is getting through. Not yet.",
+  "epca.stage.-1": "\u00a77The world's barrier is whole here, but thinner than it looks. Nothing is getting through. Not yet.",
+  "epca.stage.0": "\u00a7eThe world's barrier has loosened. \u00a77After dark, Curbugs crawl through the gaps.",
+  "epca.stage.1": "\u00a76World Barrier Integrity 90%. \u00a77Rippers have found the way in. Cast a line, and one catch in ten comes up as a Fins.",
+  "epca.stage.2": "\u00a76World Barrier Integrity 80%. \u00a77The villagers, the herds, the dead and the wolves come back infested, and their severed heads keep walking.",
+  "epca.stage.3": "\u00a7cWorld Barrier Integrity 70%. \u00a77Fins hunt the water. Any creature that dies carrying the Call of the Hive leaves nothing behind.",
+  "epca.stage.4": "\u00a7cWorld Barrier Integrity 60%. \u00a77The Reshaped walk now: Longarms, Yelloweye, and Endermen with the hive inside them. Every fishing catch is lost to the water.",
+  "epca.stage.5": "\u00a7cWorld Barrier Integrity 50%. \u00a77Strike one parasite and every parasite within 32 blocks hears it.",
+  "epca.stage.6": "\u00a74World Barrier Integrity 40%. \u00a77A fight is now heard 48 blocks away. One in five living things arrives already carrying the Call of the Hive. So might you, each time you respawn or return.",
+  "epca.stage.7": "\u00a74World Barrier Integrity 30%. \u00a77A fight is heard 64 blocks away. Two in five arrive infected. Of the parasites, only infested Endermen still crawl out of the dark. Every other one was made from something that lived.",
+  "epca.stage.8": "\u00a74World Barrier Integrity 20%. \u00a77A fight is heard 96 blocks away. Three in five arrive infected. No parasite crawls out of the dark anymore. The hive no longer needs them to: it grows from what it converts.",
+  "epca.stage.9": "\u00a74World Barrier Integrity 10%. \u00a77A fight is heard 112 blocks away. Nine in ten arrive infected.",
+  "epca.stage.10": "\u00a74\u00a7lWorld Barrier Integrity 1%.\u00a7r \u00a77A fight is heard 128 blocks away. Every living thing that enters the world arrives carrying the Call of the Hive. Every one.",
+  "epca.stage.11": "\u00a75World Barrier Integrity below 1%. \u00a77The Call arrives stronger with every birth. Parasites strike a quarter harder.",
+  "epca.stage.12": "\u00a75World Barrier Integrity below 1%. \u00a77Parasites strike twice as hard. The hive no longer bothers to hide.",
+  "epca.stage.13": "\u00a75\u00a7lThe world's barrier is gone.\u00a7r \u00a77Parasites strike three times as hard, and nothing but parasites will ever spawn again. There is only the hive.",
+  "epca.message.stage_too_low": "Erosion is below stage 3. The hive will not take root here.",
+  "effect.epca.coth": "\u00a7cCall of the Hive"
+}

@@ -1,0 +1,173 @@
+{
+	default_hide_dependency_lines: false
+	default_quest_shape: ""
+	filename: "pne_counter_infection"
+	group: "33F52EEFB606DD2F"
+	icon: "pne:hive_catalyst"
+	id: "31F400988E2E8D90"
+	order_index: 5
+	quest_links: [ ]
+	quests: [
+		{
+			description: [
+				"Beckons drop Beckon Membranes."
+				"Smelt one to cook the infection out."
+			]
+			icon: "pne:sterilized_membrane"
+			id: "52406778F33231B9"
+			rewards: [{
+				id: "3AA37FAF4AD508D1"
+				type: "xp_levels"
+				xp_levels: 3
+			}]
+			subtitle: "Sterilize a beckon membrane"
+			tasks: [{
+				id: "660E7DD06395EC91"
+				item: "pne:sterilized_membrane"
+				type: "item"
+			}]
+			title: "Clean Membrane"
+			x: 0.0d
+			y: 0.0d
+		}
+		{
+			description: [
+				"2 Glass Bottles + Diseased Heart + Sterilized Membrane + Fluorite = 2 Hive Serum."
+				"Drinking one purges Call of the Hive, Bleeding, Corrosion, Fear, Viral and Ender Erosion,"
+				"and grants 30 seconds of Resistance."
+			]
+			icon: "pne:hive_serum"
+			id: "681DB02F8025643D"
+			rewards: [{
+				id: "09C615610E28B518"
+				type: "xp_levels"
+				xp_levels: 5
+			}]
+			subtitle: "The cure"
+			tasks: [{
+				count: 2L
+				id: "700FAB8811DD2C73"
+				item: "pne:hive_serum"
+				type: "item"
+			}]
+			title: "Hive Serum"
+			x: 0.0d
+			y: 1.5d
+		}
+		{
+			dependencies: ["681DB02F8025643D"]
+			description: ["Stage I Beckons plant Beckon Cores: the heart of a hive."]
+			icon: "epca:stage_i_beckon_spawn_egg"
+			id: "2B234ADD246F5BBD"
+			rewards: [{
+				id: "284A1AD414BFEC5C"
+				type: "xp_levels"
+				xp_levels: 4
+			}]
+			subtitle: "Spot a Stage I Beckon"
+			tasks: [{
+				id: "7F5B36634545B98E"
+				observe_type: 5
+				timer: 0L
+				to_observe: "epca:stage_i_beckon"
+				type: "observation"
+			}]
+			title: "Find the Hive"
+			x: 0.0d
+			y: 3.0d
+		}
+		{
+			dependencies: ["2B234ADD246F5BBD"]
+			description: [
+				"A Beckon Core only drops when mined with Silk Touch."
+				"Any other tool destroys it."
+			]
+			icon: "epca:beckon_core"
+			id: "4466389A8FC6FC14"
+			rewards: [{
+				count: 2
+				id: "3F607E254153ECE9"
+				item: "minecraft:golden_apple"
+				type: "item"
+			}]
+			subtitle: "Harvest a Beckon Core"
+			tasks: [{
+				id: "6A147507277178B9"
+				item: "epca:beckon_core"
+				type: "item"
+			}]
+			title: "Pull the Heart Out"
+			x: 0.0d
+			y: 4.5d
+		}
+		{
+			description: [
+				"Beckon Core + 4 Irradiated Biomass + 4 Uranium Shards."
+				"Requires hunting in the Toxic Caves."
+			]
+			icon: "pne:hive_catalyst"
+			id: "204D440DE11CCDF0"
+			rewards: [{
+				id: "6B90111582905023"
+				type: "xp_levels"
+				xp_levels: 6
+			}]
+			subtitle: "The will of the hive, crystallized"
+			tasks: [{
+				id: "4EB82653D9DC554A"
+				item: "pne:hive_catalyst"
+				type: "item"
+			}]
+			title: "Hive Catalyst"
+			x: 0.0d
+			y: 6.0d
+		}
+		{
+			dependencies: ["204D440DE11CCDF0"]
+			description: ["A Hive Catalyst forges a Totem of Undying. No woodland mansion required."]
+			icon: "minecraft:totem_of_undying"
+			id: "395FA4D448E5A182"
+			rewards: [{
+				id: "7A6ECB4DDAEE3B3C"
+				type: "xp_levels"
+				xp_levels: 5
+			}]
+			subtitle: "Forge a totem"
+			tasks: [{
+				id: "246C39FD38A87126"
+				item: "minecraft:totem_of_undying"
+				type: "item"
+			}]
+			title: "Cheat Death"
+			x: -2.0d
+			y: 7.5d
+		}
+		{
+			dependencies: ["204D440DE11CCDF0"]
+			description: [
+				"The hive evolves. So should you."
+				"A Hive Catalyst plus 2 Uranium Dust also makes 2 Polonium Pellets."
+			]
+			icon: "epca:stage_ii_beckon_spawn_egg"
+			id: "4E8536EE801949E1"
+			rewards: [{
+				id: "122761682069666C"
+				item: "minecraft:enchanted_golden_apple"
+				type: "item"
+			}]
+			subtitle: "Face what comes next"
+			tasks: [{
+				id: "17F69E25FA0CFE6B"
+				observe_type: 5
+				timer: 0L
+				to_observe: "epca:stage_ii_beckon"
+				type: "observation"
+			}]
+			title: "The Second Stage"
+			x: 2.0d
+			y: 7.5d
+		}
+	]
+	subtitle: ["Turn the hive against itself."]
+	title: "Counter-Infection"
+}

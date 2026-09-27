@@ -1,0 +1,243 @@
+{
+	default_hide_dependency_lines: false
+	default_quest_shape: ""
+	filename: "pne_hive_nights"
+	group: "33F52EEFB606DD2F"
+	icon: "epca:diseased_heart"
+	id: "1285357108097AC2"
+	order_index: 6
+	quest_links: [ ]
+	quests: [
+		{
+			description: [
+				"The parasites were never alone out there."
+				"A second strain came up through the soil: fungal, patient, and hungry."
+				"It does not hunt the parasites, and they do not hunt it."
+				"They have agreed on you."
+			]
+			icon: "spore:mutated_fiber"
+			id: "74EBA456189B667D"
+			rewards: [
+				{
+					id: "6B8D67F6669802BE"
+					type: "xp_levels"
+					xp_levels: 2
+				}
+			]
+			subtitle: "Spot a Spore creature"
+			tasks: [
+				{
+					icon: "spore:mutated_fiber"
+					id: "271ECAA432F05DBE"
+					observe_type: 6
+					timer: 0L
+					title: "Look at anything Spore made"
+					to_observe: "spore:fungus_entities"
+					type: "observation"
+				}
+			]
+			title: "Two Strains"
+			x: -2.0d
+			y: 0.0d
+		}
+		{
+			dependencies: ["74EBA456189B667D"]
+			description: [
+				"Infected Humans are the strain's foot soldiers and its most common natural spawn."
+				"They arrive in groups, never alone."
+				"Kill them while they are still this weak. Left alive, the infected evolve."
+			]
+			icon: "spore:infected_human_spawnegg"
+			id: "91779DC5DB798128"
+			rewards: [
+				{
+					id: "F3D1AB5A14791B9D"
+					type: "xp_levels"
+					xp_levels: 3
+				}
+			]
+			subtitle: "Kill an Infected Human"
+			tasks: [
+				{
+					entity: "spore:inf_human"
+					icon: "spore:infected_human_spawnegg"
+					id: "442C4DAC1299D573"
+					type: "kill"
+					value: 1L
+				}
+			]
+			title: "What Was Once a Man"
+			x: -2.0d
+			y: 1.5d
+		}
+		{
+			dependencies: ["74EBA456189B667D"]
+			description: [
+				"A dying Scamper can plant a Flesh Mound where it falls."
+				"The Mound spreads fungal growth across the ground around it."
+				"Spore itself calls it a Propagator of Infestation. Do not let it propagate."
+			]
+			icon: "spore:mound_spawnegg"
+			id: "EDCD06D2153D9977"
+			rewards: [
+				{
+					id: "633177B1ECCDBE44"
+					type: "xp_levels"
+					xp_levels: 4
+				}
+			]
+			subtitle: "Kill a Flesh Mound"
+			tasks: [
+				{
+					entity: "spore:mound"
+					icon: "spore:mound_spawnegg"
+					id: "ACF3AB0864CD7B49"
+					type: "kill"
+					value: 1L
+				}
+			]
+			title: "Burn the Mound"
+			x: -2.0d
+			y: 3.0d
+		}
+		{
+			description: [
+				"Every seventh night a horde hunts you, and the horde is parasites."
+				"It knows where you are. On a horde day, no bed will let you sleep."
+				""
+				"Stay alive for 200,000 ticks in one life: just over eight days."
+				"That is long enough that a Hive Night will have come for you."
+				"Dying resets the count."
+			]
+			icon: "minecraft:bell"
+			id: "A8CB05204C76B676"
+			rewards: [
+				{
+					count: 2
+					id: "A98F951A7D19CA62"
+					item: "pne:hive_serum"
+					type: "item"
+				}
+				{
+					id: "34F2AFB89FA8C0EA"
+					type: "xp_levels"
+					xp_levels: 5
+				}
+			]
+			subtitle: "Stay alive through a horde night"
+			tasks: [
+				{
+					icon: "minecraft:clock"
+					id: "8E976EFF8FA9EE21"
+					stat: "minecraft:time_since_death"
+					title: "Stay alive for 200,000 ticks"
+					type: "stat"
+					value: 200000
+				}
+			]
+			title: "Hive Night"
+			x: 0.0d
+			y: 0.0d
+		}
+		{
+			description: [
+				"Longarms only walk out of the dark on their own once erosion reaches stage 4:"
+				"World Barrier Integrity 60%."
+				"From stage 4, every fishing catch is lost to the water."
+				"From stage 3, any creature that dies carrying the Call of the Hive drops nothing."
+			]
+			icon: "epca:reshape_longarms_spawn_egg"
+			id: "2FBC63B5435653C0"
+			rewards: [
+				{
+					id: "8C82D89BDD3342E4"
+					type: "xp_levels"
+					xp_levels: 4
+				}
+			]
+			subtitle: "See a Reshape-Longarms"
+			tasks: [
+				{
+					icon: "epca:reshape_longarms_spawn_egg"
+					id: "961C8641566E9837"
+					observe_type: 5
+					timer: 0L
+					to_observe: "epca:reshape_longarms"
+					type: "observation"
+				}
+			]
+			title: "Sixty Percent"
+			x: 0.0d
+			y: 1.5d
+		}
+		{
+			dependencies: ["2FBC63B5435653C0"]
+			description: [
+				"It has had time to learn how you fight."
+				"Hitting one parasite calls the others: from stage 5 the call carries 32 blocks,"
+				"and it reaches farther with every stage after that."
+				"Kill it fast, or kill it far from anything else."
+			]
+			icon: "epca:reshape_flesh"
+			id: "D0510E1BC6FC02F7"
+			rewards: [
+				{
+					id: "E7903F5DB7BFA130"
+					item: "pne:hive_serum"
+					type: "item"
+				}
+				{
+					id: "F29354402540B364"
+					type: "xp_levels"
+					xp_levels: 6
+				}
+			]
+			subtitle: "Kill a Reshape-Longarms"
+			tasks: [
+				{
+					entity: "epca:reshape_longarms"
+					icon: "epca:reshape_longarms_spawn_egg"
+					id: "AD7D9CA5B58E4AF9"
+					type: "kill"
+					value: 1L
+				}
+			]
+			title: "Take Its Arms"
+			x: 0.0d
+			y: 3.0d
+		}
+		{
+			description: [
+				"Something that is not a parasite lives in the deep caves."
+				"It hunts only in the dark, and you will hear it long before you see it."
+				"It can tell when you are looking at it."
+				"Outlast it, and it leaves."
+			]
+			icon: "cave_dweller:cave_dweller_spawn_egg"
+			id: "8214E81DBFA7DC52"
+			rewards: [
+				{
+					id: "31B6CB8BCB60123E"
+					type: "xp_levels"
+					xp_levels: 3
+				}
+			]
+			subtitle: "Meet the Cave Dweller"
+			tasks: [
+				{
+					icon: "cave_dweller:cave_dweller_spawn_egg"
+					id: "FDD4EEB917C1594C"
+					observe_type: 5
+					timer: 0L
+					to_observe: "cave_dweller:cave_dweller"
+					type: "observation"
+				}
+			]
+			title: "It Knows You Are Looking"
+			x: 2.0d
+			y: 0.0d
+		}
+	]
+	subtitle: ["The ground is singing. Do not answer it."]
+	title: "Hive Nights"
+}

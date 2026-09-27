@@ -1,0 +1,149 @@
+{
+	default_hide_dependency_lines: false
+	default_quest_shape: ""
+	filename: "pne_infested_veins"
+	group: "33F52EEFB606DD2F"
+	icon: "epca:infested_raw_iron"
+	id: "1E3B9507B6B8299B"
+	order_index: 1
+	quest_links: [ ]
+	quests: [
+		{
+			description: [
+				"Parasites infest ore veins, and mining them is dangerous."
+				"Infested raw metal still smelts, but you can do better."
+			]
+			icon: "epca:infested_raw_iron"
+			id: "5F009F9BD8E8F3DA"
+			rewards: [{
+				id: "5004E5EDF6AD7855"
+				type: "xp_levels"
+				xp_levels: 2
+			}]
+			subtitle: "Mine an infested ore"
+			tasks: [{
+				id: "36CCC11C6C125606"
+				item: "epca:infested_raw_iron"
+				type: "item"
+			}]
+			title: "Something in the Rock"
+			x: 0.0d
+			y: 0.0d
+		}
+		{
+			dependencies: ["5F009F9BD8E8F3DA"]
+			description: [
+				"Infested gems used to be useless. Now you can smelt one to cook the parasite out (1:1),"
+				"or crush it for a 25% bonus and some biomass."
+			]
+			icon: "epca:infested_diamond"
+			id: "3A7838DC01C4F7C3"
+			rewards: [{
+				id: "4C4F46E8BD3D214C"
+				type: "xp_levels"
+				xp_levels: 3
+			}]
+			subtitle: "Clean an infested gem"
+			tasks: [{
+				id: "44FDAAA1881D124C"
+				item: "epca:infested_diamond"
+				type: "item"
+			}]
+			title: "Sterilize"
+			x: 0.0d
+			y: 1.5d
+		}
+		{
+			dependencies: ["5F009F9BD8E8F3DA"]
+			description: [
+				"Infested raw metal crushes into 1 + 50% crushed ore, plus biomass and XP."
+				"Plain raw ore gives only 1."
+			]
+			icon: "create:crushing_wheel"
+			id: "083E16A19E687A7B"
+			rewards: [{
+				id: "1C8AC816695287AF"
+				type: "xp_levels"
+				xp_levels: 3
+			}]
+			subtitle: "Crush infested metal"
+			tasks: [{
+				count: 2L
+				id: "5A43F21B9199F612"
+				item: "create:crushing_wheel"
+				type: "item"
+			}]
+			title: "Crushing Wheels"
+			x: -2.0d
+			y: 3.0d
+		}
+		{
+			dependencies: ["5F009F9BD8E8F3DA"]
+			description: [
+				"An Enrichment Chamber turns 1 infested raw metal into 2 dust."
+				"Plain raw ore gives 4 dust per 3."
+			]
+			icon: "mekanism:enrichment_chamber"
+			id: "010FCFD2AB7EC7AF"
+			rewards: [{
+				id: "15D0892566D0F8AE"
+				type: "xp_levels"
+				xp_levels: 3
+			}]
+			subtitle: "Build an Enrichment Chamber"
+			tasks: [{
+				id: "5FECBEAF7F741E4C"
+				item: "mekanism:enrichment_chamber"
+				type: "item"
+			}]
+			title: "Enrichment"
+			x: 2.0d
+			y: 3.0d
+		}
+		{
+			dependencies: ["083E16A19E687A7B"]
+			description: [
+				"With Silk Touch, the ore block itself is worth far more."
+				"Infested ore crushes to 2 + 50% crushed ore; heavy infested ore to 4 + 50%."
+				"Enriching gives 3 dust, or 6 from heavy ore."
+			]
+			icon: "epca:infested_heavy_iron_ore"
+			id: "31366783828ABE19"
+			rewards: [{
+				id: "3FDD5ACFF731D498"
+				type: "xp_levels"
+				xp_levels: 5
+			}]
+			subtitle: "Bring home a heavy ore block"
+			tasks: [{
+				id: "258D4E0CDA5A29B2"
+				item: "epca:infested_heavy_iron_ore"
+				type: "item"
+			}]
+			title: "Silk and Steel"
+			x: -2.0d
+			y: 4.5d
+		}
+		{
+			description: ["Triple your ore. The Chemical Injection and Dissolution Chambers go to 4x and 5x."]
+			icon: "mekanism:purification_chamber"
+			id: "6D50CE3D6E1106EE"
+			rewards: [{
+				id: "743D808C6EEC851E"
+				type: "xp_levels"
+				xp_levels: 5
+			}]
+			subtitle: "The 3x ore tier"
+			tasks: [{
+				id: "5F4C06807271B8AC"
+				item: "mekanism:purification_chamber"
+				type: "item"
+			}]
+			title: "Purification"
+			x: 2.0d
+			y: 4.5d
+		}
+	]
+	subtitle: ["The parasites got into the ore."]
+	title: "Infested Veins"
+}

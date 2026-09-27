@@ -1,0 +1,29 @@
+#PNE comfort pre-seed: Spore's full-screen effect overlays (bile film, corrosion, madness, mycelium, tar) are off.
+#On first launch Spore and Forge add every other key with its default and keep this value.
+[Effects]
+	"Should the effect overlays be active ?" = false
+
+#PNE alliance pre-seed: Spore never picks EPCA mobs as targets ("epca:" = the whole namespace;
+#Utilities.TARGET_SELECTOR_PREDICATE treats an entry ending in ':' as a namespace). The first ten
+#entries are Spore 2.2.0j's own defaults (SConfig$Server bytecode). kubejs/startup_scripts/pne_alliance.js
+#stays as the backstop.
+["Targeting Tasks"]
+	"Mobs Not Targeted" = ["minecraft:creeper", "minecraft:allay", "minecraft:dolphin", "minecraft:glow_squid", "minecraft:squid", "minecraft:bat", "minecraft:armor_stand", "creeperoverhaul:", "sculkhorde:", "fromanotherworld:", "epca:"]
+
+#PNE pre-seed (mod-configs track): no Spore block griefing, so bases and Dynamic Trees survive.
+#Keys and sections read from spore_1.20.1_2.2.0j.jar SConfig$Server (COMMON, sporeconfig.toml).
+#Griefer and Chemist explosions still deal damage; they only stop breaking blocks (ExplosionInteraction.NONE).
+[Mobs]
+
+	[Mobs.Griefer]
+		"Should explosion break blocks ?" = false
+
+	[Mobs.Chemist]
+		"Should explosion break blocks ?" = false
+
+#Calamities break blocks with 0 <= hardness < value; hyper evolveds and experiments with 0 < hardness <= value.
+#0 disables both (biomass blocks still turn into membrane). Jar defaults: 5, 3, 1.
+["Griefing Parameters"]
+	"The block breaking hardness of calamities" = 0
+	"The block breaking hardness of hyper evolveds" = 0
+	"The block breaking hardness of experiments" = 0

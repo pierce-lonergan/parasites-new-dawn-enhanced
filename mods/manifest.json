@@ -1,0 +1,242 @@
+{
+  "pack": "parasites new dawn - 100 days with parasites",
+  "curseforgeProject": 1549512,
+  "minecraft": "1.20.1",
+  "forge": "47.4.10",
+  "added": [
+    {
+      "group": "Radioactive mining",
+      "name": "Alex's Caves",
+      "slug": "alexs-caves",
+      "version": "2.0.2",
+      "file": "alexscaves-2.0.2.jar",
+      "size": 74871657,
+      "sha512": "d23092cf507f4cf66ead45d7b393393ea83a9002056962ee6c341e91323ae39e10f2aefbbbc9f5e54409eb3ee522ad0c2dd5661077b09f1e37d034cfdd4333a0",
+      "url": "https://cdn.modrinth.com/data/U6GY0xp0/versions/lC8HHXOF/alexscaves-2.0.2.jar",
+      "page": "https://modrinth.com/mod/alexs-caves",
+      "license": "LGPL-3.0-only"
+    },
+    {
+      "group": "Radioactive mining",
+      "name": "Mekanism",
+      "slug": "mekanism",
+      "version": "10.4.16.80",
+      "file": "Mekanism-1.20.1-10.4.16.80.jar",
+      "size": 12558456,
+      "sha512": "a838bb3fa5550ba3589a81005fde2ca04b5d33417ae65a8060bbc46ba948dec2d16ab0871a55e73e0ca39651b33814eb508b5b85d337e6ed8874b79383f3e6f0",
+      "url": "https://cdn.modrinth.com/data/Ce6I4WUE/versions/uxe1WQp4/Mekanism-1.20.1-10.4.16.80.jar",
+      "page": "https://modrinth.com/mod/mekanism",
+      "license": "MIT"
+    },
+    {
+      "group": "Radioactive mining",
+      "name": "Mekanism Generators",
+      "slug": "mekanism-generators",
+      "version": "10.4.16.80",
+      "file": "MekanismGenerators-1.20.1-10.4.16.80.jar",
+      "size": 1054586,
+      "sha512": "f377ddd719cc5df6b09c81b16467da5ca6645237270c6f81556304585ebaee79030613783418a7b100ed6695857d17ce2d83ecfd123abf309e78ea3c0c2d1d12",
+      "url": "https://cdn.modrinth.com/data/OFVYKsAk/versions/Th4Czz4N/MekanismGenerators-1.20.1-10.4.16.80.jar",
+      "page": "https://modrinth.com/mod/mekanism-generators",
+      "license": "MIT"
+    },
+    {
+      "group": "Radioactive mining",
+      "name": "Mekanism Tools",
+      "slug": "mekanism-tools",
+      "version": "10.4.16.80",
+      "file": "MekanismTools-1.20.1-10.4.16.80.jar",
+      "size": 517999,
+      "sha512": "23384cd2fe7572080004632cf5534b9aca22ea7a8a15b4a5ec34ff43851bc5c6bd36e18a5e76da70954c1c629ebef19bfd9a4a343601f8775d537798a48f2296",
+      "url": "https://cdn.modrinth.com/data/tqQpq1lt/versions/VzpFbUpF/MekanismTools-1.20.1-10.4.16.80.jar",
+      "page": "https://modrinth.com/mod/mekanism-tools",
+      "license": "MIT"
+    },
+    {
+      "group": "Radioactive mining",
+      "name": "NuclearCraft Neoteric",
+      "slug": "nuclearcraft-neoteric",
+      "version": "1.2.36",
+      "file": "NuclearCraft-1.20.1-1.2.36.jar",
+      "size": 30880018,
+      "sha512": "0f1297562dedd70d531a6054466ac7b43d51a64bedc4730b2050187aff0e5437d3a8771abfbb1cc6d1a2e0d6fa749cdcd828a05443d4bf4ec13f5f2c7ccca241",
+      "url": "https://cdn.modrinth.com/data/Qvd8pl5G/versions/kefJECnt/NuclearCraft-1.20.1-1.2.36.jar",
+      "page": "https://modrinth.com/mod/nuclearcraft-neoteric",
+      "license": "MIT"
+    },
+    {
+      "group": "Radioactive mining",
+      "name": "Create: New Age",
+      "slug": "create-new-age",
+      "version": "1.2.0+mc1.20.1",
+      "file": "create-new-age-1.2.0+forge-mc1.20.1.jar",
+      "size": 1206077,
+      "sha512": "2a24913624febc797275654dd31a6ef0aeb63da71d243b5ab9c58b7fc8e51455f24645bed87ec430bd166c69e23df044dcfcf5fc2bde1d8b7c1c3206724a7a07",
+      "url": "https://cdn.modrinth.com/data/FTeXqI9v/versions/7vnwbouk/create-new-age-1.2.0%2Bforge-mc1.20.1.jar",
+      "page": "https://modrinth.com/mod/create-new-age",
+      "license": "BSD-3-Clause"
+    },
+    {
+      "group": "Integration",
+      "name": "KubeJS",
+      "slug": "kubejs",
+      "version": "2001.6.5-build.26+forge",
+      "file": "kubejs-forge-2001.6.5-build.26.jar",
+      "size": 1658792,
+      "sha512": "71ef9e5eb5f3bead86b635b42ad305d075c6487e631217b281d938193dcdc5fe0ff6bae8c86dd4e069726223a66e8690c0610f736c5a62910f60fd80edd575c1",
+      "url": "https://cdn.modrinth.com/data/umyGl7zF/versions/hVR2xUSr/kubejs-forge-2001.6.5-build.26.jar",
+      "page": "https://modrinth.com/mod/kubejs",
+      "license": "LGPL-3.0-only"
+    },
+    {
+      "group": "Integration",
+      "name": "Rhino",
+      "slug": "rhino",
+      "version": "2001.2.3-build.10+forge",
+      "file": "rhino-forge-2001.2.3-build.10.jar",
+      "size": 1798244,
+      "sha512": "4eb6a635f3eff3baa158539bd55344421cf69b15e28f7da8bf55f370a11c071f3525063a6f81b67fbfca550ad8aaab7e6208df87f65ca6ed2851edd46f032b58",
+      "url": "https://cdn.modrinth.com/data/sk9knFPE/versions/uNALdylI/rhino-forge-2001.2.3-build.10.jar",
+      "page": "https://modrinth.com/mod/rhino",
+      "license": "MPL-2.0"
+    },
+    {
+      "group": "Integration",
+      "name": "KubeJS Create",
+      "slug": "kubejs-create",
+      "version": "2001.3.0-build.8+forge",
+      "file": "kubejs-create-forge-2001.3.0-build.8.jar",
+      "size": 30960,
+      "sha512": "1c6fa2b3dc52683bdf124ebfc507ad5adb5f1ceb147181466be4e495bc6eab1411976911477df538369ff2529607cb73bf3b4a05a8ed2f24804f4891d7635981",
+      "url": "https://cdn.modrinth.com/data/T38eAZQC/versions/5vppyenb/kubejs-create-forge-2001.3.0-build.8.jar",
+      "page": "https://modrinth.com/mod/kubejs-create",
+      "license": "LGPL-3.0-only"
+    },
+    {
+      "group": "Integration",
+      "name": "Almost Unified",
+      "slug": "almostunified",
+      "version": "1.20.1-0.11.0+forge",
+      "file": "almostunified-forge-1.20.1-0.11.0.jar",
+      "size": 218740,
+      "sha512": "fcd7da643e84d7779e32af6916c6f8e808559d4724d565cc6d23fc96527f3bf50ea0b686eca1916c5dfeac146d836cf593a85374b6f04b60215f748aa00e3824",
+      "url": "https://cdn.modrinth.com/data/sdaSaQEz/versions/9qc7KIeg/almostunified-forge-1.20.1-0.11.0.jar",
+      "page": "https://modrinth.com/mod/almostunified",
+      "license": "LicenseRef-All-Rights-Reserved"
+    },
+    {
+      "group": "Quality of life",
+      "name": "Jade \ud83d\udd0d",
+      "slug": "jade",
+      "version": "11.13.3+forge",
+      "file": "Jade-1.20.1-Forge-11.13.3.jar",
+      "size": 553487,
+      "sha512": "72025c4ad6d26522bafe3d5d6ac9d4702c006a868312cb34df8a7a2398a4618205839607b129c167fd176e58cb7655f08e3afbf1993925c80d4fcc559c45a037",
+      "url": "https://cdn.modrinth.com/data/nvQzSEkH/versions/xJQHCmWJ/Jade-1.20.1-Forge-11.13.3.jar",
+      "page": "https://modrinth.com/mod/jade",
+      "license": "CC-BY-NC-SA-4.0"
+    },
+    {
+      "group": "Quality of life",
+      "name": "Patchouli",
+      "slug": "patchouli",
+      "version": "1.20.1-85-forge",
+      "file": "Patchouli-1.20.1-85-FORGE.jar",
+      "size": 642732,
+      "sha512": "15aedda4efcc553d5e3c83aa867b62554bc2fab298b43f55ed324e10507a3605f0ec2c59c01476e6d80b2a49275ef080142e43a6e663f9463b62f520960fc203",
+      "url": "https://cdn.modrinth.com/data/nU0bVIaL/versions/94dtOLgZ/Patchouli-1.20.1-85-FORGE.jar",
+      "page": "https://modrinth.com/mod/patchouli",
+      "license": "CC-BY-NC-SA-3.0"
+    },
+    {
+      "group": "Horror",
+      "name": "Fungal Infection:Spore",
+      "slug": "fungal-infectionspore",
+      "version": "2.2.0j",
+      "file": "spore_1.20.1_2.2.0j.jar",
+      "size": 116439461,
+      "sha512": "32e9e10efd63c341c185da6e7c13dd93a70059573186fa7ba4aecc15ec9cf4af805cfabef91b945d6d5206b8acde24a5eaf0f8bd879185a37c42654eaf2305ac",
+      "url": "https://cdn.modrinth.com/data/X661i40C/versions/PbOZOahW/spore_1.20.1_2.2.0j.jar",
+      "page": "https://modrinth.com/mod/fungal-infectionspore",
+      "license": "LicenseRef-All-Rights-Reserved"
+    },
+    {
+      "group": "Horror",
+      "name": "The Hordes",
+      "slug": "the-hordes",
+      "version": "1.20.1-1.6.3g",
+      "file": "The-Hordes-1.20.1-1.6.3i-all.jar",
+      "size": 619598,
+      "sha512": "a6baf363a395a1f8489f257dc9eccbe4bc04773276388136f4286324bb0726b014f8890a33dce0f49fc3c189a166fabbd42a3bd713ebf75a6397dd4e62fda716",
+      "url": "https://cdn.modrinth.com/data/O3HDffUR/versions/WMyMpstF/The-Hordes-1.20.1-1.6.3i-all.jar",
+      "page": "https://modrinth.com/mod/the-hordes",
+      "license": "LGPL-2.1-only"
+    },
+    {
+      "group": "Horror",
+      "name": "Atlas Lib",
+      "slug": "atlas-lib",
+      "version": "1.20.1-1.1.12",
+      "file": "Atlas Lib-1.20.1-1.1.12.jar",
+      "size": 124436,
+      "sha512": "98875598d4d2077cd851bdb17ce6246ce35fa4b2ddbef8178e3c90d5db3831bda70fb5e60c3cbab3d8481e358469fa2a539cfd72fecd953cef12bf23b37fba55",
+      "url": "https://cdn.modrinth.com/data/G6VHtQr4/versions/PKJi0BrP/Atlas%20Lib-1.20.1-1.1.12.jar",
+      "page": "https://modrinth.com/mod/atlas-lib",
+      "license": "LGPL-2.1-only"
+    },
+    {
+      "group": "Horror",
+      "name": "Mob Dismemberment [UNOFFICIAL MODERN PORT]",
+      "slug": "mob-dismemberment-unofficial-modern-port",
+      "version": "1.20.1-8.0.0",
+      "file": "MobDismemberment-1.20.1-8.0.0.jar",
+      "size": 29303,
+      "sha512": "b3284fed650cf8ee70f41cb5e0136be7193ab4fe0f0d83d2251f3dce8fe53b3c97bae544b49307f4e0d88f402c8563d9e017838c96f37090d5fe8f125e0828ca",
+      "url": "https://cdn.modrinth.com/data/Wbk01tTx/versions/qlwYTecP/MobDismemberment-1.20.1-8.0.0.jar",
+      "page": "https://modrinth.com/mod/mob-dismemberment-unofficial-modern-port",
+      "license": "LGPL-3.0-only"
+    },
+    {
+      "group": "Horror",
+      "name": "Cave Dweller Evolved",
+      "slug": "cave-dweller-evolved",
+      "version": "1.7.0",
+      "file": "cave_dweller-1.20.1-1.7.0.jar",
+      "size": 626860,
+      "sha512": "78e98458d7c0c85ee696faa2934689916d1712094151e4b37e2c05e98eaaf413aac05316bf060373462d84965264c35b5abaf9a2fb9370705e4912ea17063d30",
+      "url": "https://cdn.modrinth.com/data/70pj2OCh/versions/wt6Qw64V/cave_dweller-1.20.1-1.7.0.jar",
+      "page": "https://modrinth.com/mod/cave-dweller-evolved",
+      "license": "MIT"
+    },
+    {
+      "group": "Horror",
+      "name": "The Lost Cities",
+      "slug": "the-lost-cities",
+      "version": "1.20-7.5.5",
+      "file": "lostcities-1.20-7.5.5.jar",
+      "size": 1420565,
+      "sha512": "16050cd7f5a437f3dbf29f948d85ecbbd8abe29ab3c887747ed595017770227752a810fc51edbdd48b469a9f6fff62ebce6f5897d76c1ba31b7a15fd93c022ff",
+      "url": "https://cdn.modrinth.com/data/8VDCUS3b/versions/Ec9sXB06/lostcities-1.20-7.5.5.jar",
+      "page": "https://modrinth.com/mod/the-lost-cities",
+      "license": "MIT"
+    },
+    {
+      "group": "Horror",
+      "name": "Lost Souls",
+      "slug": "lost-souls",
+      "version": "1.20-4.1.7",
+      "file": "lostsouls-1.20-4.1.7.jar",
+      "size": 47902,
+      "sha512": "b54b382901b347b6037e55bb2f0611fc848c769217770a631ad42bc51ee7a60be34bde9acf95fc9f8749cdbc9872be651c28248e0d21c2cfe03dc9285037d12d",
+      "url": "https://cdn.modrinth.com/data/3Unrx5yh/versions/bAvI8nDc/lostsouls-1.20-4.1.7.jar",
+      "page": "https://modrinth.com/mod/lost-souls",
+      "license": "MIT"
+    }
+  ],
+  "disabled": [
+    {
+      "file": "redirected-forge-1.0.0-1.20.1.jar",
+      "why": "Two of its patches were skipped due to @Redirect conflicts with other mods; nothing depends on it."
+    }
+  ]
+}

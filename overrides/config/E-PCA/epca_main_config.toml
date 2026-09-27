@@ -1,0 +1,43 @@
+
+["End-Parasitize and Convert All Configuration"]
+	#If true, the effect of Call of The Hive can be upgraded to level IV. Default: false
+	#如果为true，寄巢之唤效果可以提升至IV级。默认值：false
+	allowCothLevel4 = true
+	# 
+	#If true, the parasite won't attack or convert any creatures (except those on the whitelist). Default: false
+	#如果为true，寄生体将不会攻击和转化任何生物（白名单中的生物除外）。默认值：false
+	parasitePeaceful = false
+	# 
+	#Parasite attack target whitelist (effective when parasitePeaceful is enabled), you need to enter the entity registration name
+	#寄生体攻击目标白名单（当parasitePeaceful启用时生效），需填入实体注册名
+	parasiteTargetWhitelist = []
+	# 
+	#Parasites don’t attack the target whitelist (parasites will never attack these creatures, highest priority), you need to enter the entity registration name
+	#寄生体不攻击目标白名单（寄生体永远不会攻击这些生物，最高优先级），需填入实体注册名
+	parasiteImmunityWhitelist = []
+	# 
+	#Mod creature immune parasite transformation whitelist (all creatures with the entered mod ID will not be transformed, highest priority)
+	#模组生物免疫寄生体转化白名单（填入的模组ID的所有生物不会被转化,最高优先级）
+	parasiteConversionModImmunityWhitelist = ["spore"]
+	# 
+	#List of mod creatures that don’t attack each other, format: ["mod1:mod2", "mod3:mod4"], you need to fill in the mod IDs
+	#模组生物互不攻击列表，格式：["mod1:mod2", "mod3:mod4"]，需填入模组ID
+	parasiteModPeacefulPairs = ["epca:spore"]
+	# 
+	#Disable the mob whitelist (after entering the mob's registered name in this whitelist, the mob in the currently loaded chunks will be removed)
+	#禁用生物白名单（在该白名单填入生物注册名后，会清除当前加载区块内的该生物）
+	disabledEntitiesWhitelist = []
+	# 
+	#The default extra difficulty when creating a new world. Options: easy, normal, expert, master, legendary, custom
+	#新建世界时的默认额外难度。可选值: easy, normal, expert, master, legendary, custom
+	defaultExtraDifficulty = "expert"
+	# 
+	#Enable Safe Day, Default: false
+	#是否启用安全日，默认值：false
+	safetyDayEnabled = false
+	# 
+	#Safe day duration (game tick)
+	#安全日持续时间（游戏刻）
+	#Range: > 1
+	safetyDayDurationTicks = 60000
+
