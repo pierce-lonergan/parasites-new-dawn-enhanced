@@ -317,7 +317,8 @@ function partModule () {
   n0 = srv.cmds.length
   M.fire('PlayerEvents.loggedIn', { player: p2 })
   secs(w, 5)
-  const told = srv.cmds.slice(n0).filter(x => x.indexOf('tellraw bbbb0000') === 0)
+  // (the core's contract 1.5 login line '[PNE] Difficulty ...' goes to the same player; it is not the director's notice)
+  const told = srv.cmds.slice(n0).filter(x => x.indexOf('tellraw bbbb0000') === 0 && x.indexOf('[PNE] Difficulty') < 0)
   T.ok(told.length === 5 && told[0].indexOf('throbs, whispers and approaching sounds') > 0, 'first-run notice: tellraw, names the three risky layer types')
   T.ok(told.join('|').indexOf('/pne comfort') > 0 && told.join('|').indexOf('whispers off') > 0 && told.join('|').indexOf('Hostile Creatures') > 0, 'notice lists /pne comfort, the layer switches and the vanilla sliders')
   T.eq(p2.persistentData.getInt('pne_notice_v'), 1, 'notice version remembered')

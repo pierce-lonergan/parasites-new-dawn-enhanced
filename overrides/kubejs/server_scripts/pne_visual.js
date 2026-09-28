@@ -8,6 +8,11 @@
 //      ship in the repo. collisionRule stays "always" (vanilla pushing): in 1.20.1 pushOtherTeams lets a team member
 //      push only its own team (EntitySelector.pushableBy returns "allied" for PUSH_OTHER_TEAMS, MC-87984), which
 //      would stop players and parasites from pushing each other.
+//      Teams and their members change ONLY through the ServerScoreboard Java API, never through a console command
+//      (contract 1.5, Appendix A rule 15 (b)): Recruits cancels every server command whose text holds "team" plus
+//      add/remove/join/leave after the start (and turns a short team add into a Recruits faction), and every command
+//      before the start fails. The teams are set up on the first tick after the start (pneCoreStarted) and whenever a
+//      check fails, with a backoff; every write is read back (pneVisTeamOf, pneVisTeamGood) before it counts.
 //   2. Display grafts: one minecraft:item_display passenger per host (never a Mob, so no goal selector hands MOVE/LOOK
 //      to it), doom stage 4 or higher, at most 15% of the engaged hive (hosts whose target is a player), and only
 //      while the host itself is engaged. A passenger makes its host a vehicle, and vanilla idle strolls
@@ -26,7 +31,9 @@
 // Comfort: nothing here touches the camera or applies any effect. No emissive layers, blinks or pulses
 // (textures are static; particles run at 0.5 Hz, well under the 2 Hz photosensitivity limit).
 // Contract: docs/IMPLEMENTATION.md 3.6 (API), 4.4 and 4.6 (names), 6.2 (off switch), 7.2 and 7.3 (slots,
-// token budget). Every world change goes through server.runCommandSilent (pack rule); Java calls only read.
+// token budget), Appendix A rule 15 (start gating). Every other world change goes through server.runCommandSilent
+// (pack rule 8), and only once the server has started (pneVisCmd returns 0 before); scoreboard team writes are the
+// one Java exception (rule 8, contract 1.5), and they too wait for the start.
 
 var PNE_VIS_API = 1
 var pneVisReady = typeof PNE_CORE_API === 'number' && PNE_CORE_API >= 1
@@ -63,6 +70,9 @@ var PNE_VIS_STALE_SCAN = 32       // team entries examined per scheduled sweep
 var PNE_VIS_STALE_LOOKUPS = 8     // unknown team entries looked up per scheduled sweep
 var PNE_VIS_STALE_MAX = 32        // team entries removed per scheduled sweep
 var PNE_VIS_REDISC_STEP = 256     // entities scanned per step while rediscovering grafts after a (re)load
+var PNE_VIS_TEAMS_RETRY = 20      // ticks before a failed team setup runs again: 20, 40, 80 ... (doubles per failure)
+var PNE_VIS_TEAMS_RETRY_MAX = 1200
+var PNE_VIS_TEAMS_WARN_AT = 3     // the one warning comes with this consecutive failure
 var PNE_VIS_NAME_KEY = 'pne.vis.apex.'
 var PNE_VIS_NAME_TEXT = 'Hive Apex'
 var PNE_VIS_UUID_RX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -101,9 +111,14 @@ var PNE_VIS_GRAFTS = [
 
 var $PneVisUUID = null
 try { $PneVisUUID = Java.loadClass('java.util.UUID') } catch (e) { $PneVisUUID = null }
+// The vanilla team option enums (Mojang class names at runtime; constants keep their names). Loading a class only
+// reads; nothing is written here.
+var $PneVisVisibility = null
+try { $PneVisVisibility = Java.loadClass('net.minecraft.world.scores.Team$Visibility') } catch (e) { $PneVisVisibility = null }
+var $PneVisCollision = null
+try { $PneVisCollision = Java.loadClass('net.minecraft.world.scores.Team$CollisionRule') } catch (e) { $PneVisCollision = null }
 
 var PNE_VIS_B_TICK = pneVisReady ? pneCoreBreaker('visual.tick', 5, 'consecutive') : null
-var PNE_VIS_B_EVENTS = pneVisReady ? pneCoreBreaker('visual.events', 20, 'total') : null
 
 // ---------------------------------------------------------------------------------------------
 // State (module-level; /reload starts it fresh, and the rediscovery pass rebuilds graft records)
@@ -124,8 +139,11 @@ var pneVisApplyOrder = []     // deferred applies (budget refused), FIFO of uuid
 var pneVisApplyPending = {}   // uuid -> { mob, info }
 var pneVisRemoveOrder = []    // deferred removals, FIFO of uuids
 var pneVisRemovePending = {}  // uuid -> { level, disp }
-var pneVisTeamsReady = false
-var pneVisSweepPhase = 0       // scheduled sweep: 0 idle, 1 orphans, 2 cap trim, 3 stale window (even ticks only)
+var pneVisTeamsReady = false  // all 8 clade teams exist with their options, read back after the last setup
+var pneVisTeamsRetryAt = 0    // pneCoreTick from which the next team setup may run (backoff after a failed check)
+var pneVisTeamsFails = 0      // consecutive failed team setups
+var pneVisTeamsOk = 0         // teams that passed the last setup's check
+var pneVisSweepPhase = 0      // scheduled sweep: 0 idle, 1 orphans, 2 cap trim, 3 stale window (even ticks only)
 var pneVisOffClean = false
 var pneVisSwept = 0           // orphans and stale entries removed since load
 var pneVisStaleTeam = 0
@@ -158,10 +176,25 @@ function pneVisOurTeam(name) {
   return String(name).indexOf(PNE_VIS_TEAM) === 0
 }
 
-// Runs a command as the server (permission 4, output suppressed); returns its result count, 0 on failure.
+// The server has started (contract 1.5, Appendix A rule 15 (a)): the core sets pneCoreStarted on the first tick after a
+// load or /reload. Before that no command and no scoreboard write may run. A core without the flag counts as started.
+function pneVisStarted() {
+  return typeof pneCoreStarted !== 'boolean' || pneCoreStarted === true
+}
+
+// Runs a command as the server (permission 4, output suppressed); returns its result count, 0 on failure. Returns 0
+// without running anything before the start (rule 15 (a)), and for any text that names a team (rule 15 (b): Recruits
+// takes such commands over; VISUAL changes teams only through the Java API below). The count is only a hint: required
+// state is read back, never inferred from it (rule 15 (c)).
 function pneVisCmd(srv, cmd) {
   var r = 0
-  try { r = Number(srv.runCommandSilent(cmd)) } catch (e) { r = 0 }
+  var c = String(cmd)
+  if (!pneVisStarted()) return 0
+  if (c.indexOf('team') >= 0) {
+    pneCoreWarn('visual', 'teamcmd', 'refused a console command naming a scoreboard team (Recruits intercepts those): ' + c.substring(0, 60), 1)
+    return 0
+  }
+  try { r = Number(srv.runCommandSilent(c)) } catch (e) { r = 0 }
   return isFinite(r) ? r : 0
 }
 
@@ -245,14 +278,186 @@ function pneVisScoreboard(srv) {
   return sb ? sb : null
 }
 
-// Name of the entry's team, '' for none, null when the scoreboard cannot be read.
-function pneVisTeamOf(srv, u) {
-  var sb = pneVisScoreboard(srv)
+// Name of the entry's team on the scoreboard sb, '' for none, null when it cannot be read.
+function pneVisTeamOfSb(sb, u) {
   var t = null
   if (!sb) return null
   try { t = sb.getPlayersTeam(u) } catch (e) { return null }
   if (!t) return ''
   try { return String(t.getName()) } catch (e2) { return null }
+}
+
+// Name of the entry's team, '' for none, null when the scoreboard cannot be read.
+function pneVisTeamOf(srv, u) {
+  return pneVisTeamOfSb(pneVisScoreboard(srv), u)
+}
+
+// A team name as read (pneVisTeamOf) if it is one of ours, else '' (no team, a foreign team, or unreadable).
+function pneVisOurName(cur) {
+  return cur !== null && cur !== '' && pneVisOurTeam(cur) ? cur : ''
+}
+
+// The entry's team if it is one of ours, else '': what a record's team field holds, always read back from the scoreboard.
+function pneVisOurTeamOf(srv, u) {
+  return pneVisOurName(pneVisTeamOf(srv, u))
+}
+
+// ---------------------------------------------------------------------------------------------
+// Clade teams through the ServerScoreboard Java API (contract 1.5, spec D; names checked by tools/visual/scoreboard_api.py)
+//   sb = server.getScoreboard(); team = sb.getPlayerTeam(n) || sb.addPlayerTeam(n)
+//   team.setNameTagVisibility / setCollisionRule (Team$Visibility, Team$CollisionRule), setAllowFriendlyFire,
+//   setSeeFriendlyInvisibles; members: sb.addPlayerToTeam(entry, team), sb.removePlayerFromTeam(entry)
+// ServerScoreboard broadcasts each change to the clients and marks the scoreboard dirty, as the team command does.
+// Enum values are compared through String() (their names), never as objects: Rhino's SpecialEquality treats a Java
+// enum differently from the mocks (contract 1.5, spec C).
+
+// A team passes when its options read back as wanted: nametag never (always for the _named sibling), collision always,
+// friendly fire and seeing invisible team mates on (the vanilla defaults, which Recruits resets on every start).
+function pneVisTeamGood(t, named) {
+  try {
+    if (String(t.getNameTagVisibility()) !== (named ? 'ALWAYS' : 'NEVER')) return false
+    if (String(t.getCollisionRule()) !== 'ALWAYS') return false
+    if (String(t.isAllowFriendlyFire()) !== 'true') return false
+    return String(t.canSeeFriendlyInvisibles()) === 'true'
+  } catch (e) {
+    return false
+  }
+}
+
+// Creates the team if it is missing and writes every option that differs; true when it then passes pneVisTeamGood.
+function pneVisTeamSetup(sb, name, named) {
+  var t = null
+  try { t = sb.getPlayerTeam(name) } catch (e) { t = null }
+  if (!t) {
+    try { t = sb.addPlayerTeam(name) } catch (e2) { t = null }
+    if (!t) {
+      try { t = sb.getPlayerTeam(name) } catch (e3) { t = null }
+    }
+  }
+  if (!t) return false
+  try {
+    if (String(t.getNameTagVisibility()) !== (named ? 'ALWAYS' : 'NEVER')) {
+      t.setNameTagVisibility(named ? $PneVisVisibility.ALWAYS : $PneVisVisibility.NEVER)
+    }
+    if (String(t.getCollisionRule()) !== 'ALWAYS') t.setCollisionRule($PneVisCollision.ALWAYS)
+    if (String(t.isAllowFriendlyFire()) !== 'true') t.setAllowFriendlyFire(true)
+    if (String(t.canSeeFriendlyInvisibles()) !== 'true') t.setSeeFriendlyInvisibles(true)
+  } catch (e4) {
+    return false
+  }
+  try { t = sb.getPlayerTeam(name) } catch (e5) { t = null }
+  return t ? pneVisTeamGood(t, named) : false
+}
+
+// Sets up and checks all 8 clade teams (the caller charged PNE_CORE_COST.sweep). All 8 passing makes the teams ready;
+// otherwise the next try waits PNE_VIS_TEAMS_RETRY ticks, doubling per consecutive failure up to
+// PNE_VIS_TEAMS_RETRY_MAX, and the PNE_VIS_TEAMS_WARN_AT-th failure logs the one warning. Returns the teams that passed.
+// Never before the start: the scoreboard exists earlier, but Recruits resets every team's friendly-fire options in its
+// own start listener, which runs after KubeJS's loaded event.
+function pneVisEnsureTeams(srv) {
+  var names = pneVisTeamNames()
+  var sb = null
+  var ok = 0
+  var i
+  var wait
+  if (!pneVisStarted()) return 0
+  sb = pneVisScoreboard(srv)
+  if (sb && $PneVisVisibility && $PneVisCollision) {
+    for (i = 0; i < names.length; i++) {
+      if (pneVisTeamSetup(sb, names[i], i % 2 === 1)) ok++
+    }
+  }
+  pneVisTeamsOk = ok
+  if (ok === names.length) {
+    pneVisTeamsReady = true
+    pneVisTeamsFails = 0
+    return ok
+  }
+  pneVisTeamsReady = false
+  pneVisTeamsFails++
+  wait = PNE_VIS_TEAMS_RETRY
+  for (i = 1; i < pneVisTeamsFails && wait < PNE_VIS_TEAMS_RETRY_MAX; i++) wait *= 2
+  pneVisTeamsRetryAt = pneCoreTick + Math.min(PNE_VIS_TEAMS_RETRY_MAX, wait)
+  if (pneVisTeamsFails === PNE_VIS_TEAMS_WARN_AT) {
+    pneCoreWarn('visual', 'teams', 'clade teams not ready after ' + pneVisTeamsFails + ' tries (' + ok + '/' + names.length +
+      ' pass; ' + (!sb ? 'scoreboard unreadable' : (!$PneVisVisibility || !$PneVisCollision) ? 'team option classes missing' : 'options did not stick') +
+      '); retrying every ' + PNE_VIS_TEAMS_RETRY_MAX + ' ticks at most', 1)
+  }
+  return ok
+}
+
+// How many of the 8 clade teams pass right now (the status line), -1 when the scoreboard cannot be read.
+function pneVisTeamsCount(srv) {
+  var sb = srv ? pneVisScoreboard(srv) : null
+  var names = pneVisTeamNames()
+  var n = 0
+  var i
+  var t
+  if (!sb) return -1
+  for (i = 0; i < names.length; i++) {
+    t = null
+    try { t = sb.getPlayerTeam(names[i]) } catch (e) { t = null }
+    if (t && pneVisTeamGood(t, i % 2 === 1)) n++
+  }
+  return n
+}
+
+// The two membership writes on a scoreboard sb the caller already holds, after the start (the caller checks it). cur is
+// the entry's team as the caller just read it (pneVisTeamOfSb), so no second read comes before the write. Each returns
+// the entry's team as read back after its write (cur when nothing was written): a write counts only when that read
+// shows it. Joining moves the entry off any other team of ours; the callers never pass an entry on a foreign team. A
+// missing team is not created here: it clears pneVisTeamsReady, so the tick sets the teams up again.
+function pneVisJoinSb(sb, u, name, cur) {
+  var t = null
+  if (cur === name) return cur
+  try { t = sb.getPlayerTeam(name) } catch (e) { t = null }
+  if (!t) {
+    pneVisTeamsReady = false
+    return cur
+  }
+  try { sb.addPlayerToTeam(u, t) } catch (e2) { }
+  return pneVisTeamOfSb(sb, u)
+}
+
+// Takes the entry off our team cur; an entry on no team, a foreign team or an unreadable one is left alone.
+function pneVisLeaveSb(sb, u, cur) {
+  if (cur === null || cur === '' || !pneVisOurTeam(cur)) return cur
+  try { sb.removePlayerFromTeam(u) } catch (e) { }
+  return pneVisTeamOfSb(sb, u)
+}
+
+// Puts the entry on our team `name` (moving it off any other team of ours). True only when pneVisTeamOf then reads
+// `name`.
+function pneVisTeamJoin(srv, u, name) {
+  var sb
+  if (!pneVisStarted()) return false
+  sb = pneVisScoreboard(srv)
+  if (!sb) return false
+  return pneVisJoinSb(sb, u, name, pneVisTeamOfSb(sb, u)) === name
+}
+
+// Takes the entry off whichever of our teams it is on; a foreign team is never touched. True only when pneVisTeamOf
+// then reads no team of ours (none, or a foreign one); false when the scoreboard cannot be read or it is still on ours.
+function pneVisTeamLeave(srv, u) {
+  var sb
+  var cur
+  if (!pneVisStarted()) return false
+  sb = pneVisScoreboard(srv)
+  if (!sb) return false
+  cur = pneVisLeaveSb(sb, u, pneVisTeamOfSb(sb, u))
+  return cur !== null && (cur === '' || !pneVisOurTeam(cur))
+}
+
+// Takes every entry off our team `name`; returns how many removals were read back.
+function pneVisTeamEmpty(srv, name) {
+  var list = pneVisTeamMembers(srv, name)
+  var n = 0
+  var i
+  if (!list || !pneVisStarted()) return 0
+  for (i = 0; i < list.length; i++) {
+    if (pneVisTeamOf(srv, list[i]) === name && pneVisTeamLeave(srv, list[i])) n++
+  }
+  return n
 }
 
 // All entries of our teams as a JS array of strings, or null when the scoreboard cannot be read.
@@ -298,6 +503,12 @@ function pneVisGraftUuid(hostU) {
   var head = ('00000000' + h.toString(16)).slice(-8)
   if (head === String(hostU).substring(0, 8)) head = ('00000000' + ((h ^ 1) >>> 0).toString(16)).slice(-8)
   return head + String(hostU).substring(8)
+}
+
+// The record's graft UUID, computed on first use and kept (pneVisGraftUuid hashes the host UUID: about 33 us in Rhino).
+function pneVisRecGu(rec) {
+  if (rec.gu === '') rec.gu = pneVisGraftUuid(rec.u)
+  return rec.gu
 }
 
 function pneVisHostScale(mob) {
@@ -422,8 +633,10 @@ function pneVisNameSnbt(trait) {
 function pneVisRecord(u, mob) {
   var r = pneVisHosts[u]
   if (!r) {
-    r = { u: u, mob: mob, key: '', clade: -1, apex: false, trait: -1, variant: 0, gvar: 0, team: '', name: 'none',
-      disp: '', yaw: NaN, partial: false, eng: false, engT: -1000000, gseq: 0, failN: 0, retryT: -1000000 }
+    // team: the team of ours the scoreboard showed after the last write ('' none); foreign: the host is on a team that
+    // is not ours (another mod's or an operator's), which VISUAL never touches
+    r = { u: u, mob: mob, key: '', clade: -1, apex: false, trait: -1, variant: 0, gvar: 0, team: '', foreign: false, name: 'none',
+      disp: '', gu: '', yaw: NaN, partial: false, eng: false, engT: -1000000, gseq: 0, failN: 0, retryT: -1000000 }
     pneVisHosts[u] = r
     pneVisHostN++
   }
@@ -555,15 +768,16 @@ function pneVisSpawnGraft(srv, mob, u, gu, variant) {
 // A display of another variant is replaced. A display with the host's graft UUID that rides nothing is re-mounted in
 // the same dimension; in another dimension it is an orphan left by a dimension change and is removed first (a UUID
 // selector takes the first level that has it, so this must happen while the new graft does not exist yet). A summon
-// and its ride charge two visApply tokens on top of whatever the caller charged.
+// and its ride charge two visApply tokens on top of whatever the caller charged. The graft UUID is only computed on
+// the paths that need it, once per record (pneVisRecGu).
 function pneVisGraftStep(srv, mob, u, rec, now, spawn) {
   var rd = pneVisRiders(mob)
   var disp = rd.graft
-  var gu = pneVisGraftUuid(u)
+  var gu
   var dv
   var lone
   if (!pneVisShouldCarry(rec, now)) {
-    if (disp) pneVisCmd(srv, 'kill ' + (pneCoreUuid(disp) || gu))
+    if (disp) pneVisCmd(srv, 'kill ' + (pneCoreUuid(disp) || pneVisRecGu(rec)))
     else if (rec.disp !== '') pneVisCmd(srv, 'kill ' + rec.disp)
     pneVisSetDisp(rec, '')
     return 'none'
@@ -571,10 +785,10 @@ function pneVisGraftStep(srv, mob, u, rec, now, spawn) {
   if (disp) {
     dv = pneVisDispVariant(disp)
     if (dv === 0 || dv === rec.variant) {
-      pneVisSetDisp(rec, pneCoreUuid(disp) || gu)
+      pneVisSetDisp(rec, pneCoreUuid(disp) || pneVisRecGu(rec))
       return 'kept'
     }
-    pneVisCmd(srv, 'kill ' + (pneCoreUuid(disp) || gu))
+    pneVisCmd(srv, 'kill ' + (pneCoreUuid(disp) || pneVisRecGu(rec)))
   }
   pneVisSetDisp(rec, '')
   if (rd.foreign) return 'foreign'
@@ -582,6 +796,7 @@ function pneVisGraftStep(srv, mob, u, rec, now, spawn) {
   if (now < rec.retryT) return 'wait'
   if (!pneVisCapOk()) return 'cap'
   if (!pneCoreTake(2 * PNE_CORE_COST.visApply)) return 'budget'
+  gu = pneVisRecGu(rec)
   lone = pneVisFindIn(pneVisLevelOf(mob), gu)
   if (lone && !pneVisGone(lone)) {
     dv = pneVisDispVariant(lone)
@@ -614,6 +829,7 @@ function pneVisApplyNow(mob, u, w) {
   var ns
   var key
   var team
+  var sb
   var cur
   if (!srv) return
   rec = pneVisRecord(u, mob)
@@ -630,17 +846,17 @@ function pneVisApplyNow(mob, u, w) {
   pneVisApexTag(srv, mob, u, ns.state === 'ours')
   rec.name = ns.state
   // 2. Clade team (one entry per host; joining another team moves the entry). A mob that another mod or an
-  // operator put on a team of their own keeps it.
+  // operator put on a team of their own keeps it. rec.team is what the scoreboard shows afterwards (the read-back of
+  // the write, or the first read when nothing was written): a join that did not stick (teams not set up yet, an
+  // unreadable scoreboard) leaves it '' and the scan tries again. One scoreboard fetch and at most two reads per apply.
   team = w.clade >= 0 ? pneVisTeamName(w.clade, ns.state !== 'none') : ''
-  cur = pneVisTeamOf(srv, u)
-  if (cur !== null && cur !== '' && !pneVisOurTeam(cur)) {
-    team = ''
-  } else if (team === '') {
-    if (cur === null || cur !== '') pneVisCmd(srv, 'team leave ' + u)
-  } else if (cur !== team) {
-    pneVisCmd(srv, 'team join ' + team + ' ' + u)
+  sb = pneVisScoreboard(srv)
+  cur = pneVisTeamOfSb(sb, u)
+  rec.foreign = cur !== null && cur !== '' && !pneVisOurTeam(cur)
+  if (!rec.foreign && cur !== null && pneVisStarted()) {
+    cur = team === '' ? pneVisLeaveSb(sb, u, cur) : pneVisJoinSb(sb, u, team, cur)
   }
-  rec.team = team
+  rec.team = pneVisOurName(cur)
   rec.clade = w.clade
   rec.apex = w.apex
   rec.trait = w.trait
@@ -674,7 +890,8 @@ function pneVisDefer(u, mob, info) {
 }
 
 // Contract 3.6: idempotent; the hive calls it after every expression (newborn and rejoin). Charges
-// PNE_CORE_COST.visApply (name and team); when the budget refuses, the apply waits in VISUAL's own queue.
+// PNE_CORE_COST.visApply (name and team); when the budget refuses, the apply waits in VISUAL's own queue. Before the
+// start (rule 15 (a)) it only queues: the queue drains in VISUAL's tick, after the teams are set up.
 function pneVisApply(mob, info) {
   var u
   var w
@@ -682,6 +899,10 @@ function pneVisApply(mob, info) {
   if (!pneVisReady || !mob || !info || !pneCoreOn('visual')) return
   u = pneCoreUuid(mob)
   if (!u) return
+  if (!pneVisStarted()) {
+    pneVisDefer(u, mob, info)
+    return
+  }
   w = pneVisWant(mob, info)
   rec = pneVisHosts[u]
   if (rec && !rec.partial && rec.key === w.key && !pneVisGone(rec.mob)) return
@@ -696,10 +917,9 @@ function pneVisApply(mob, info) {
 // Remove
 
 function pneVisRemoveNow(srv, u, level, disp) {
-  var cur = pneVisTeamOf(srv, u)
   var gu = disp || pneVisGraftUuid(u)
   var g
-  if (cur === null || (cur !== '' && pneVisOurTeam(cur))) pneVisCmd(srv, 'team leave ' + u)
+  pneVisTeamLeave(srv, u)
   // The removed host already ejected its passengers, so look the display up by its UUID.
   g = pneVisFind(srv, gu, level)
   if (g && pneCoreHasTag(g, PNE_VIS_TAG)) pneVisCmd(srv, 'kill ' + gu)
@@ -707,7 +927,8 @@ function pneVisRemoveNow(srv, u, level, disp) {
 }
 
 // Contract 3.6: team leave + graft discard; the hive calls it on KILLED/DISCARDED. Works with the
-// visual pillar off (cleanup). A refused budget defers the removal (drained every tick, even when off).
+// visual pillar off (cleanup). A refused budget defers the removal (drained every tick, even when off), and so does a
+// call before the start (rule 15 (a)).
 function pneVisRemove(mob) {
   var u
   var rec
@@ -724,7 +945,7 @@ function pneVisRemove(mob) {
   pneVisDropRecord(u)
   srv = pneVisServer(mob)
   if (!srv) return
-  if (!pneCoreTake(PNE_CORE_COST.visApply)) {
+  if (!pneVisStarted() || !pneCoreTake(PNE_CORE_COST.visApply)) {
     if (!pneVisRemovePending.hasOwnProperty(u)) {
       if (pneVisRemoveOrder.length >= PNE_VIS_Q_MAX) {
         pneCoreWarn('visual', 'removeq', 'deferred removal queue is full; the sweep will catch the rest')
@@ -743,12 +964,15 @@ function pneVisRemove(mob) {
 
 // Keeps the clade team in step with the host's name: a name given later (a name tag) moves the host to the _named
 // team, where the name stays visible, and a name that went away moves it back. An apex name set here that was
-// replaced or removed loses its PNE_VIS_TAG_APEX tag. Hosts on no team of ours (another team, no clade) are left alone.
+// replaced or removed loses its PNE_VIS_TAG_APEX tag. A join that did not stick (rec.team differs from the wanted
+// team) is tried again here once the teams are ready. Hosts on another team or without a clade are left alone.
 function pneVisNameCheck(srv, u, r) {
   var has = false
   var ns
   var want
-  if (r.clade < 0 || r.team === '') return
+  var sb
+  var cur
+  if (r.clade < 0 || r.foreign) return
   if (r.name === 'ours') {
     ns = pneVisNameState(r.mob)
     if (ns.state !== 'ours') {
@@ -760,7 +984,16 @@ function pneVisNameCheck(srv, u, r) {
     if (has !== (r.name !== 'none')) r.name = has ? 'foreign' : 'none'
   }
   want = pneVisTeamName(r.clade, r.name !== 'none')
-  if (want !== r.team && pneVisCmd(srv, 'team join ' + want + ' ' + u) > 0) r.team = want
+  if (want === r.team || !pneVisTeamsReady || !pneVisStarted()) return
+  sb = pneVisScoreboard(srv)
+  cur = pneVisTeamOfSb(sb, u)
+  if (cur === null) return
+  if (cur !== '' && !pneVisOurTeam(cur)) {
+    r.foreign = true
+    r.team = ''
+    return
+  }
+  r.team = pneVisOurName(pneVisJoinSb(sb, u, want, cur))
 }
 
 // One host record: dropped when the host is gone (removed, unloaded or dead), engagement refreshed, team kept in step
@@ -935,7 +1168,8 @@ function pneVisStaleStep(srv, maxScan, maxLookups, maxRemove) {
       looked++
       e = pneVisFind(srv, u, null)
       if (e && !pneVisRemovedObj(e)) continue
-      if (pneVisCmd(srv, 'team leave ' + u) > 0) removed++
+      // counted only when the entry was on one of our teams and the scoreboard no longer shows it there
+      if (pneVisOurTeamOf(srv, u) !== '' && pneVisTeamLeave(srv, u)) removed++
     }
     if (pneVisStaleAt >= pneVisStaleList.length) {
       pneVisStaleList = null
@@ -988,11 +1222,19 @@ function pneVisSweepOff(srv) {
   var n = pneVisCmd(srv, 'kill @e[type=' + PNE_VIS_DISPLAY + ',tag=' + PNE_VIS_TAG + ']')
   var names
   var i
+  var left = 0
+  var m
   pneVisCmd(srv, 'execute as @e[tag=' + PNE_VIS_TAG_APEX + '] run data remove entity @s CustomName')
   pneVisCmd(srv, 'tag @e[tag=' + PNE_VIS_TAG_APEX + '] remove ' + PNE_VIS_TAG_APEX)
   if (!pneVisOffClean) {
+    // the teams count as emptied only when the scoreboard shows every one of them empty; otherwise the next off sweep
+    // tries again
     names = pneVisTeamNames()
-    for (i = 0; i < names.length; i++) n += pneVisCmd(srv, 'team empty ' + names[i])
+    for (i = 0; i < names.length; i++) {
+      n += pneVisTeamEmpty(srv, names[i])
+      m = pneVisTeamMembers(srv, names[i])
+      if (m === null || m.length) left++
+    }
     pneVisHosts = {}
     pneVisHostN = 0
     pneVisGraftN = 0
@@ -1001,7 +1243,7 @@ function pneVisSweepOff(srv) {
     pneVisApplyOrder = []
     pneVisApplyPending = {}
     pneVisGraftDirty = true
-    pneVisOffClean = true
+    pneVisOffClean = left === 0
   }
   pneVisSwept += n
   return n
@@ -1052,23 +1294,6 @@ function pneVisSweepPhaseStep(srv) {
 
 // ---------------------------------------------------------------------------------------------
 // Periodic work
-
-// collisionRule always keeps vanilla pushing between team members, players and every other mob (see the header).
-// Re-issued at every server load, which also repairs teams made by an older version with another rule.
-function pneVisEnsureTeams(srv) {
-  var c
-  var j
-  var t
-  for (c = 0; c < PNE_VIS_CLADES; c++) {
-    for (j = 0; j < 2; j++) {
-      t = pneVisTeamName(c, j === 1)
-      pneVisCmd(srv, 'team add ' + t)
-      pneVisCmd(srv, 'team modify ' + t + ' nametagVisibility ' + (j === 1 ? 'always' : 'never'))
-      pneVisCmd(srv, 'team modify ' + t + ' collisionRule always')
-    }
-  }
-  pneVisTeamsReady = true
-}
 
 function pneVisRebuildGraftList() {
   var k
@@ -1238,7 +1463,11 @@ function pneVisOnTick(event) {
   if (PNE_VIS_B_TICK.off) return
   try {
     srv = event.server
-    if (!pneVisTeamsReady && pneCoreTake(PNE_CORE_COST.sweep)) pneVisEnsureTeams(srv)
+    // Team setup (collisionRule always keeps vanilla pushing between team members, players and every other mob, see
+    // the header): on the first tick after the start, which also repairs teams an older version made with another rule
+    // and the friendly-fire options Recruits resets at every start; after a failed check, on the backoff. A refused
+    // take retries on the next tick. It runs before the drains, so the first applies find the teams.
+    if (!pneVisTeamsReady && pneVisStarted() && pneCoreTick >= pneVisTeamsRetryAt && pneCoreTake(PNE_CORE_COST.sweep)) pneVisEnsureTeams(srv)
     if (pneVisRemoveOrder.length) pneVisDrainRemoves(srv)
     if (pneCoreOn('visual')) {
       if (pneVisRediscPending && t % 2 === 0) pneVisRediscover(srv)
@@ -1258,28 +1487,28 @@ function pneVisOnTick(event) {
   }
 }
 
-function pneVisOnLoaded(event) {
-  if (PNE_VIS_B_EVENTS.off) return
-  try {
-    pneVisEnsureTeams(event.server)
-  } catch (err) {
-    pneCoreFail(PNE_VIS_B_EVENTS, err)
-  }
-}
-
 function pneVisOnToggle(on, server) {
   if (on) {
     pneVisOffClean = false
     pneVisTeamsReady = false
+    pneVisTeamsRetryAt = 0
+    pneVisTeamsFails = 0
     pneVisRediscPending = true
   } else {
     pneVisSweepPhase = 1
   }
 }
 
+// "teams N/8": the clade teams whose options read back as wanted right now ('?' when the scoreboard cannot be read).
+// Every reply goes out as a tellraw command, and Recruits takes over any console command whose text holds "team" and
+// also "add", "remove", "join" or "leave" anywhere (plain substrings, the target UUID included). So no text VISUAL
+// sends contains "team" next to one of those words: the status line keeps the word "teams" (contract 1.5, spec E) and
+// avoids the other four; the help and sweep texts say "clade" instead.
 function pneVisStatusLine(player) {
   var e = pneVisTeamEntries(pneCoreServer)
-  return 'teams ' + (e === null ? '?' : e.length) + ' entries, grafts ' + pneVisGraftN + '/' + pneVisGraftCap() +
+  var t = pneVisTeamsCount(pneCoreServer)
+  return 'teams ' + (t < 0 ? '?' : t) + '/' + (2 * PNE_VIS_CLADES) + (pneVisTeamsReady ? '' : ' (setting up)') + ', ' +
+    (e === null ? '?' : e.length) + ' entries, grafts ' + pneVisGraftN + '/' + pneVisGraftCap() +
     ' on ' + pneVisEngN + ' engaged of ' + pneVisHostN + ' hosts, queued ' + pneVisApplyOrder.length + '+' +
     pneVisRemoveOrder.length + ', swept ' + pneVisSwept + (pneVisGraftsOn() ? '' : ' (grafts off: vis_grafts 0)') +
     (pneCoreOn('visual') ? '' : ' (pillar off)')
@@ -1295,16 +1524,15 @@ function pneVisCmdSweep(ctx) {
   var n
   if (ctx.args.length !== 1 || String(ctx.args[0]).toLowerCase() !== 'sweep') return false
   n = pneVisSweep(ctx.server)
-  ctx.reply('visual sweep removed ' + n + ' orphan grafts or stale team entries', 'gold')
+  ctx.reply('visual sweep cleared ' + n + ' orphan grafts or stale clade entries', 'gold')
   return true
 }
 
 if (!pneVisReady) console.error('[pne_visual] pne_00_core.js did not load; this module stays off')
 if (pneVisReady) {
-  ServerEvents.loaded(pneVisOnLoaded)
   ServerEvents.tick(pneVisOnTick)
   pneCoreOnToggle('visual', pneVisOnToggle)
-  pneCoreCommand('visual', { run: pneVisCmdStatus, help: 'visual status: clade team entries and grafts' })
-  pneCoreCommand('visual', { run: pneVisCmdSweep, help: 'visual sweep: remove orphan grafts and stale team entries now', admin: true })
+  pneCoreCommand('visual', { run: pneVisCmdStatus, help: 'visual status: clade setup, clade entries and grafts' })
+  pneCoreCommand('visual', { run: pneVisCmdSweep, help: 'visual sweep: clear orphan grafts and stale clade entries now', admin: true })
   pneCoreStatus('visual', pneVisStatusLine)
 }

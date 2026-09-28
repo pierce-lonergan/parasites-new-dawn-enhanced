@@ -15,6 +15,15 @@
 //   * PW.opts.strictKjs: entities, levels, servers and damage sources expose only the names KubeJS leaves visible in
 //     game (getTime, getDimensionKey, getType/getActual/getImmediate, getYaw, isDedicated; contract F37), instead of
 //     both those and the Mojang names the module mocks use.
+//   * contract 1.5: every server answers the ServerScoreboard Java API of tools/tests/kjs_mocks.js (__pneMock.scoreboard,
+//     over the same srv.sb the team commands use); EPCA's tier classes are the mock __pneMock.epca (PW.epca, one per
+//     variant, kept across the restart like saved data; PW.opts.epca = false before a variant starts leaves them out,
+//     the EPCA-absent row); the vanilla difficulty is the mock server's (Hard unless a variant sets srv.difficulty).
+//   * contract 1.5, spec D: the Recruits model in front of PW.command (section "Recruits" below), with the invariants
+//     (a)-(e). They are checked and printed in every variant and ENFORCED (a violation fails the suite) since the 1.5
+//     integration, when VISUAL's Java teams and HIVE's first-tick load landed. A scratch file with
+//     `var __pnePackRecruits = false` loaded before this one turns the model back into a recorder (a mutation check of
+//     pre-1.5 scripts reads the failures without the model changing what the commands do).
 
 var PW = {
   srv: null,
@@ -95,8 +104,13 @@ PW.fireIn = function (scope, key, ev) {
 
 __pneMock.fire = function (key, ev) {
   var k = String(key)
+  var n
   if (k.indexOf('ForgeEvents.') === 0) return PW.fireIn(PW.startup, k, ev)
-  return PW.fireIn(PW.server, k, ev)
+  n = PW.fireIn(PW.server, k, ev)
+  // the Recruits model: the loaded dispatch of a start has finished (ServerStartingEvent is over); after each tick
+  if (k === 'ServerEvents.loaded') PW.recruitsOnStarted()
+  else if (k === 'ServerEvents.tick') PW.recruitsOnTick()
+  return n
 }
 
 // A KubeJS event with an extra id: the handlers for that id first, then the generic ones; cancel() is an EventExit.
@@ -445,6 +459,7 @@ PW.setupLevel = function (srv, lv) {
 }
 
 PW.newServer = function () {
+  var old = PW.srv
   var srv = __pneMock.server({ gameTime: 1000, cmdResults: { seed: 987654321 } })
   PW.srv = srv
   srv.dayTime = 1000
@@ -458,6 +473,12 @@ PW.newServer = function () {
   PW.run1 = srv.runCommandSilent
   srv.runCommandSilent = function (cmd) { return PW.command(String(cmd)) }
   srv.runCommand = srv.runCommandSilent
+  // the full ServerScoreboard Java API (a superset of the read-only one of vis_prelude), over the same srv.sb
+  srv.getScoreboard = function () {
+    if (srv.noScoreboard) throw new Error('mock: scoreboard unavailable')
+    return __pneMock.scoreboard(srv)
+  }
+  PW.recruitsNewServer(old, srv)
   return srv
 }
 
@@ -620,9 +641,316 @@ PW.command = function (c) {
   var r
   PW.cmdN++
   PW.cmdTick[PW.srv.tickCount] = (PW.cmdTick[PW.srv.tickCount] || 0) + 1
-  r = PW.exec(c, { self: null, x: 0, y: 64, z: 0, level: PW.srv.level, rot: false, top: c })
+  r = PW.recruitsCommand(c)
+  if (r === undefined) r = PW.exec(c, { self: null, x: 0, y: 64, z: 0, level: PW.srv.level, rot: false, top: c })
   if (PW.onCommand) PW.onCommand(c, r)
   return r
+}
+
+// ---------------------------------------------------------------------------------------------
+// Recruits (contract 1.5, spec D; Villager Recruits 1.15.2, javap of FactionEvents)
+//
+// In game KubeJS fires ServerEvents.loaded inside Forge's ServerStartingEvent, before Recruits' own listener has set its
+// server field: a command then makes Recruits' CommandEvent listener throw a NullPointerException, Forge catches it, the
+// command never runs and the caller gets 0. After the start Recruits takes over every server command whose text contains
+// "team" plus "add", "remove", "join" or "leave": it cancels the command (the caller gets 1), and "team add <name>"
+// with a name of 13 characters or fewer becomes a Recruits faction. On every start Recruits resets each scoreboard
+// team's friendlyFire and seeFriendlyInvisibles to false. Modelled here:
+//   * until the loaded dispatch of a start (psStart, psRestart) has finished, every command is logged in
+//     PW.startupCmds; enforced, it is not executed and returns 0;
+//   * afterwards a command with "team" and add/remove/join/leave is logged in PW.teamCmds; enforced, it is not
+//     executed, returns 1, and a short "team add" name becomes PW.recruitsFactions[name];
+//   * enforced, a restart carries the scoreboard over (as the world's scoreboard.dat does) with friendlyFire and
+//     seeFriendlyInvisibles false on every team.
+// Invariants (checked in every variant; a failure fails the suite while PW.recruits.enforce is true, the default):
+//   (a) PW.startupCmds is empty at the end of every start's loaded dispatch, and no command is issued after it until the
+//       first tick while the core's pneCoreStarted is false (PW.preTickCmds: in game the spawn-chunk joins run before
+//       the start, which the pack models after the loaded dispatch; Appendix A rule 15 (a)). The window after a /reload
+//       until the next tick is only recorded (PW.reloadCmds): Recruits has its server then, and the legacy scripts,
+//       which do not know pneCoreStarted, may issue their commands there as in 1.4;
+//   (b) at tick 200 after the start and after the restart, the 8 clade teams exist with nametag never (pne_clade_<c>) /
+//       always (pne_clade_<c>_named), collision always and friendlyFire true (VISUAL loaded and ready: pneVisReady);
+//   (c) PW.teamCmds is empty and no Recruits faction starts with "pne_";
+//   (d) every live clade host VISUAL tracks (pneVisHosts: clade >= 0, not on a foreign team, host alive) is on its
+//       expected team in the scoreboard (pneVisTeamName(clade, name !== 'none')), whether or not VISUAL recorded a team
+//       for it, and a recorded team matches the scoreboard; with the teams ready and genome mobs alive at least one
+//       host is checked (a join that never lands fails here instead of passing with nothing to check);
+//   (e) pneHiveSeed === (987654321 >>> 0) after tick 1 of the start and of the restart (hive runtime loaded).
+// Enforced by default since the 1.5 integration (the pre-change scripts fail (a), (b), (c), (d) and (e): the mutation
+// check in the lead's report); `var __pnePackRecruits = false` before this file makes it a recorder again.
+
+PW.recruits = {
+  enforce: !(typeof __pnePackRecruits !== 'undefined' && __pnePackRecruits === false),
+  started: false,
+  ticked: false,
+  carry: false,
+  hooked: false,
+  mark: 0,
+  starts: 0,
+  dueE: 0,
+  dueB: 0,
+  res: {},
+  msgs: []
+}
+PW.startupCmds = []
+PW.preTickCmds = []
+PW.reloadCmds = []
+PW.teamCmds = []
+PW.recruitsFactions = {}
+PW.RECRUITS_TEAMS = ['pne_clade_0', 'pne_clade_1', 'pne_clade_2', 'pne_clade_3',
+  'pne_clade_0_named', 'pne_clade_1_named', 'pne_clade_2_named', 'pne_clade_3_named']
+PW.RECRUITS_SEED = 987654321 >>> 0
+PW.opts.epca = true
+PW.epca = null
+PW.ctl = this
+
+// One EPCA mock per variant (saved data survives the restart); absent while PW.opts.epca is false.
+PW.epcaInstall = function () {
+  PW.epca = __pneMock.epca()
+  if (PW.opts.epca !== false) {
+    __pneHiveMockClasses['org.tdddd.epca.impl.overworld.data.WorldDifficultyData'] = PW.epca.WDD
+    __pneHiveMockClasses['org.tdddd.epca.impl.overworld.difficulty.DifficultyLevel'] = PW.epca.DL
+  } else {
+    delete __pneHiveMockClasses['org.tdddd.epca.impl.overworld.data.WorldDifficultyData']
+    delete __pneHiveMockClasses['org.tdddd.epca.impl.overworld.difficulty.DifficultyLevel']
+  }
+}
+PW.epcaInstall()
+
+PW.recruitsCommand = function (c) {
+  var t = String(c)
+  var m
+  if (!PW.recruits.started) {
+    if (PW.startupCmds.length < 400) PW.startupCmds.push({ t: PW.srv ? PW.srv.tickCount : -1, c: t })
+    return PW.recruits.enforce ? 0 : undefined
+  }
+  // after the loaded dispatch while the core has not started: before the first tick of a start (rule 15 (a); the game
+  // runs the command, so it is not blocked, only checked) or after a /reload until the next tick (recorded only)
+  if (PW.server && PW.server.pneCoreStarted === false) {
+    if (!PW.recruits.ticked && PW.preTickCmds.length < 400) PW.preTickCmds.push({ t: PW.srv.tickCount, c: t })
+    else if (PW.recruits.ticked && PW.reloadCmds.length < 400) PW.reloadCmds.push({ t: PW.srv.tickCount, c: t })
+  }
+  if (t.indexOf('team') >= 0 && /add|remove|join|leave/.test(t)) {
+    if (PW.teamCmds.length < 400) PW.teamCmds.push({ t: PW.srv.tickCount, c: t })
+    if (!PW.recruits.enforce) return undefined
+    m = /\bteam\s+add\s+(\S+)/.exec(t)
+    if (m && m[1].length <= 13) PW.recruitsFactions[m[1]] = true
+    return 1
+  }
+  return undefined
+}
+
+PW.recruitsFail = function (inv, msg) {
+  PW.recruits.res[inv] = false
+  if (PW.recruits.msgs.length < 20) PW.recruits.msgs.push('(' + inv + ') ' + msg)
+  if (PW.recruits.enforce && typeof psFail === 'function') psFail('recruits (' + inv + '): ' + msg)
+}
+
+PW.recruitsOk = function (inv) {
+  if (PW.recruits.res[inv] === undefined) PW.recruits.res[inv] = true
+}
+
+// Wraps the driver's per-variant reset and end-of-variant checks once (they exist when the first server is made).
+PW.recruitsHook = function () {
+  var ctl = PW.ctl
+  if (PW.recruits.hooked) return
+  PW.recruits.hooked = true
+  if (typeof ctl.psResetWorld === 'function') {
+    PW.recruitsReset0 = ctl.psResetWorld
+    ctl.psResetWorld = function () {
+      PW.recruitsReset0()
+      PW.recruitsReset()
+    }
+  }
+  if (typeof ctl.psExpect === 'function') {
+    PW.recruitsExpect0 = ctl.psExpect
+    ctl.psExpect = function (v) {
+      PW.recruitsExpect0(v)
+      PW.recruitsEnd(v)
+    }
+  }
+}
+
+PW.recruitsReset = function () {
+  PW.startupCmds = []
+  PW.preTickCmds = []
+  PW.reloadCmds = []
+  PW.teamCmds = []
+  PW.recruitsFactions = {}
+  PW.recruits.carry = false
+  PW.recruits.started = false
+  PW.recruits.starts = 0
+  PW.recruits.dueE = 0
+  PW.recruits.dueB = 0
+  PW.recruits.res = {}
+  PW.recruits.msgs = []
+  PW.epcaInstall()
+}
+
+// A new server object: a start (the first of a variant) or the restart (the next one).
+PW.recruitsNewServer = function (old, srv) {
+  var k
+  var t
+  var e
+  PW.recruitsHook()
+  PW.recruits.started = false
+  PW.recruits.ticked = false
+  PW.recruits.mark = PW.startupCmds.length
+  if (PW.recruits.enforce && PW.recruits.carry && old && old.sb) {
+    for (k in old.sb.teams) {
+      if (!old.sb.teams.hasOwnProperty(k)) continue
+      t = old.sb.teams[k]
+      srv.sb.teams[k] = { name: k, nametagVisibility: t.nametagVisibility, collisionRule: t.collisionRule, members: {},
+        friendlyFire: false, seeFriendlyInvisibles: false }
+      for (e in t.members) {
+        if (t.members.hasOwnProperty(e)) srv.sb.teams[k].members[e] = true
+      }
+    }
+    for (e in old.sb.byEntry) {
+      if (old.sb.byEntry.hasOwnProperty(e)) srv.sb.byEntry[e] = old.sb.byEntry[e]
+    }
+  }
+  PW.recruits.carry = true
+}
+
+PW.recruitsOnStarted = function () {
+  var n = PW.startupCmds.length - PW.recruits.mark
+  var first = []
+  var i
+  if (PW.recruits.started) return
+  PW.recruits.started = true
+  PW.recruits.starts++
+  for (i = PW.recruits.mark; i < PW.startupCmds.length && first.length < 4; i++) first.push(PW.startupCmds[i].c.substring(0, 60))
+  if (n > 0) PW.recruitsFail('a', n + ' command(s) before the start (start ' + PW.recruits.starts + '), e.g. ' + first.join(' | '))
+  else PW.recruitsOk('a')
+  PW.recruits.dueE = PW.srv.tickCount + 1
+  PW.recruits.dueB = PW.srv.tickCount + 200
+}
+
+PW.recruitsOnTick = function () {
+  var t = PW.srv ? PW.srv.tickCount : -1
+  PW.recruits.ticked = true
+  if (PW.recruits.dueE > 0 && t >= PW.recruits.dueE) {
+    PW.recruits.dueE = 0
+    PW.recruitsCheckSeed()
+  }
+  if (PW.recruits.dueB > 0 && t >= PW.recruits.dueB) {
+    PW.recruits.dueB = 0
+    PW.recruitsCheckTeams()
+  }
+}
+
+// (e): the hive seed after the first tick (hive runtime loaded and its pillar on).
+PW.recruitsCheckSeed = function () {
+  var sc = PW.server
+  var s
+  if (!sc || typeof sc.pneHiveInfo !== 'function' || typeof sc.PNE_HIVE_GA !== 'object' || typeof sc.pneCoreOn !== 'function' || !sc.pneCoreOn('hive')) return
+  s = Number(sc.pneHiveSeed)
+  if (!isFinite(s) || (s >>> 0) !== PW.RECRUITS_SEED) PW.recruitsFail('e', 'pneHiveSeed is ' + s + ' after tick 1 of start ' + PW.recruits.starts + ' (want ' + PW.RECRUITS_SEED + ')')
+  else PW.recruitsOk('e')
+}
+
+// (b): the 8 clade teams (VISUAL loaded and ready: without the core its functions exist but it registers nothing,
+// contract 8, so no-core has no teams by design).
+PW.recruitsCheckTeams = function () {
+  var sc = PW.server
+  var bad = []
+  var i
+  var n
+  var t
+  if (!sc || typeof sc.pneVisApply !== 'function' || sc.pneVisReady !== true) return
+  for (i = 0; i < PW.RECRUITS_TEAMS.length; i++) {
+    n = PW.RECRUITS_TEAMS[i]
+    t = PW.srv.sb.teams.hasOwnProperty(n) ? PW.srv.sb.teams[n] : null
+    if (!t) bad.push(n + ' missing')
+    else if (t.nametagVisibility !== (i >= 4 ? 'always' : 'never') || t.collisionRule !== 'always' || t.friendlyFire === false) {
+      bad.push(n + ' nametag ' + t.nametagVisibility + ' collision ' + t.collisionRule + ' friendlyFire ' + (t.friendlyFire !== false))
+    }
+  }
+  if (bad.length) PW.recruitsFail('b', 'at tick 200 of start ' + PW.recruits.starts + ': ' + bad.slice(0, 4).join(', ') + (bad.length > 4 ? ' (+' + (bad.length - 4) + ')' : ''))
+  else PW.recruitsOk('b')
+}
+
+// End of a variant: (c), (d) and one summary line.
+PW.recruitsEnd = function (v) {
+  var sc = PW.server
+  var pf = []
+  var k
+  var r
+  var off = 0
+  var n = 0
+  var line
+  var words = {}
+  var ws = []
+  var i
+  var gm
+  var cur
+  var bad
+  var want = ''
+  var offs = []
+  var dN = -1
+  for (k in PW.recruitsFactions) {
+    if (PW.recruitsFactions.hasOwnProperty(k) && k.indexOf('pne_') === 0) pf.push(k)
+  }
+  if (PW.teamCmds.length || pf.length) {
+    PW.recruitsFail('c', PW.teamCmds.length + ' console team command(s) after the start (e.g. ' + (PW.teamCmds.length ? PW.teamCmds[0].c.substring(0, 60) : '-') +
+      ')' + (pf.length ? '; Recruits factions ' + pf.join(', ') : ''))
+  } else {
+    PW.recruitsOk('c')
+  }
+  // (d): every live clade host VISUAL tracks (clade >= 0, not on a foreign team) must be on the team its clade and name
+  // want (pneVisTeamName), whether or not VISUAL recorded a team for it: a join that never lands leaves r.team '' and
+  // must fail here, not pass with nothing to check. A recorded team must also match the scoreboard. With the teams
+  // ready and genome mobs alive, at least one host must have been checked (an empty check proves nothing).
+  if (sc && typeof sc.pneVisApply === 'function' && typeof sc.pneVisHosts === 'object' && sc.pneVisHosts && typeof sc.pneCoreOn === 'function' && sc.pneCoreOn('visual')) {
+    gm = typeof psGenomeMobs === 'function' ? psGenomeMobs() : -1
+    for (k in sc.pneVisHosts) {
+      if (!sc.pneVisHosts.hasOwnProperty(k)) continue
+      r = sc.pneVisHosts[k]
+      if (!r || !r.mob || r.mob.removed || r.mob.dead) continue
+      cur = PW.srv.sb.byEntry.hasOwnProperty(k) ? PW.srv.sb.byEntry[k] : ''
+      bad = false
+      if (r.team && cur !== r.team) bad = true
+      if (Number(r.clade) >= 0 && r.foreign !== true && typeof sc.pneVisTeamName === 'function') {
+        n++
+        want = String(sc.pneVisTeamName(r.clade, r.name !== 'none'))
+        if (cur !== want) bad = true
+      } else if (r.team) {
+        n++
+      }
+      if (bad) {
+        off++
+        if (offs.length < 3) offs.push('..' + k.substring(k.length - 12) + ' clade ' + r.clade + ' name ' + r.name + ' recorded "' + r.team + '" scoreboard "' + cur + '"' + (want ? ' want "' + want + '"' : ''))
+      }
+      want = ''
+    }
+    if (off) PW.recruitsFail('d', off + ' of ' + n + ' live clade hosts are not on their expected team (e.g. ' + offs.join('; ') + ')')
+    else if (n === 0 && sc.pneVisTeamsReady === true && gm > 0) PW.recruitsFail('d', 'the teams are ready and ' + gm + ' genome mobs are alive, but VISUAL tracks no live clade host to check')
+    else PW.recruitsOk('d')
+    dN = n
+  }
+  for (i = 0; i < PW.startupCmds.length; i++) {
+    k = PW.startupCmds[i].c.split(' ')[0]
+    words[k] = (words[k] || 0) + 1
+  }
+  for (k in words) {
+    if (words.hasOwnProperty(k)) ws.push(k + ' x' + words[k])
+  }
+  if (PW.preTickCmds.length) {
+    PW.recruitsFail('a', PW.preTickCmds.length + ' command(s) after the loaded dispatch while pneCoreStarted was false (rule 15 (a)), e.g. t=' +
+      PW.preTickCmds[0].t + ' ' + PW.preTickCmds[0].c.substring(0, 60))
+  }
+  line = '  recruits ' + (PW.recruits.enforce ? 'ENFORCED' : 'recorded (not enforced)') + ' [' + v.name + ']: startup commands ' + PW.startupCmds.length +
+    (ws.length ? ' (' + ws.join(', ') + ')' : '') + ', before the first tick ' + PW.preTickCmds.length +
+    (PW.reloadCmds.length ? ', after /reload before the next tick ' + PW.reloadCmds.length + ' (recorded: ' + PW.reloadCmds[0].c.substring(0, 50) + ')' : '') + ', team commands ' + PW.teamCmds.length + ', factions ' + (pf.length ? pf.join('+') : 'none') + '; invariants'
+  for (k in { a: 1, b: 1, c: 1, d: 1, e: 1 }) line += ' ' + k + '=' + (PW.recruits.res[k] === undefined ? 'n/a' : (PW.recruits.res[k] ? 'ok' : 'FAIL'))
+  if (dN >= 0) line += ' (d: ' + dN + ' live clade host(s) checked)'
+  if (typeof __pack !== 'undefined') {
+    __pack.out(line)
+    if (!PW.recruits.enforce) {
+      for (i = 0; i < PW.recruits.msgs.length && i < 6; i++) __pack.out('    recruits (recorded) ' + PW.recruits.msgs[i])
+    }
+  }
 }
 
 // The visual interpreter's own execute forms (graft summon, yaw tp, orphan sweep, apex names, graft particles).

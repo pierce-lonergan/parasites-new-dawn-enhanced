@@ -1,0 +1,14 @@
+{
+  "module": "core",
+  "_comment": "CORE (lead). Contract 1.5 (difficulty profiles and the Recruits-safe start): core-diff-node / core-diff-rhino test the profile table, the vanilla difficulty read, the diff_profile pin, the EPCA tier sync (managed, deliberate, outside change, epca_follow, missing classes, the admin command), the notices, the login line, the start gating and the seed cache of pne_00_core.js; diff-events-rhino tests startup_scripts/pne_diff_events.js (Spore damage, Hordes wave size) and the Peaceful skip of pne_horde_rules.js in real Rhino; pack-lint-recruits proves the kjs-lint rule recruits-team fires on a planted console team command. The core's other suites are built into tools/run_tests.py.",
+  "suites": [
+    {"name": "core-diff-node", "cmd": ["{node}", "tools/tests/kjs_node.js", "pneDiffTestResult", "tools/tests/kjs_mocks.js",
+      "overrides/kubejs/server_scripts/pne_00_core.js", "tools/tests/core/core_diff.js"], "needs": ["node"], "expect": "PASS", "timeout": 120},
+    {"name": "core-diff-rhino", "cmd": ["{python}", "tools/rhino/pne_rhino.py", "run", "pneDiffTestResult", "tools/tests/kjs_mocks.js",
+      "overrides/kubejs/server_scripts/pne_00_core.js", "tools/tests/core/core_diff.js"], "needs": ["rhino"], "expect": "PASS", "timeout": 300},
+    {"name": "diff-events-rhino", "cmd": ["{python}", "tools/rhino/pne_rhino.py", "run", "pneDiffEvResult", "tools/tests/kjs_mocks.js",
+      "tools/tests/core/diff_events_env.js", "overrides/kubejs/server_scripts/pne_00_core.js", "overrides/kubejs/startup_scripts/pne_diff_events.js",
+      "overrides/kubejs/startup_scripts/pne_horde_rules.js", "tools/tests/core/diff_events.js"], "needs": ["rhino"], "expect": "PASS", "timeout": 300},
+    {"name": "pack-lint-recruits", "cmd": ["{python}", "tools/tests/pack/test_lint_recruits.py"], "needs": [], "expect": "PASS", "timeout": 120}
+  ]
+}

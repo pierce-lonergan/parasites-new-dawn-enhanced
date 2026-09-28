@@ -8,7 +8,8 @@
 //   512 context baselines with 64-character keys and 10-digit EMAs; the 45,000-character log tail; a pending dawn
 //   dream in its children phase (dpop and dnext); 64 players seen; a 400-entry outcome species ring of long ids; and a
 //   kept unreadable earlier state of the same size (pne_hive.prev, a copy of the first save).
-// pneNbtReload(tag) loads that tag back through pneHiveEnsureLoaded; pneNbtHashAll() / pneNbtSaved() report the state.
+// pneNbtReload(tag) loads that tag back through pneHiveEnsureLoaded (after the server's first tick: the hive loads only once
+// the server started, contract 1.5); pneNbtHashAll() / pneNbtSaved() report the state.
 // pneNbtIncBegin / pneNbtIncStep / pneNbtIncChurn / pneNbtIncCheck: the incremental save at the maximum state against the
 // one-call save, in real CompoundTags (NbtSizeTest compares them).
 
@@ -41,6 +42,8 @@ function pneNbtBuild() {
   pneNbtSrv.persistentData = new CT()
   pneNbtSrv.getPersistentData = function () { return pneNbtSrv.persistentData }
   __pneMock.fire('ServerEvents.loaded', { server: pneNbtSrv })
+  // the server's first tick: the core marks the start and the hive loads there (contract 1.5), so pneNbtReload below can load
+  __pneMock.tick(pneNbtSrv, 1)
   st = GA.newState(2890182371)
   // 700 outcomes with 40-character ids and 64-character contexts: pool 48, samples 400, 512 baselines (LRU),
   // log tail full; maximal telemetry so every EMA has ten digits

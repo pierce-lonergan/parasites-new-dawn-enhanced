@@ -11,6 +11,10 @@ Validate everything under overrides/ before it goes into an instance.
     literal in the scripts is a prefix of a real event; every model override that points into the pack's own
     namespace has its model file; no AmbientSounds region folder ships and no stereo bed (catalog amb event) ships
     (docs/IMPLEMENTATION.md 5, decisions 1.3 and 1.4).
+  - The EPCA baseline (contract 1.5, section B): defaultExtraDifficulty in overrides/config/E-PCA/epca_main_config.toml
+    must name the tier PNE_CORE_EPCA_BASE in pne_00_core.js stands for (EPCA DifficultyLevel ids: easy 0, normal 1,
+    expert 2, master 3, custom 4, legendary 5). The core's EPCA sync treats a world whose overworld tier equals that
+    baseline as pack-managed, so the two must never drift apart.
   - With --instance: every namespaced item/entity/sound ID referenced by the scripts must exist in
     the instance's mod jars (checked against item models, lang files, sounds.json and data folders), and the
     epca/spore sounds.json volume trims may only re-list events and sound files those mods really ship.
@@ -47,6 +51,47 @@ EXTRA_KNOWN = {
 KJS_ASSETS = os.path.join(OVR, "kubejs", "assets")
 CATALOG = os.path.join(OVR, "kubejs", "server_scripts", "pne_res_catalog.js")
 OWN_NS = ("pne",)
+CORE = os.path.join(OVR, "kubejs", "server_scripts", "pne_00_core.js")
+EPCA_TOML = os.path.join(OVR, "config", "E-PCA", "epca_main_config.toml")
+EPCA_TIERS = ["easy", "normal", "expert", "master", "custom", "legendary"]
+
+
+def check_epca_base():
+    """defaultExtraDifficulty (EPCA TOML) == the tier PNE_CORE_EPCA_BASE (core) stands for. Returns (problems, note)."""
+    bad = []
+    note = ""
+    if not os.path.isfile(CORE) or not os.path.isfile(EPCA_TOML):
+        return bad, "EPCA baseline: core or EPCA config absent, not checked"
+    m = re.search(r"^var PNE_CORE_EPCA_BASE = (\d+)\s*(//.*)?$", open(CORE, encoding="utf-8").read(), re.M)
+    if not m:
+        return ["pne_00_core.js: no 'var PNE_CORE_EPCA_BASE = <int>' line (contract 1.5, section B)"], note
+    base = int(m.group(1))
+    val = None
+    try:
+        import tomllib
+
+        def find(d):
+            if isinstance(d, dict):
+                for k, v in d.items():
+                    if k == "defaultExtraDifficulty":
+                        return v
+                    r = find(v)
+                    if r is not None:
+                        return r
+            return None
+        val = find(tomllib.load(open(EPCA_TOML, "rb")))
+    except ImportError:
+        mm = re.search(r'^\s*defaultExtraDifficulty\s*=\s*"([^"]*)"', open(EPCA_TOML, encoding="utf-8").read(), re.M)
+        val = mm.group(1) if mm else None
+    if not isinstance(val, str):
+        return ["epca_main_config.toml: no defaultExtraDifficulty string"], note
+    want = EPCA_TIERS[base] if 0 <= base < len(EPCA_TIERS) else "?"
+    if val.strip().lower() != want:
+        bad.append(f"EPCA baseline drift: epca_main_config.toml defaultExtraDifficulty is \"{val}\", but PNE_CORE_EPCA_BASE = {base} "
+                   f"({want}) in pne_00_core.js; the EPCA sync would treat every default world as deliberately changed (contract 1.5, section B)")
+    else:
+        note = f"EPCA baseline: defaultExtraDifficulty \"{val}\" = PNE_CORE_EPCA_BASE {base}"
+    return bad, note
 
 
 def sound_names(entry):
@@ -258,6 +303,12 @@ def main():
         print(f"  assets: {sum(len(v) for v in events.values())} sound events in {len(events)} sounds.json; catalog, subtitles and models consistent")
     for msg in NOTES:
         print("  note  " + msg)
+    epca_bad, epca_note = check_epca_base()
+    for msg in epca_bad:
+        bad += 1
+        print("  FAIL  " + msg)
+    if epca_note:
+        print("  " + epca_note)
     seen = {}
     for p in files(".snbt"):
         t = open(p, encoding="utf-8").read()

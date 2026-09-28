@@ -10,7 +10,9 @@
 //      RELEASE, mercy and grace can only lower it (TDD 2.5.4, invariant I4).
 //   3. Pacing outputs: spawn and aggression multipliers, beckons, GA weight (TDD 2.5.5), published as the
 //      cached Pace (pneResPace), player.persistentData.pne_m / pne_m_t, and the tags pne_gate and
-//      pne_pace_soft (contract 3.2).
+//      pne_pace_soft (contract 3.2). The multipliers per state and the hourly death governor come from the active
+//      difficulty profile (contract 1.5: the core's PNE_CORE_DIFF row, pneCoreDiffId(); Hard is PNE_RES_PACING and
+//      the 1.4 governor exactly, lead decision L5), so the natural-spawn gate (pne_m) follows the profile too.
 //   4. The sound ledger (pneResEmit / pneResEmitAt): every horror sound for a player, old or new, passes
 //      per-player switches, comfort rules, A8 LF exclusivity and duty, the level-jump limit, the -18 LU bus
 //      ceiling and the per-minute budget, using the L_eff model of TDD 2.3.4 (distance, volume, the event's own
@@ -24,6 +26,8 @@
 //
 // Comfort (hard constraint, I8): audio only. Nothing here touches the camera, effects or the screen. Comfort
 // mode is ON for every player unless that player opted out (tag pne_comfort_off).
+// Start gating (contract 1.5, Appendix A rule 15): no command before the server has started (pneCoreStarted, set by
+// the core's first tick): the ledger refuses to issue, and tellraw, probes and stopsound are skipped until then.
 // Rhino rules: ES5 only, every var at the top of its function, values from Java converted with String() or
 // Number() before use, Mojang/KubeJS member names only, every handler in try/catch with a breaker.
 //
@@ -68,6 +72,9 @@ var PNE_RES_FSM = {
   lowConf: 0.45,
   eCeil: 0.60
 }
+// The Hard pacing table of release 1.4 (TDD 2.5.5) and the Hard hourly governor. Contract 1.5 moves the tables per
+// difficulty profile into the core (PNE_CORE_DIFF[id].pace and .gov1h, whose Hard row equals these); the director reads
+// the row for the profile id and uses these two only when the core's table is absent.
 var PNE_RES_PACING = {
   CALM: { spawn: 1.25, aggro: 1.0, beckon: true, ga: 1.0 },
   UNEASE: { spawn: 1.10, aggro: 1.0, beckon: true, ga: 1.0 },
@@ -75,6 +82,7 @@ var PNE_RES_PACING = {
   PANIC: { spawn: 0.00, aggro: 0.9, beckon: false, ga: 0.5 },
   RELEASE: { spawn: 0.20, aggro: 0.8, beckon: false, ga: 0.0 }
 }
+var PNE_RES_GOV1H = { floor: 0.50, slope: 0.15, free: 1 }
 var PNE_RES_TIER_UP = [0.25, 0.50]
 var PNE_RES_TIER_DOWN = [0.15, 0.38]
 var PNE_RES_TIER_UP_HOLD = 3
@@ -173,9 +181,14 @@ function pneResTierCap(raw, e, state, mercy, grace) {
 }
 
 // Pacing outputs (TDD 2.5.5). Mercy and grace override any state; the hourly death governor scales spawns:
-// x max(0.5, 1 - 0.15 * (hive-caused deaths in the last real hour - 1)).
-function pneResPaceOut(state, mercy, grace, deaths1h) {
-  var p = PNE_RES_PACING[state]
+// x max(floor, 1 - slope * max(0, hive-caused deaths in the last real hour - free)).
+// P is the difficulty profile row (contract 1.5: pneCoreDiff(), or PNE_CORE_DIFF[id] for an explicit id): P.pace[state]
+// gives spawn, aggro, beckon and ga, P.gov1h the governor { floor, slope, free }. Without P (or when the row lacks
+// them) the Hard values of release 1.4 apply: PNE_RES_PACING and max(0.5, 1 - 0.15 * max(0, deaths - 1)). Mercy and
+// grace are the same in every profile.
+function pneResPaceOut(state, mercy, grace, deaths1h, P) {
+  var p = (P && P.pace && P.pace[state]) ? P.pace[state] : PNE_RES_PACING[state]
+  var g = (P && P.gov1h) ? P.gov1h : PNE_RES_GOV1H
   var spawn = p.spawn
   var aggro = p.aggro
   var beckon = p.beckon
@@ -187,18 +200,41 @@ function pneResPaceOut(state, mercy, grace, deaths1h) {
     beckon = false
     ga = 0
   }
-  gov = Math.max(0.5, Math.min(1, 1 - 0.15 * Math.max(0, deaths1h - 1)))
+  gov = Math.max(g.floor, Math.min(1, 1 - g.slope * Math.max(0, deaths1h - g.free)))
   spawn = spawn * gov
   return { spawn: spawn, aggro: aggro, beckon: beckon, ga: ga, gov: gov }
 }
 
+// The profile id of a pure-step input: inp.diff 0..3 (0 Peaceful, 1 Easy, 2 Normal, 3 Hard), 3 when absent or invalid.
+function pneResDiffIn(v) {
+  var n
+  if (v === undefined || v === null) return 3
+  n = Number(v)
+  return (n >= 0 && n <= 3) ? Math.floor(n) : 3
+}
+
+// The core's row for profile id (read-only, shared: never modified here), or null without the core's table (then
+// pneResPaceOut uses the Hard values).
+function pneResDiffRow(id) {
+  if (typeof PNE_CORE_DIFF === 'undefined' || !PNE_CORE_DIFF) return null
+  return PNE_CORE_DIFF[pneResDiffIn(id)] || null
+}
+
+// The live profile id (pneCoreDiffId: the /pne config diff_profile pin, else the last vanilla read; 3 before it).
+function pneResDiffNow() {
+  var d = 3
+  if (typeof pneCoreDiffId !== 'function') return 3
+  try { d = pneCoreDiffId() } catch (e) { d = 3 }
+  return pneResDiffIn(d)
+}
+
 // One full pure step. st = { fsm, tier }; inp = { eo, conf, fresh, sh, theta, nearest, tsd, pflee, mercy, grace,
-// deaths1h }. Returns everything the parity test compares.
+// deaths1h, diff }, diff = the difficulty profile id (default 3, Hard). Returns everything the parity test compares.
 function pneResPureStep(st, inp) {
   var hard = pneResFsmStep(st.fsm, inp)
   var raw = pneResTierStep(st.tier, inp.theta)
   var tier = pneResTierCap(raw, st.fsm.e, st.fsm.state, inp.mercy, inp.grace)
-  var p = pneResPaceOut(st.fsm.state, inp.mercy, inp.grace, inp.deaths1h)
+  var p = pneResPaceOut(st.fsm.state, inp.mercy, inp.grace, inp.deaths1h, pneResDiffRow(inp.diff))
   return {
     state: st.fsm.state, e: st.fsm.e, hard: hard, raw: raw, tier: tier,
     spawn: p.spawn, aggro: p.aggro, beckon: p.beckon, ga: p.ga, gov: p.gov
@@ -272,6 +308,13 @@ function pneResNum(v, dflt) {
   if (v === undefined || v === null) return dflt
   n = Number(v)
   return isFinite(n) ? n : dflt
+}
+
+// Contract 1.5, Appendix A rule 15 (a): no command before the server has started. pneCoreStarted is false after
+// ServerEvents.loaded and after /reload until the core's next tick handler (which runs first) sets it; a core without
+// the flag (before contract 1.5) counts as started.
+function pneResStarted() {
+  return typeof pneCoreStarted !== 'boolean' || pneCoreStarted === true
 }
 
 function pneResDb(g) {
@@ -857,6 +900,8 @@ function pneResLedger(R, c, now) {
   var srv
   var gap
   var k
+  // rule 15 (a): nothing is issued before the server started (and nothing is recorded as played)
+  if (!pneResStarted()) return pneResRefuse('not_started')
   pneResPrune(L, now)
   // 1. per-player switches (tells ignore them: fairness)
   if (!c.tell) {
@@ -1125,6 +1170,7 @@ function pneResProbeCount(srv, u, r) {
   var n = 0
   var k
   var tags = ['#pne:hive', '#pne:spore']
+  if (!pneResStarted()) return -1
   for (k = 0; k < tags.length; k++) {
     if (!pneCoreTake(PNE_CORE_COST.emit)) return -1
     n += Math.max(0, pneResNum(srv.runCommandSilent('execute as ' + u + ' at @s if entity @e[type=' + tags[k] + ',distance=..' + r + ']'), 0))
@@ -1275,14 +1321,15 @@ function pneResStep(player) {
     theta: pneCoreClamp(0.60 * prox + 0.25 * cnt + 0.15 * dark, 0, 1),
     nearest: sense.nearest, tsd: sense.tsd, pflee: pflee,
     mercy: vuln.mercy === true, grace: vuln.grace === true,
-    deaths1h: pneCoreHiveDeaths(player, 72000)
+    deaths1h: pneCoreHiveDeaths(player, 72000),
+    diff: pneResDiffNow()
   }
   out = pneResPureStep(R.st, inp)
   R.pace = {
     state: out.state, spawn: out.spawn, aggro: out.aggro, beckon: out.beckon, ga: out.ga,
     tier: PNE_RES_TIERS[out.tier], e: out.e, theta: inp.theta, mercy: inp.mercy, grace: inp.grace,
     tick: pneCoreTick, sh: inp.sh, eo: eo, fresh: fresh, rawTier: PNE_RES_TIERS[out.raw], gov: out.gov,
-    sense: sense.src
+    sense: sense.src, diff: inp.diff
   }
   pneResPublish(player, R.pace, gt)
   near = pneCoreHiveNear(player)
@@ -1630,7 +1677,7 @@ function pneResDrain(R, now) {
       y = L.inst[j]
       if (j !== i && y.ev === x.ev && !y.stopped && y.t0 <= now && now < y.t1 - y.fade) busy = true
     }
-    if (busy || !srv) continue
+    if (busy || !srv || !pneResStarted()) continue
     srv.runCommandSilent('stopsound ' + R.u + ' ' + x.cat + ' ' + x.ev)
     pneCoreTake(PNE_CORE_COST.emit)
     pneResStats.stopped++
@@ -1650,16 +1697,28 @@ var PNE_RES_NOTICE = [
   ['/pne audio shows this again.', 'dark_gray']
 ]
 
+// true when the tellraw command was issued: false before the server started (rule 15 (a)) or when it threw. The
+// command's own result is not trusted either way (rule 15 (c)).
 function pneResTellraw(server, u, text, color) {
-  try { server.runCommandSilent('tellraw ' + u + ' ' + JSON.stringify({ text: String(text), color: color || 'gray' })) } catch (e) { }
+  if (!server || !pneResStarted()) return false
+  try {
+    server.runCommandSilent('tellraw ' + u + ' ' + JSON.stringify({ text: String(text), color: color || 'gray' }))
+    return true
+  } catch (e) {
+    return false
+  }
 }
 
+// true only when every line of the notice was issued (so pne_notice_v is recorded only for a notice that was sent).
 function pneResShowNotice(server, player) {
   var u = pneCoreUuid(player)
   var i
+  var all = true
   if (!u || !server) return false
-  for (i = 0; i < PNE_RES_NOTICE.length; i++) pneResTellraw(server, u, PNE_RES_NOTICE[i][0], PNE_RES_NOTICE[i][1])
-  return true
+  for (i = 0; i < PNE_RES_NOTICE.length; i++) {
+    if (!pneResTellraw(server, u, PNE_RES_NOTICE[i][0], PNE_RES_NOTICE[i][1])) all = false
+  }
+  return all
 }
 
 function pneResNoticeTick(server) {

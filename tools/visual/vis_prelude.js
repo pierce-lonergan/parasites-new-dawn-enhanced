@@ -5,17 +5,33 @@
 //   - entities: passengers/vehicle, body yaw, bounding box, CustomName (translatable contents), isRemoved, a level
 //     per entity, a target (getTarget; set e.target); every entity is registered by UUID in __pneVisMock.world;
 //   - levels: getEntity(UUID) and extra dimensions (__pneVisMock.addLevel); server.getAllLevels(), getEntities();
-//   - a scoreboard (teams with nametag/collision options, one team per entry, getPlayerTeam/getPlayersTeam/
-//     getPlayers) and vanilla's Scoreboard.entityRemoved rule (a destroyed non-player leaves its team);
-//   - an interpreter for exactly the commands pne_visual.js issues (team, summon item_display, ride, kill, tag,
+//   - the scoreboard: server.getScoreboard() is the shared ServerScoreboard Java API mock of tools/tests/kjs_mocks.js
+//     (__pneMock.scoreboard over srv.sb: teams with nametag/collision/friendly-fire options, one team per entry),
+//     wrapped so that every write is logged in __pneVisMock.sbLog = [{ t, op, a, b, started }] (op 'addTeam',
+//     'removeTeam', 'join', 'leave', 'nametag', 'collision', 'friendlyFire', 'seeInvisibles'; started = the core's
+//     pneCoreStarted at that moment) and so that a write can be made to fail silently: __pneVisMock.sbFault.join /
+//     .leave / .set (the call does nothing but answers as if it worked, so only a read-back can tell) and .add
+//     (addPlayerTeam throws). Plus vanilla's Scoreboard.entityRemoved rule (a destroyed non-player leaves its team).
+//     Tests plant scoreboard state with __pneVisMock.addTeam(srv, name, opts), .join(srv, name, entry) and
+//     .leave(srv, entry), never with commands;
+//   - Recruits (contract 1.5, spec D): every command Recruits would take over (text holding "team" and also "add",
+//     "remove", "join" or "leave") is recorded in __pneVisMock.teamCmds, every command whose text holds "team" at all
+//     (Appendix A rule 15 (b), whatever else it says; a tellraw reply included) in __pneVisMock.teamText, and every
+//     command issued while pneCoreStarted is false in __pneVisMock.early. With __pneVisMock.recruits = true they
+//     behave as in game with Recruits installed: a command before the start is not run and answers 0; afterwards a
+//     command with "team" plus add/remove/join/leave is cancelled and answers 1 (the answer a module must not trust).
+//     Off by default (the pack harness has its own Recruits model in front of this interpreter);
+//   - an interpreter for exactly the commands pne_visual.js issues (summon item_display, ride, kill, tag,
 //     execute ... on vehicle on passengers, the graft yaw tp, data merge/remove CustomName, tag <uuid> add/remove,
-//     execute as @e[tag=...] run data remove entity @s CustomName, tag @e[tag=...] remove, particle). Results
-//     mimic Minecraft (count of affected entities, 0 on failure). __pneVisMock.failSummon = n makes the next n summons
-//     fail. Any other world-changing command is recorded in __pneVisMock.unknown.
+//     execute as @e[tag=...] run data remove entity @s CustomName, tag @e[tag=...] remove, particle), plus vanilla
+//     team commands for other scripts. Results mimic Minecraft (count of affected entities, 0 on failure).
+//     __pneVisMock.failSummon = n makes the next n summons fail. Any other world-changing command is recorded in
+//     __pneVisMock.unknown.
 //   - in Node only: a java.util.UUID shim (fromString); Rhino uses the real class.
 // Every command is logged with the server tick: __pneVisMock.log = [{ t, c, r }].
 
-var __pneVisMock = { unknown: [], log: [], world: {}, all: [], particles: [], failSummon: 0 }
+var __pneVisMock = { unknown: [], log: [], world: {}, all: [], particles: [], failSummon: 0, sbLog: [],
+  sbFault: { join: false, leave: false, set: false, add: false }, teamCmds: [], teamText: [], early: [], recruits: false }
 var __PNE_VIS_MOCK_UUID_RX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 function __pneVisMockUuidObj(s) {
@@ -220,19 +236,88 @@ __pneVisMock.addLevel = function (srv, dim) {
   return l
 }
 
-function __pneVisMockTeamApi(srv, name) {
-  var t = srv.sb.teams[name]
+// The core's start flag as the game would see it (true when the core under test has none).
+function __pneVisMockStarted() {
+  return typeof pneCoreStarted === 'boolean' ? pneCoreStarted : true
+}
+
+function __pneVisMockSbLog(srv, op, a, b) {
+  if (__pneVisMock.sbLog.length >= 20000) __pneVisMock.sbLog.splice(0, 10000)
+  __pneVisMock.sbLog.push({ t: srv.tickCount, op: op, a: String(a), b: b === undefined || b === null ? '' : String(b), started: __pneVisMockStarted() })
+}
+
+// A team of the shared mock, with its writes logged (and dropped while __pneVisMock.sbFault.set).
+function __pneVisMockTeamWrap(srv, t) {
+  if (!t) return null
   return {
-    getName: function () { return name },
-    getPlayers: function () {
-      var ks = []
-      var k
-      for (k in t.members) {
-        if (t.members.hasOwnProperty(k)) ks.push(k)
-      }
-      return __pneVisMockIterable(ks)
+    __team: t.__team,
+    getName: t.getName,
+    getPlayers: t.getPlayers,
+    getNameTagVisibility: t.getNameTagVisibility,
+    getCollisionRule: t.getCollisionRule,
+    isAllowFriendlyFire: t.isAllowFriendlyFire,
+    canSeeFriendlyInvisibles: t.canSeeFriendlyInvisibles,
+    setNameTagVisibility: function (v) {
+      __pneVisMockSbLog(srv, 'nametag', t.getName(), v)
+      if (!__pneVisMock.sbFault.set) t.setNameTagVisibility(v)
+    },
+    setCollisionRule: function (c) {
+      __pneVisMockSbLog(srv, 'collision', t.getName(), c)
+      if (!__pneVisMock.sbFault.set) t.setCollisionRule(c)
+    },
+    setAllowFriendlyFire: function (b) {
+      __pneVisMockSbLog(srv, 'friendlyFire', t.getName(), b)
+      if (!__pneVisMock.sbFault.set) t.setAllowFriendlyFire(b)
+    },
+    setSeeFriendlyInvisibles: function (b) {
+      __pneVisMockSbLog(srv, 'seeInvisibles', t.getName(), b)
+      if (!__pneVisMock.sbFault.set) t.setSeeFriendlyInvisibles(b)
     }
   }
+}
+
+// server.getScoreboard(): the shared ServerScoreboard mock over srv.sb, writes logged, faults injectable (see the header).
+function __pneVisMockScoreboard(srv) {
+  var sb = __pneMock.scoreboard(srv)
+  return {
+    getPlayerTeam: function (n) { return __pneVisMockTeamWrap(srv, sb.getPlayerTeam(n)) },
+    getPlayersTeam: function (entry) { return __pneVisMockTeamWrap(srv, sb.getPlayersTeam(entry)) },
+    getPlayerTeams: sb.getPlayerTeams,
+    addPlayerTeam: function (n) {
+      __pneVisMockSbLog(srv, 'addTeam', n)
+      if (__pneVisMock.sbFault.add) throw new Error('mock: addPlayerTeam refused')
+      return __pneVisMockTeamWrap(srv, sb.addPlayerTeam(n))
+    },
+    removePlayerTeam: function (t) {
+      __pneVisMockSbLog(srv, 'removeTeam', t.getName())
+      sb.removePlayerTeam(t)
+    },
+    addPlayerToTeam: function (entry, t) {
+      __pneVisMockSbLog(srv, 'join', entry, t.getName())
+      if (__pneVisMock.sbFault.join) return true
+      return sb.addPlayerToTeam(entry, t)
+    },
+    removePlayerFromTeam: function (entry, t) {
+      __pneVisMockSbLog(srv, 'leave', entry, t ? t.getName() : '')
+      if (__pneVisMock.sbFault.leave) return true
+      return (t === undefined || t === null) ? sb.removePlayerFromTeam(entry) : sb.removePlayerFromTeam(entry, t)
+    }
+  }
+}
+
+// Recruits' command interception (see the header): undefined when the command runs normally. Recruits 1.15.2
+// (FactionEvents.onTypeCommandEvent) tests plain substrings of the whole command text: "team", then "add", "remove",
+// "join" or "leave" anywhere in it (a tellraw whose text says "teams" and whose target UUID holds "add" counts too).
+function __pneVisMockRecruits(srv, c) {
+  var hit = c.indexOf('team') >= 0 && /add|remove|join|leave/.test(c)
+  if (c.indexOf('team') >= 0 && __pneVisMock.teamText.length < 1000) __pneVisMock.teamText.push({ t: srv.tickCount, c: c })
+  if (hit && __pneVisMock.teamCmds.length < 1000) __pneVisMock.teamCmds.push({ t: srv.tickCount, c: c })
+  if (!__pneVisMockStarted()) {
+    if (__pneVisMock.early.length < 1000) __pneVisMock.early.push({ t: srv.tickCount, c: c })
+    if (__pneVisMock.recruits) return 0
+  }
+  if (__pneVisMock.recruits && hit) return 1
+  return undefined
 }
 
 __pneVisMock.server0 = __pneMock.server
@@ -245,13 +330,7 @@ __pneMock.server = function (opts) {
   srv.getAllLevels = function () { return __pneVisMockIterable(srv.levelsArr.slice()) }
   srv.getScoreboard = function () {
     if (srv.noScoreboard) throw new Error('mock: scoreboard unavailable')
-    return {
-      getPlayerTeam: function (n) { return srv.sb.teams.hasOwnProperty(String(n)) ? __pneVisMockTeamApi(srv, String(n)) : null },
-      getPlayersTeam: function (entry) {
-        var t = srv.sb.byEntry[String(entry)]
-        return t ? __pneVisMockTeamApi(srv, t) : null
-      }
-    }
+    return __pneVisMockScoreboard(srv)
   }
   srv.getEntities = function () {
     var out = []
@@ -263,7 +342,13 @@ __pneMock.server = function (opts) {
   }
   srv.runCommandSilent = function (cmd) {
     var c = String(cmd)
-    var r = __pneVisMockExec(srv, c)
+    var r = __pneVisMockRecruits(srv, c)
+    if (r !== undefined) {
+      srv.cmds.push(c)
+      __pneVisMock.log.push({ t: srv.tickCount, c: c, r: r, recruits: true })
+      return r
+    }
+    r = __pneVisMockExec(srv, c)
     if (r === undefined) return run0(c)
     srv.cmds.push(c)
     __pneVisMock.log.push({ t: srv.tickCount, c: c, r: r })
@@ -286,6 +371,33 @@ function __pneVisMockLeave(srv, entry) {
 
 __pneVisMock.teamOf = function (srv, entry) {
   return srv.sb.byEntry[String(entry)] || ''
+}
+
+// Test planting (no command, no log): a team with vanilla defaults unless opts says otherwise; returns its record.
+__pneVisMock.addTeam = function (srv, name, opts) {
+  var o = opts || {}
+  if (!srv.sb.teams.hasOwnProperty(name)) {
+    srv.sb.teams[name] = { name: name, nametagVisibility: 'always', collisionRule: 'always', members: {}, friendlyFire: true,
+      seeFriendlyInvisibles: true }
+  }
+  if (o.nametagVisibility) srv.sb.teams[name].nametagVisibility = o.nametagVisibility
+  if (o.collisionRule) srv.sb.teams[name].collisionRule = o.collisionRule
+  if (o.friendlyFire !== undefined) srv.sb.teams[name].friendlyFire = o.friendlyFire
+  if (o.seeFriendlyInvisibles !== undefined) srv.sb.teams[name].seeFriendlyInvisibles = o.seeFriendlyInvisibles
+  return srv.sb.teams[name]
+}
+
+// Test planting: the entry moves to team `name` (created with vanilla defaults when missing).
+__pneVisMock.join = function (srv, name, entry) {
+  __pneVisMock.addTeam(srv, name, null)
+  __pneVisMockLeave(srv, entry)
+  srv.sb.teams[name].members[String(entry)] = true
+  srv.sb.byEntry[String(entry)] = name
+}
+
+// Test planting: the entry leaves its team; true when it was on one.
+__pneVisMock.leave = function (srv, entry) {
+  return __pneVisMockLeave(srv, entry)
 }
 
 __pneVisMock.teamSize = function (srv, name) {

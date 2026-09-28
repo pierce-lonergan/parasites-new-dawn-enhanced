@@ -10,6 +10,11 @@ Inputs are deterministic synthetic 1 Hz traces (calm stretches, approaches, figh
 and grace episodes, stale and low-confidence verdicts, hive-death counts) plus edge cases at the thresholds. Files
 go to PNE_TMP only. Rhino is skipped (reported, not failed) when the toolchain is missing; Node is required.
 
+Contract 1.5: the difficulty profile is an input (field diff, 0 Peaceful .. 3 Hard; absent means 3). The Hard traces
+carry no diff field (release 1.4 inputs); every profile gets its own traces and threshold edge cases, one trace switches
+profile every 100 steps (a pause-menu change), and the Python table PROFILES must equal the pace and gov1h of the
+core's PNE_CORE_DIFF, row for row.
+
 The shipped Python port is also checked against the measured TDD prototype itself (tools/director/proto_director.py,
 vendored unchanged): on traces written in the prototype's own input format (Oracle stress probabilities, the
 low-confidence teacher blend, P(flee), health, respawn and death events), the shipped FSM must give the same state,
@@ -190,6 +195,37 @@ def edge_traces():
     return out
 
 
+def with_diff(trace, diff):
+    """The same trace with the profile id set on every step (diff may be a function of the step index)."""
+    return [dict(x, diff=(diff(i) if callable(diff) else diff)) for i, x in enumerate(trace)]
+
+
+def profile_traces():
+    out = [with_diff(gen_trace(3000 + s, 900), s % 4) for s in range(12)]
+    out.append(with_diff(gen_trace(3100, 1200), lambda i: (i // 100) % 4))
+    for d in (0, 1, 2):
+        out.extend(with_diff(tr, d) for tr in edge_traces()[:2])
+    return out
+
+
+def table_diff(js_table):
+    """Differences between director.PROFILES and the core's PNE_CORE_DIFF pace / gov1h (as parity_js.js dumped it)."""
+    bad = []
+    if len(js_table) != len(D.PROFILES):
+        return ["%d rows in PNE_CORE_DIFF, %d in PROFILES" % (len(js_table), len(D.PROFILES))]
+    for i, row in enumerate(js_table):
+        py = D.PROFILES[i]
+        for s in D.STATES:
+            for k in ("spawn", "aggro", "beckon", "ga"):
+                a, b = row["pace"][s][k], py["pace"][s][k]
+                if a != b or isinstance(a, bool) != isinstance(b, bool):
+                    bad.append("profile %d %s.%s: core %r, python %r" % (i, s, k, row["pace"][s][k], py["pace"][s][k]))
+        for k in ("floor", "slope", "free"):
+            if row["gov1h"][k] != py["gov1h"][k]:
+                bad.append("profile %d gov1h.%s: core %r, python %r" % (i, k, row["gov1h"][k], py["gov1h"][k]))
+    return bad
+
+
 def run_py(traces):
     res = []
     for tr in traces:
@@ -225,8 +261,15 @@ def compare(name, a, b):
 def main():
     tmp = os.environ.get("PNE_TMP") or os.path.join(tempfile.gettempdir(), "pne_tests")
     os.makedirs(tmp, exist_ok=True)
-    traces = [gen_trace(1000 + s, 900) for s in range(40)] + edge_traces()
+    base = [gen_trace(1000 + s, 900) for s in range(40)]
+    prof = profile_traces()
+    edge = edge_traces()
+    traces = base + prof + edge
     py = run_py(traces)
+    by_profile = [0, 0, 0, 0]
+    for tr in traces:
+        for x in tr:
+            by_profile[D.diff_in(x.get("diff"))] += 1
     fin = os.path.join(tmp, "director_parity_in.json")
     fout = os.path.join(tmp, "director_parity_node.json")
     with open(fin, "w", encoding="utf-8") as f:
@@ -237,12 +280,16 @@ def main():
         print(r.stdout + r.stderr)
         print("FAIL director-parity: node driver failed")
         return 1
-    js = json.load(open(fout, encoding="utf-8"))
+    dump = json.load(open(fout, encoding="utf-8"))
+    js = dump["out"]
     total, diff, first = compare("node", py, js)
-    lines = ["python vs node: %d/%d steps identical" % (total - diff, total)]
-    ok = diff == 0 and total > 0
+    lines = ["python vs node: %d/%d steps identical (profile 0/1/2/3 steps: %s)" % (total - diff, total, "/".join(map(str, by_profile)))]
+    ok = diff == 0 and total > 0 and min(by_profile) > 0
     if first:
         lines.append("  first difference " + first)
+    tb = table_diff(dump["table"])
+    lines.append("python PROFILES vs the core's PNE_CORE_DIFF pace and gov1h: %s" % ("equal (4 rows)" if not tb else "; ".join(tb[:4])))
+    ok = ok and not tb
     # the shipped FSM against the measured TDD prototype (state, e bit for bit, spawn; aggression outside grace)
     pt, pd, pf = proto_compare([proto_trace(5000 + s, 1800) for s in range(24)])
     lines.append("python vs TDD prototype director.py: %d/%d steps identical" % (pt - pd, pt))
@@ -257,7 +304,8 @@ def main():
     except SystemExit:
         have_rhino = False
     if have_rhino:
-        sub = traces[:10] + traces[-6:]
+        pick = list(range(10)) + list(range(len(base), len(base) + len(prof))) + list(range(len(traces) - 6, len(traces)))
+        sub = [traces[i] for i in pick]
         fjs = os.path.join(tmp, "director_parity_in.js")
         with open(fjs, "w", encoding="utf-8") as f:
             f.write("var PNE_PAR_IN = " + json.dumps(sub) + "\n")
@@ -274,7 +322,7 @@ def main():
         else:
             rh = json.loads(last[-1][5:])
             rh = [[dict(zip(FIELDS, [s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9]])) for s in tr] for tr in rh]
-            t2, d2, f2 = compare("rhino", [py[i] for i in list(range(10)) + list(range(len(py) - 6, len(py)))], rh)
+            t2, d2, f2 = compare("rhino", [py[i] for i in pick], rh)
             lines.append("python vs rhino: %d/%d steps identical" % (t2 - d2, t2))
             if f2:
                 lines.append("  first difference " + f2)
@@ -283,7 +331,7 @@ def main():
         lines.append("rhino: toolchain not found, Rhino parity not run")
     for ln in lines:
         print(ln)
-    print(("PASS director-parity: 100%% identical over %d steps" % total) if ok else "FAIL director-parity")
+    print(("PASS director-parity: 100%% identical over %d steps, all 4 profiles" % total) if ok else "FAIL director-parity")
     return 0 if ok else 1
 
 

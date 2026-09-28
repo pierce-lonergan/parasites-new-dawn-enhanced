@@ -15,6 +15,11 @@
 // Day and time come from the vanilla /time query command run by the server (overworld source), so no
 // remapped Mojang members are needed for them.
 //
+// Difficulty profiles (The Hive Remembers, docs/IMPLEMENTATION.md 1.5, table A row 18): on the Peaceful profile
+// there is no horde (pne_diff_events.js cancels it), so this rule stays out of the way. The core mirrors the profile
+// id to global.pneDiffProfile (0 Peaceful .. 3 Hard); it comes back as a wrapped Java object, so it is converted with
+// Number() first, and absent means Hard (the rule applies, as before).
+//
 // ES5 only (Rhino). The body is wrapped in try/catch.
 
 var $PneBedProblem = null
@@ -27,6 +32,12 @@ var pneBedLines = [
   'Something is coming for you tonight. Sleep will not come.',
   'You close your eyes and hear them breathing. Not tonight.'
 ]
+
+// true on the Peaceful difficulty profile (global.pneDiffProfile 0); false when absent or any other profile.
+function pneBedPeaceful() {
+  var v = global.pneDiffProfile
+  return v !== undefined && v !== null && Number(v) === 0
+}
 
 function pneBedTellBar(player, server, text) {
   try { player.setStatusMessage(text); return } catch (e) { }
@@ -41,6 +52,7 @@ try {
     if (pneBedErrors >= 20 || $PneBedProblem === null) return
     try {
       if (event.getResultStatus() != null) return
+      if (pneBedPeaceful()) return
       var player = event.getEntity()
       if (!player) return
       var server = player.getServer()

@@ -182,6 +182,8 @@ function world (opts) {
   }
   srv.persistentData.putInt('pne_doom_floor', 1800000000) // stage 10: chance 9%
   M.fire('ServerEvents.loaded', { server: srv })
+  // contract 1.5 (rule 15): nothing issues a command before the server's first tick, so the world starts one tick in
+  M.tick(srv, 1)
   return W
 }
 

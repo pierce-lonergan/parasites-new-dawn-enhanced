@@ -6,7 +6,12 @@ Pack-level smoke test of The Hive Remembers (suites pack-smoke and pack-degradat
                                                         2+ in-game days with players, parasites, deaths, respawns, a Hive
                                                         Night, dawns, /reload and a world restart
     python tools/tests/pack/run_pack.py matrix          pack-degradation: each new file removed in turn (contract 8) and
-                                                        each pillar switched off and on again (contract 6.2)
+                                                        each pillar switched off and on again (contract 6.2); 1.5 adds the
+                                                        EPCA-absent row (no-epca) and no-diff-events, both on Easy
+    python tools/tests/pack/run_pack.py difficulty      pack-difficulty (contract 1.5): the full pack at vanilla Peaceful,
+                                                        Easy, Normal and Hard (diff-0 .. diff-3), a mid-run Easy -> Hard
+                                                        -> Easy switch (diff-switch) and Easy across a /reload and a
+                                                        world restart (diff-1-restart)
     python tools/tests/pack/run_pack.py VARIANT[,...]   single variants (names in tools/tests/pack/pack_sim.js; 'quick' is a
                                                         3500-tick development run that also prints status and mobs)
     python tools/tests/pack/run_pack.py ... --root=DIR  load the scripts from DIR/server_scripts and DIR/startup_scripts
@@ -14,6 +19,9 @@ Pack-level smoke test of The Hive Remembers (suites pack-smoke and pack-degradat
     python tools/tests/pack/run_pack.py ... --strict    the world exposes only the method names KubeJS leaves visible in
                                                         game (contract F37: getTime, getType/getActual, getYaw, ...),
                                                         not the Mojang names the module mocks also answer to
+
+Every variant also checks the Recruits-safe start of contract 1.5 (spec D invariants (a)-(e), enforced; pack_world.js)
+and the difficulty profile expectations (pack_sim.js header).
 
 Everything runs in the instance's own Rhino jar under JDK 17 (tools/rhino/pne_rhino.py: class filter, game remapper);
 tools/tests/pack/PackRhino.java adds the second scope and the shared global. Nothing is written anywhere (the world,

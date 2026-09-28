@@ -85,7 +85,7 @@ and Spore jars into your instance, and `python tools/resonance/declip_local.py -
 optionally writes a de-clipped Spore sound pack into your instance (it keeps each file's loudness and skips files the
 limiter would make more than 3 LU quieter: 84 of the 205 clipped files on the current jar).
 
-Automated tests: `python tools/run_tests.py` (68 suites; Node, Python and the instance's own Rhino jar), and
+Automated tests: `python tools/run_tests.py` (77 suites; Node, Python and the instance's own Rhino jar), and
 `python tools/run_tests.py --milestone M0` up to `M5` for the milestone exit criteria (items only you can decide, such
 as the comfort listening sign-off, are listed as PENDING).
 
@@ -121,8 +121,10 @@ You need Python 3.11+ and, for the syntax checks, Node.js.
    python tools/fix_instance.py --instance "<path to your instance copy>"
    ```
 5. Reopen CurseForge, launch, and create a **new** world so the ore changes apply from the first
-   chunk. EPCA *Expert* on vanilla *Hard* is the intended difficulty. Pick the **Cities** world type
-   for Lost Cities.
+   chunk. EPCA *Expert* on vanilla *Hard* is the intended difficulty; the pack follows the vanilla setting (Options >
+   Difficulty: Peaceful, Easy, Normal or Hard profiles, and EPCA's tier moves with it on a world whose EPCA button stayed
+   on its default), so pick Easy or Normal for a gentler game. `/pne difficulty` shows the active profile. Pick the
+   **Cities** world type for Lost Cities.
 
 To check the overrides at any time: `python tools/validate.py --instance "<path>"`.
 

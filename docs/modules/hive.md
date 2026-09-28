@@ -13,7 +13,8 @@ EntityEvents.spawned (server)   -> rejoin queue (has pne_g) or newborn queue (hi
 LivingDamageEvent (startup)     -> global.pneHiveQDamage: d / x / p records
 LivingHurtEvent (startup)       -> PRJ projectile scaling (pne_prj)
 EntityLeaveLevelEvent (startup) -> global.pneHiveQLeave: l records (genome mobs only)
-ServerEvents.tick (server)      -> load epoch (first tick after a load), silent pass, GA save step, drains, GA work,
+ServerEvents.tick (server)      -> load and load epoch (first tick after a start or /reload: contract 1.5, never in
+                                   ServerEvents.loaded), silent pass, GA save step, drains, GA work,
                                    light pass, samples, per-player step, save write steps, housekeeping
 ```
 
@@ -58,7 +59,7 @@ tag `pne_grace` with `pne_grace_until` ahead of the game time by at most 2400 ti
 
 | Order | Job | When | Charged |
 | --- | --- | --- | --- |
-| 0 | load epoch: `PNE_HIVE_GA.epoch(st, ep)` | the first hive tick after every load, before anything that can generate a genome id | - (O(1)) |
+| 0 | load (1.5: moved here from `ServerEvents.loaded`) and load epoch: `PNE_HIVE_GA.epoch(st, ep)` | the first hive tick after every start or `/reload` (`pneCoreStarted`), before anything that can generate a genome id; the seed is read then, after the start | - (O(1); the one-off load is outside the budget) |
 | 1 | silent pass: each silent mob every 20 ticks, every 4 while a player is within 8 blocks; then the 30% cap | every tick | `silentVisit` per visit (ash command included), `emit` per L8 tell (one per survival player within 12 blocks whose pair is due); a visit or tell that does not fit makes the mob audible |
 | 2 | incremental pool save, GA half: the start (`PNE_HIVE_GA.saveBegin` + runtime string), then one `PNE_HIVE_GA.savePart` piece per step (`saveEnd` after the last) | when due (every 6000 ticks at `t%6000 === 6`, at dawn, at a switch-off, after `/pne hive prev drop`), one step per free save slot: even ticks outside slots 0 and 10; refused, retried at the next free slot | `gaSavePart` 0.4 per piece; the start `gaSavePart` + `save` (0.52: it also builds the runtime string) |
 | 3 | leave records (32, or 128 while a newborn waits on them), then damage records (32) | every tick | `leaveOut` per KILLED record, `leaveOut` + `convRec` per newborn in the conversion window per DISCARDED record, `mobSample` otherwise |
@@ -150,8 +151,15 @@ removal time is within 2 ticks of the join, at most one newborn per removal; it 
 
 ## Expression (TDD 3.1)
 
-`B = PNE_HIVE_GA.budget(stage, gov, graceNear)` with `pneCoreStage(level)` and graceNear = a survival player within 48
-blocks (live positions) with a hive-caused death in the last 6000 ticks; `e = PNE_HIVE_GA.express(g, PNE_HIVE_GA.mask(type), B)`.
+`B = pneHiveB(stage, graceNear) = PNE_HIVE_GA.budget(stage, min(gov, P.hive.govCap), graceNear) x P.hive.budget`
+(contract 1.5: `P` is the difficulty row `pneCoreDiff()`, read at each use and never copied; a drain call reads it once
+for all the rejoins and newborns it expresses; Hard, `govCap` 1.15 and `budget` 1.0, is bit for bit
+`PNE_HIVE_GA.budget(stage, gov, graceNear)`; without a core that has the table every factor is 1.4's) with
+`pneCoreStage(level)` and graceNear = a survival player within 48 blocks (live positions) with a hive-caused death in the
+last 6000 ticks; `e = PNE_HIVE_GA.express(g, PNE_HIVE_GA.mask(type), B)`. The same helper sizes dream slices and the
+HiveInfo of an untracked genome mob. `P.hive.phen` scales only the HPX (gene 10) and DMG (gene 11) modifier amounts
+(`e`, `HiveInfo.e` and the GA's I events keep the expressed values). On Peaceful B is 0: a newborn gets a genome but no
+modifier, no Silent, no axe and no FLK; a rejoin loses its transient modifiers and keeps a saved permanent HPX modifier.
 
 | Gene | Phenotype |
 | --- | --- |
@@ -228,15 +236,18 @@ table read. An entry older than 40 ticks, or none yet, gives the neutral answer 
 
 Each second, for each survival player the hive is engaged on, weighted by `pneCoreGaWeight(player)` (PANIC 0.5;
 RELEASE, mercy, grace 0): +w to the Oracle style bucket (`hide`/`kite`/`turtle`, fresh verdicts only), +w when the block
-light at the player is >= 11, +w per light source placed (up to 3); +w to `audio` when a player hits a genome mob before
+light at the player is >= `luxMin` (11; 10 on Easy, contract 1.5), +w per light source placed (up to 3); +w to `audio` when a player hits a genome mob before
 it located anyone. At dawn (overworld day index increases) `PNE_HIVE_GA.dawn` gets `deaths3d =
-pneCoreHiveDeathsAll(72000)`, `target = gov_deaths x players x 3 / gov_days` (players = distinct pids seen
-survival-online in the last 72000 ticks), today's evidence normalised to sum 1, and the overworld stage; the state is
+pneCoreHiveDeathsAll(72000)`, `target = gov_deaths x players x 3 / gov_days x targetK` (players = distinct pids seen
+survival-online in the last 72000 ticks; `targetK` from the difficulty row: 1.0 Hard, 0.75 Normal, 0.5 Easy and
+Peaceful), today's evidence normalised to sum 1, and the overworld stage; the state is
 saved afterwards. The dream is sliced on `t%4 === 1` with the mask of the most common species among the last 400 engaged
 outcomes and B at the overworld stage.
 
-Intra-day governor: at a player's step, a new entry in that player's `pne_hd` with `pneCoreHiveDeaths(player, 24000) >= 2`
-calls `PNE_HIVE_GA.govStep` once (deaths from before the server run are history).
+Intra-day governor: at a player's step, a new entry in that player's `pne_hd` with `pneCoreHiveDeaths(player, 24000) >=
+govDeaths` (2 on Hard and Normal, 1 on Easy and Peaceful; `PNE_HIVE_GOV_DEATHS` = 2 without the table) calls
+`PNE_HIVE_GA.govStep` once (deaths from before the server run are history). The light-aversion pass uses the same
+`luxMin` threshold as the T_est light rule.
 
 ## Persistence (`server.persistentData.pne_hive`)
 
@@ -265,8 +276,9 @@ running (its older snapshot is never written afterwards).
 **Load epoch**: every load computes a new epoch, `max(persisted ep, GA state's own epoch) + 1 + salt` (`ep` persisted in
 `hv`; the salt is 0..1023, the last 10 bits of a random `java.util.UUID`, none within 1024 of the 2^31 - 1 that
 `PNE_HIVE_GA.load` accepts), records it in the stored compound at once, and declares it to the GA with
-`PNE_HIVE_GA.epoch(st, ep)` on the first hive tick after the load, before any drain or GA work can generate an id (a load
-followed by a save with no hive tick in between, such as a quick restart, round-trips the GA state unchanged). From then
+`PNE_HIVE_GA.epoch(st, ep)` on the first hive tick after the load, before any drain or GA work can generate an id. Since
+contract 1.5 the load itself runs on that first hive tick after the start too (never in `ServerEvents.loaded`, rule 15),
+so a stop before that tick saves nothing and leaves the stored `pne_hive` untouched. From then
 on every id the GA generates carries it (`b12.3`, `j42.3`, dream inserts `d130.3`), including the ids that never pass
 through HIVE. The id a mob gets (`pne_gi`) is the GA's id as it is when it carries this run's epoch; a queued child bred
 before the last save keeps the id it was bred with (`b17.2`) and would be handed out again after a rollback to that save,
@@ -324,7 +336,7 @@ unsilences every tracked silent mob.
 
 | Suite | File | What |
 | --- | --- | --- |
-| `hive-node` | `tools/hive/test_hive.js` | 233 runtime assertions on the shared mocks with the real startup listeners: queues, next-tick newborns, spawned never cancelled, backstop (before RNG; loaded-from-disk, named, persistent, far, config off, stale grace; right after a respawn and a dimension change), idempotent re-expression, permanent HP across a chunk reload, rejoin replaced by a reload while queued (also twice, and in the rediscovery pass), links, SIL tells/3-block (visit and sample path)/fast revisits/attack/cap every tick/no-director/budget fail-safe, PRC axe, PRJ scaling, telemetry and k_mercy, kill share and fall cheese, outcomes and I2, GA slots (breed and dream beside a stream of outcomes), the incremental save's schedule (one step per free save slot: even ticks outside 0 and 10, charged `gaSavePart`, retried when refused, a due save following a running one), the incremental save storing byte for byte what the one-call save stored while the GA state and runtime evidence change between its pieces, a superseded or failed save never writing and starting over, the dawn charged `dawn` (it waits with room for a breed only), player yaw through `getYaw()` (turning is movement), incremental saves on switch-off, the one-call save at stop abandoning a running incremental save, persistence round trip, kept unreadable state, load epoch (declared on the first tick after a load, GA ids used as they are, a rolled-back queued child gets the run epoch appended, a lagging persisted counter recorded in the stored `hv` at the load itself; a crash before the next world save: two starts from the same stored counter get different salted epochs, so the rolled-back counter's newborn gets a different id; the salt's bits, fallbacks and limit; a fresh world and an unreadable state make a save due at the load, and a `/reload` after it starts above its epoch; the salt is pinned to 0 elsewhere so epochs are exact), L8 tells for every survival player within 12 blocks (per-pair cadence also across leaving and coming back, Silent kept while one player could be told, dropped when none could, both refused in one visit, the charge per player told), `HiveInfo.flk` (the applied FLK, tag threshold, untracked mobs, hive off), light aversion, governor, dawn inputs, audio tactic, API shapes and the O(1) `pneHiveNear` table, steering gates, deep-queue conversion search and window charge, newborn wait on leave records, hive switch, queue caps |
+| `hive-node` | `tools/hive/test_hive.js` | 285 runtime assertions (1.5) plus the Hard baseline digest check (`tools/hive/test_hard.js` against `tools/hive/fixtures/hive_hard_baseline.json`, recorded from the 1.4 `pne_hive.js`; the difficulty profiles: Hard B bit-identical to `GA.budget` over a grid, the Easy/Normal/Peaceful formulas, `phen`, `luxMin`, the governor trigger, the dawn target, dream slices, Peaceful without modifiers, one row read per drain call; no load, load attempt or command before the start, the load and epoch on the first tick, the restart invariant) on the shared mocks with the real startup listeners: queues, next-tick newborns, spawned never cancelled, backstop (before RNG; loaded-from-disk, named, persistent, far, config off, stale grace; right after a respawn and a dimension change), idempotent re-expression, permanent HP across a chunk reload, rejoin replaced by a reload while queued (also twice, and in the rediscovery pass), links, SIL tells/3-block (visit and sample path)/fast revisits/attack/cap every tick/no-director/budget fail-safe, PRC axe, PRJ scaling, telemetry and k_mercy, kill share and fall cheese, outcomes and I2, GA slots (breed and dream beside a stream of outcomes), the incremental save's schedule (one step per free save slot: even ticks outside 0 and 10, charged `gaSavePart`, retried when refused, a due save following a running one), the incremental save storing byte for byte what the one-call save stored while the GA state and runtime evidence change between its pieces, a superseded or failed save never writing and starting over, the dawn charged `dawn` (it waits with room for a breed only), player yaw through `getYaw()` (turning is movement), incremental saves on switch-off, the one-call save at stop abandoning a running incremental save, persistence round trip, kept unreadable state, load epoch (declared on the first tick after a load, GA ids used as they are, a rolled-back queued child gets the run epoch appended, a lagging persisted counter recorded in the stored `hv` at the load itself; a crash before the next world save: two starts from the same stored counter get different salted epochs, so the rolled-back counter's newborn gets a different id; the salt's bits, fallbacks and limit; a fresh world and an unreadable state make a save due at the load, and a `/reload` after it starts above its epoch; the salt is pinned to 0 elsewhere so epochs are exact), L8 tells for every survival player within 12 blocks (per-pair cadence also across leaving and coming back, Silent kept while one player could be told, dropped when none could, both refused in one visit, the charge per player told), `HiveInfo.flk` (the applied FLK, tag threshold, untracked mobs, hive off), light aversion, governor, dawn inputs, audio tactic, API shapes and the O(1) `pneHiveNear` table, steering gates, deep-queue conversion search and window charge, newborn wait on leave records, hive switch, queue caps |
 | `hive-rhino` | same file in Rhino | the same with a real HashMap `global` and real ArrayList queues |
 | `hive-kmercy-rhino` | `tools/hive/test_kmercy.js` | the k_mercy formula (boundary 0.30, mercy tag, live/stale/far grace), producers gated on the wrapped `global.pneOnHive`, record formats, cap, fresh-flag rules, leave records, PRJ scaling, all through the names scripts see in game (`getTime`, `getType`, `getActual`; the mocks have no hidden Mojang names), the Mojang names as mock fallbacks, records skipped without an error when no game time reads, and one breaker per listener (a tripped damage or leave listener leaves `pne_fresh`, PRJ scaling and the other records running); Rhino and Node |
 | `hive-conversion-replay` | `tools/hive/test_conversion.js` | (mock levels answer only to `getTime()`, as in game) join-before-leave, leave-before-join, one-tick, three-tick, distance, dimension, despawn, pacing, one link per carrier, conversions behind leave backlogs of 100 and 300 records; GA replay from a snapshot and from genesis bit for bit; identical digest in Node and Rhino (the load epoch's salt pinned to 7: it is random in game, and `java.util.UUID` is the real class in Rhino) |

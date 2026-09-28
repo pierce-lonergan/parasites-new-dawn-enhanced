@@ -23,6 +23,14 @@
 //    appears.
 //  * Numbers passed to /epca_evolution are plain integer strings (IntegerArgumentType,
 //    range -100..2100000000, verified in EvolutionCommand bytecode).
+//  * Difficulty profiles (contract 1.5, docs/IMPLEMENTATION.md 3.2.1): night aggression, Mobs Inside, reinforcement
+//    beckons and the doom clock read the active profile row on every call through pneHDiff(): the core's
+//    pneCoreDiff() (Peaceful, Easy, Normal or Hard, following the vanilla difficulty unless /pne config diff_profile
+//    pins it), or a local copy of the Hard row when the core is absent. The Hard row is release 1.4 exactly (lead
+//    decision L5: same numbers, same commands, Math.random drawn in the same order), and the doom clock keeps the
+//    100-day arc on Easy, Normal and Hard (lead decision L1); Peaceful has no raises.
+//  * No command before the server has started (contract 1.5, Appendix A rule 15): the death handlers return while
+//    pneCoreStarted is false (KubeJS can fire events before the first tick, when Recruits makes every command fail).
 //
 // Verified against the jars in mods/ (EPCA 0.147i, Spore 2.2.0j, The Hordes 1.6.3i, KubeJS
 // 2001.6.5, Architectury 9.2.14, Corpse 1.0.23). Nothing here has been run in game.
@@ -41,6 +49,39 @@ try { $PneHEvolutionManager = Java.loadClass('org.tdddd.epca.impl.overworld.data
 // Tunables
 
 var PNE_H_OVERWORLD = 'minecraft:overworld'
+
+// The Hard row of the core's PNE_CORE_DIFF (contract 1.5), only the fields this file reads. It is the fallback when
+// pne_00_core.js is absent, so the file then behaves exactly as release 1.4 did. With the core loaded the core's row is
+// used (read-only, shared) and this copy is never read.
+//   night   Speed I on #pne:hive (spd) and #pne:spore_basic (spore) and Strength I on #pne:hive (str, from overworld
+//           doom stage strStage) within r blocks of each survivor
+//   burst   Mobs Inside: roll < p bursts; roll < flesh makes fmin + floor(rand x fspan) living flesh, else one Mozzie;
+//           no burst when cap products are already within 24 blocks
+//   beckon  reinforcement beckon from doom stage `stage`: chance min(cap, c0 + c1 x (stage - beckon.stage)), then a
+//           server-wide cooldown of cd ticks
+//   doomK   doom clock days are round(day x doomK); 0 = no raises
+var PNE_H_DIFF_HARD = {
+  id: 3, name: 'Hard',
+  night: { r: 48, spd: true, str: true, strStage: 0, spore: true },
+  burst: { p: 0.65, flesh: 0.5, fmin: 2, fspan: 2, cap: 8 },
+  beckon: { stage: 3, c0: 0.02, c1: 0.01, cap: 0.09, cd: 100 },
+  doomK: 1
+}
+
+// The active difficulty profile row: the core's (never modified here), or the local Hard copy above.
+function pneHDiff() {
+  var P = null
+  if (typeof pneCoreDiff === 'function') {
+    try { P = pneCoreDiff() } catch (e) { P = null }
+  }
+  return (P && P.night && P.burst && P.beckon) ? P : PNE_H_DIFF_HARD
+}
+
+// Doom clock day factor of the active profile: 1 on Easy, Normal and Hard (L1), 0 on Peaceful (no raises).
+function pneHDoomK() {
+  var k = Number(pneHDiff().doomK)
+  return isFinite(k) && k >= 0 ? k : 1
+}
 
 // Doom clock: [day, points] as plain integer strings. Each value is exactly an EPCA stage
 // threshold (EvolutionManager.STAGE_THRESHOLDS, index = stage + 2):
@@ -283,11 +324,16 @@ function pneHPlayerName(player) {
 
 var pneHStageCache = {}  // dim -> { stage, at }
 var pneHTick = 0
+var pneHDoomDay = -1   // last day the doom clock read (-1 = not read since the start or /reload)
 
-function pneHFloorForDay(day) {
+// The floor for a world day under day factor k (default: the active profile's doomK): the step of PNE_H_DOOM reached
+// on day round(stepDay x k). k 0 (Peaceful) gives no floor at all.
+function pneHFloorForDay(day, k) {
   var floor = '0'
+  var f = (k === undefined || k === null) ? pneHDoomK() : Number(k)
+  if (!(f > 0)) return floor
   for (var i = 0; i < PNE_H_DOOM.length; i++) {
-    if (day >= Number(PNE_H_DOOM[i][0])) floor = PNE_H_DOOM[i][1]
+    if (day >= Math.round(Number(PNE_H_DOOM[i][0]) * f)) floor = PNE_H_DOOM[i][1]
   }
   return floor
 }
@@ -329,10 +375,31 @@ function pneHStage(server, level, dim) {
 // Raises overworld points to the floor for the current world day. Never lowers them.
 // The day comes from /time query day (returns dayTime / 24000 as an int), so no Mojang-named
 // members are needed. setpoints bypasses EPCA's 24,000-tick stage-change cooldown.
+// The days scale with the active profile's doomK (contract 1.5; 1 except on Peaceful, lead decision L1). On Peaceful
+// (doomK 0) nothing is raised and no command is issued; the stored floor stays as it is, so a later switch back
+// continues from where the clock stood (the floors never lower).
+// Read-only (contract 3.2.1): the next doom floor day for line 4 of /pne difficulty. -1 = no raises (Peaceful) or all floors
+// reached, -2 = the clock has not read the day yet. No command, no random draw, no write.
+function pneHDoomNext() {
+  var k = pneHDoomK()
+  var d
+  var i
+  if (!(k > 0)) return -1
+  if (!(pneHDoomDay >= 0)) return -2
+  for (i = 0; i < PNE_H_DOOM.length; i++) {
+    d = Math.round(Number(PNE_H_DOOM[i][0]) * k)
+    if (d > pneHDoomDay) return d
+  }
+  return -1
+}
+
 function pneHDoomClock(server) {
+  var k = pneHDoomK()
+  if (!(k > 0)) return
   var day = Number(server.runCommandSilent('time query day'))
+  if (isFinite(day) && day >= 0) pneHDoomDay = day
   if (!isFinite(day) || day <= 0) return
-  var floorStr = pneHFloorForDay(day)
+  var floorStr = pneHFloorForDay(day, k)
   var floor = Number(floorStr)
   if (floor <= 0) return
   var data = server.persistentData
@@ -401,6 +468,8 @@ function pneHAmplifier(instance) {
 
 EntityEvents.death('minecraft:player', function (event) {
   try {
+    // no command before the server started (contract 1.5, rule 15): KubeJS can fire deaths before the first tick
+    if (typeof pneCoreStarted === 'boolean' && !pneCoreStarted) return
     var player = event.entity
     var server = player.server
     if (!server) return
@@ -459,17 +528,21 @@ function pneHCount(server, cmd) {
   return isFinite(n) ? n : 0
 }
 
-// 50%: 2-3 living_flesh_size0 (EPCA merges these upward itself, data/epca/entity_integrations/
+// Hard: 50%: 2-3 living_flesh_size0 (EPCA merges these upward itself, data/epca/entity_integrations/
 // living_flesh.json). 15%: one Mozzie. Burst spawns carry the pne_burst tag; they never burst
 // (none are hosts) and never call beckons.
 // Cap: at most 8 burst products within 24 blocks, counting every living flesh (#pne:flesh, which
 // covers merged flesh that lost the tag) plus tagged non-flesh products (Mozzies).
+// Difficulty profiles (contract 1.5): the row's burst values replace those numbers (roll < p bursts, roll < flesh makes
+// fmin + floor(rand x fspan) flesh, cap): Normal 50% / 38% / 2-3 / 6, Easy 35% / 27% / 1-2 / 4, Peaceful none. The
+// Math.random draws keep their order (roll, the horde half, the flesh count, the pacing count, the offsets).
 // Hordes: while a player within 64 blocks is in a Hive Night horde, half of the bursts that
 // would happen are skipped, so a horde's many kills do not snowball into a pile-up.
 // Pacing (The Hive Remembers): the burst makes pneCoreSpawnCount(n, m) products instead of n, with m
 // the lowest scripted-spawn multiplier of the survival players within 48 blocks (0 near a player in
 // mercy or respawn grace, so the burst is skipped there).
 function pneHMobsInside(server, at, where, level) {
+  var B = pneHDiff().burst
   var roll = Math.random()
   var n
   var k
@@ -477,18 +550,18 @@ function pneHMobsInside(server, at, where, level) {
   var dx
   var dz
   var nearby
-  if (roll >= 0.65) return
+  if (roll >= B.p) return
   if (pneHBurstBudget <= 0) return
   if (pneHCount(server, at + 'execute if entity @a[tag=pne_horde,distance=..64]') > 0 && Math.random() < 0.5) return
   nearby = pneHCount(server, at + 'execute if entity @e[type=#pne:flesh,distance=..24]') +
     pneHCount(server, at + 'execute if entity @e[tag=pne_burst,type=!#pne:flesh,distance=..24]')
-  if (nearby >= 8) return
-  n = roll < 0.5 ? 2 + Math.floor(Math.random() * 2) : 1
+  if (nearby >= B.cap) return
+  n = roll < B.flesh ? B.fmin + Math.floor(Math.random() * B.fspan) : 1
   k = pneHSpawnCount(level, where, n)
   if (k <= 0) return
   pneHBurstBudget--
   for (i = 0; i < k; i++) {
-    if (roll < 0.5) {
+    if (roll < B.flesh) {
       dx = (Math.random() - 0.5).toFixed(2)
       dz = (Math.random() - 0.5).toFixed(2)
       server.runCommandSilent(at + 'summon epca:living_flesh_size0 ~' + dx + ' ~0.3 ~' + dz + ' {Tags:["pne_burst"]}')
@@ -500,8 +573,10 @@ function pneHMobsInside(server, at, where, level) {
   server.runCommandSilent(at + 'particle minecraft:block minecraft:nether_wart_block ~ ~0.4 ~ 0.25 0.25 0.25 0 24 normal')
 }
 
-// From stage 3: chance 2% + 1% per stage above 3, capped at 9% (stage 10), at most once per
-// 100 ticks server-wide. EPCA's StageIBeckon converts blocks by contact, converts ground and
+// Hard: from stage 3: chance 2% + 1% per stage above 3, capped at 9% (stage 10), at most once per
+// 100 ticks server-wide. Difficulty profiles (contract 1.5): the row's beckon values replace those numbers (Normal from
+// stage 3, 1.5% + 0.75% per stage, at most 6%, 200 ticks; Easy from stage 4, 1% + 0.5% per stage, at most 4%, 400
+// ticks; Peaceful never). EPCA's StageIBeckon converts blocks by contact, converts ground and
 // leaves around it, places a beckon_core block, and breaks every block of hardness 0-3 in a
 // 3x3x3 cube when it is inside a wall, all without checking doMobGriefing. So the beckon is
 // placed only where that cannot grief a base, and every condition sits in one execute chain
@@ -533,13 +608,15 @@ function pneHReinforce(server, entity, dim, atGround, where) {
   var plan = null
   var placed
   var ok = 0
+  var B
   if (pneHTick < pneHBeckonReadyAt) return
   lvl = pneHLevel(entity)
   stage = pneHStage(server, lvl, dim)
-  if (stage < 3) return
-  chance = Math.min(0.09, 0.02 + 0.01 * (stage - 3))
+  B = pneHDiff().beckon
+  if (stage < B.stage) return
+  chance = Math.min(B.cap, B.c0 + B.c1 * (stage - B.stage))
   if (Math.random() >= chance) return
-  pneHBeckonReadyAt = pneHTick + 100
+  pneHBeckonReadyAt = pneHTick + B.cd
   if (typeof pneCoreBeckonAt === 'function' && where && !pneCoreBeckonAt(lvl, where.x, where.y, where.z, 48)) return
   k = pneHSpawnCount(lvl, where, 1)
   if (k > 0) plan = pneHFlkPlan(server, entity, lvl, where, atGround)
@@ -603,7 +680,7 @@ function pneHBeckonTest(at) {
 //    multiplier above 0) and run pneHBeckonCmd there. The first chain that summons wins; the chain keeps every
 //    rule of today's placement at the new spot. If no probe summons, the run falls back to the dying mob's
 //    position, where the test passed.
-// Cost: at most once per 100 ticks server-wide (the beckon cooldown): one HiveInfo, one light read, one test
+// Cost: at most once per beckon cooldown server-wide (100 ticks on Hard, longer on Normal and Easy): one HiveInfo, one light read, one test
 // command, at most 8 x 14 block reads, 8 x 14 tag reads and 8 chain commands. A failure inside falls back to
 // today's placement.
 var PNE_H_FLK_MIN = 0.5
@@ -793,6 +870,8 @@ function pneHFlank(server, level, dim, plan) {
 
 EntityEvents.death(function (event) {
   try {
+    // no command before the server started (contract 1.5, rule 15): KubeJS can fire deaths before the first tick
+    if (typeof pneCoreStarted === 'boolean' && !pneCoreStarted) return
     var victim = event.entity
     if (!victim) return
     var server = victim.server
@@ -865,10 +944,31 @@ var PNE_H_SURVIVORS = 'execute in ' + PNE_H_OVERWORLD + ' as @a[distance=0..,gam
 // roster, and Spore escalates on its own (evolution, Signal reinforcements). Strength on top of
 // vanilla Hard would push those tiers past survivable. Faster basic infected make the night
 // feel like a hunt without adding burst damage. EPCA mobs get Speed I and Strength I.
+// Difficulty profiles (contract 1.5, the row's night values): Hard as above within 48 blocks; Normal the same, but
+// Strength only from overworld doom stage 1 (the first Hive Night floor); Easy Speed I on EPCA only, within 32 blocks;
+// Peaceful none. The overworld stage is read only when the row needs it (never on Hard).
+function pneHNightOn() {
+  var N = pneHDiff().night
+  return N.r > 0 && (N.spd || N.str || N.spore) ? true : false
+}
+
 function pneHNightAggression(server) {
-  server.runCommandSilent(PNE_H_SURVIVORS + 'effect give @e[type=#pne:hive,distance=..48] minecraft:speed 7 0 true')
-  server.runCommandSilent(PNE_H_SURVIVORS + 'effect give @e[type=#pne:hive,distance=..48] minecraft:strength 7 0 true')
-  server.runCommandSilent(PNE_H_SURVIVORS + 'effect give @e[type=#pne:spore_basic,distance=..48] minecraft:speed 7 0 true')
+  var N = pneHDiff().night
+  var r
+  var stage
+  if (!(N.r > 0)) return
+  r = String(Math.floor(N.r))
+  if (N.spd) server.runCommandSilent(PNE_H_SURVIVORS + 'effect give @e[type=#pne:hive,distance=..' + r + '] minecraft:speed 7 0 true')
+  if (N.str) {
+    stage = 0
+    if (N.strStage > 0) {
+      try { stage = pneHStage(server, server.getOverworld(), PNE_H_OVERWORLD) } catch (e) { stage = -99 }
+    }
+    if (!(N.strStage > 0) || stage >= N.strStage) {
+      server.runCommandSilent(PNE_H_SURVIVORS + 'effect give @e[type=#pne:hive,distance=..' + r + '] minecraft:strength 7 0 true')
+    }
+  }
+  if (N.spore) server.runCommandSilent(PNE_H_SURVIVORS + 'effect give @e[type=#pne:spore_basic,distance=..' + r + '] minecraft:speed 7 0 true')
 }
 
 // Hive Night atmosphere only. The Hordes spawns the horde itself (another track points its spawn
@@ -948,8 +1048,9 @@ ServerEvents.tick(function (event) {
     // Doom clock: once shortly after load, then every 1200 ticks.
     if (pneHClock === 200 || pneHClock % 1200 === 0) pneHDoomClock(server)
 
+    // night aggression every 100 ticks (no time query at all when the profile has no night buff: Peaceful)
     var daytime = -1
-    if (pneHClock % 100 === 0) {
+    if (pneHClock % 100 === 0 && pneHNightOn()) {
       daytime = pneHDaytime(server)
       if (pneHIsNight(daytime)) pneHNightAggression(server)
     }

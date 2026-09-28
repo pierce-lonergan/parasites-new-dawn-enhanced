@@ -49,8 +49,10 @@ and 7.
   picks of the pool (`h <= n - 1`; 6 for the 12-variant whisper pools). Each bag plays every open variant once; it is
   built so the item at index i has been out of play for >= h - i picks, which keeps the halves of the pool mixing
   (putting the recent items last in every bag would pin one half of the pool to the end of every bag).
-- Pacing outputs per the TDD 2.5.5 table; mercy and grace give spawn 0, beckon false, GA 0, aggression <= 0.8; the
-  hourly governor multiplies spawns by `max(0.5, 1 - 0.15 (hive deaths in the last 72000 ticks - 1))`.
+- Pacing outputs per the TDD 2.5.5 table on Hard; mercy and grace give spawn 0, beckon false, GA 0, aggression <= 0.8
+  in every profile; the hourly governor multiplies spawns by `max(floor, 1 - slope (hive deaths in the last 72000
+  ticks - free))`, on Hard `max(0.5, 1 - 0.15 (deaths - 1))`. Since contract 1.5 both come from the difficulty profile
+  (next section).
 - Published once per second at the player's telemetry slot: the cached Pace, `pne_m` / `pne_m_t`, `pne_gate` (m < 1)
   and `pne_pace_soft` (aggression 0.8 always, 0.9 on odd 100-tick runs).
 - Sensing: this tick's ORACLE snapshot when it is at most 20 ticks old, else the director's own probes: `execute if
@@ -59,6 +61,41 @@ and 7.
   near": the scan stops, the last complete reading is reused if it is at most 3 s old (`sensing probe-stale` in
   `/pne resonance status`), otherwise the step is skipped (the player waits for the next slot; `pneCorePace` falls back
   after 40 ticks and `pne_gate` expires after 100).
+
+## Difficulty profiles (contract 1.5)
+
+The profile id (0 Peaceful, 1 Easy, 2 Normal, 3 Hard) follows the vanilla difficulty, hardcore counts as Hard, and
+`/pne config diff_profile 1-4` pins it (CORE, `pneCoreDiffId()`; a pause-menu change is seen within 1 s). The numbers
+live in the core's `PNE_CORE_DIFF` table and the director reads them there. Its only copies are the Hard values it
+falls back to when the core is absent (`PNE_RES_PACING` and `PNE_RES_GOV1H`, `PNE_H_DIFF_HARD`) and `director.py`'s
+`PROFILES`; `director-diff` and `director-parity` hold each of them equal to the core's table.
+
+| Where | Peaceful | Easy | Normal | Hard (release 1.4) |
+| --- | --- | --- | --- | --- |
+| Director spawn CALM / UNEASE / DREAD / PANIC / RELEASE | 0 everywhere | 1.00 / 0.95 / 0.65 / 0 / 0.10 | 1.10 / 1.00 / 0.75 / 0 / 0.15 | 1.25 / 1.10 / 0.80 / 0 / 0.20 |
+| Aggression, beckons, GA | 0.8, none, 0 | as Hard, DREAD aggression 0.9 | as Hard | 1 1 1 0.9 0.8; on on off off off; 1 1 1 0.5 0 |
+| Hourly governor floor / slope / free | none (1) | 0.40 / 0.25 / 0 | 0.45 / 0.20 / 1 | 0.50 / 0.15 / 1 |
+| Night buffs (`pneHNightAggression`) | none | Speed I on EPCA within 32 | Speed I (EPCA, Spore basic) within 48; Strength I (EPCA) from overworld stage 1 | Speed I (EPCA, Spore basic) + Strength I (EPCA) within 48 |
+| Mobs Inside chance / flesh share / flesh count / cap | none | 35% / 27% / 1-2 / 4 | 50% / 38% / 2-3 / 6 | 65% / 50% / 2-3 / 8 |
+| Reinforcement beckon: from stage, chance, cap, cooldown | never | 4, 1% + 0.5% per stage, 4%, 400 t | 3, 1.5% + 0.75%, 6%, 200 t | 3, 2% + 1%, 9%, 100 t |
+| Doom clock (lead decision L1) | no raises, no query | the Hard days | the Hard days | 6, 12, 20, 32, 48, 62, 76, 88, 96, 100 |
+
+- `pne_resonance.js`: `pneResPaceOut(state, mercy, grace, deaths1h, P)` takes the row (`P.pace[state]`,
+  `P.gov1h`); without one it uses `PNE_RES_PACING` and the 1.4 governor, which equal the Hard row. The pure step takes
+  the id as an input (`inp.diff`, default 3; `pneResDiffIn` turns anything absent or outside 0..3 into 3) and looks
+  the row up in `PNE_CORE_DIFF`; the live step passes `pneCoreDiffId()` and keeps it on the Pace (`Pace.diff`). So the
+  natural-spawn gate follows the profile through `pne_m` (Peaceful: `pne_m` 0 near every player, so natural parasite
+  spawns are denied there; `pne_res_gate.js` is unchanged).
+- `pne_horror.js`: `pneHDiff()` returns the core's row (`pneCoreDiff()`), or `PNE_H_DIFF_HARD`, a local copy of the
+  Hard fields it reads, when the core is absent. Every call reads it again, so a change applies at the next death,
+  night run or doom-clock run. The Math.random draws keep their order; on Hard every factor is the 1.4 constant, so the
+  commands and draws are the same bit for bit (lead decision L5, suite `director-diff`). Normal's Strength needs the
+  overworld stage, which is read only when the row asks for it (never on Hard). Peaceful issues no night query, no
+  night buff and no doom query; gore, sounds, Hive Night atmosphere and death lines stay.
+- Start gating (Appendix A rule 15): the two death handlers of `pne_horror.js` return while `pneCoreStarted` is false.
+  In the director the ledger refuses (`not_started`) before anything is recorded, `pneResTellraw` returns whether it
+  issued the command (false before the start), the first-run notice is marked as seen only when all of its lines went
+  out, and the probes and the PANIC `stopsound` are skipped until the start (they only run in the tick, after it).
 
 ## Ledger (every horror sound)
 
@@ -99,7 +136,8 @@ parasite may root (`pneHReinforce`). It is a pure placement bias: FLK changes **
 **whether** one appears.
 
 1. Every rule of today's beckon runs first and unchanged: the 100-tick server-wide cooldown, stage 3 or higher, the
-   chance roll (2% + 1% per stage above 3, at most 9%), `pneCoreBeckonAt` at the dying mob (every survival player
+   chance roll (2% + 1% per stage above 3, at most 9%; these are the Hard numbers, and since contract 1.5 each
+   profile's `beckon` row applies, see Difficulty profiles), `pneCoreBeckonAt` at the dying mob (every survival player
    within 48 blocks may have a beckon: CALM or UNEASE, not in mercy or grace) and `pneCoreSpawnCount(1, m)` with the
    scripted-spawn multiplier there (0 skips).
 2. Only then is the dying mob asked for its expressed FLK, `pneCoreHiveInfo(mob).flk` (HIVE's field, 0..1: `e[4]` as
@@ -133,14 +171,14 @@ parasite may root (`pneHReinforce`). It is a pure placement bias: FLK changes **
 7. The bell and the stage-1 call sound where the beckon actually stands (through the ledger as before), so a flanking
    beckon is heard from behind. Nothing moves the camera or the player.
 
-Cost: at most once per 100 ticks server-wide (the beckon cooldown): one HiveInfo, one light read, one test command, at
-most 8 x 14 block reads, 8 x 14 tag reads (a surface needs a non-solid block above it, so at most 7 surfaces per
-column, 2 tag reads each) and 8 chain commands, inside the death handler like today's chain. The probe spots are at
-most 40 blocks (3 chunks) from a player, so their chunks should be the ones the server keeps loaded around that player
-(inferred, not measured: a block read of an unloaded chunk would load it; in-game check below). The chain's own
-`if block` tests fail on an unloaded position like any vanilla `execute if block`. An error in the flank code is
-caught, logged at most three times, and falls back to today's placement. `pneHFlkStats` counts tests, refused tests,
-plans, probes, block reads, tag reads, unreadable tags, chain commands, placements, fallbacks and errors.
+Cost: at most once per beckon cooldown server-wide (100 ticks on Hard, 200 on Normal, 400 on Easy): one HiveInfo, one
+light read, one test command, at most 8 x 14 block reads, 8 x 14 tag reads (a surface needs a non-solid block above it,
+so at most 7 surfaces per column, 2 tag reads each) and 8 chain commands, inside the death handler like today's chain.
+The probe spots are at most 40 blocks (3 chunks) from a player, so their chunks should be the ones the server keeps
+loaded around that player (inferred, not measured: a block read of an unloaded chunk would load it; in-game check
+below). The chain's own `if block` tests fail on an unloaded position like any vanilla `execute if block`. An error in
+the flank code is caught, logged at most three times, and falls back to today's placement. `pneHFlkStats` counts tests,
+refused tests, plans, probes, block reads, tag reads, unreadable tags, chain commands, placements, fallbacks and errors.
 
 **Natural and ambient spawns are not placed by this change.** Natural spawns and ambient spawns (the game's
 `NaturalSpawner`, EPCA's and Spore's own spawn logic, The Hordes waves) choose their own positions, and the hooks this
@@ -158,27 +196,28 @@ one of them at the new position. So the FLK phenotype acts on scripted reinforce
 In-game checks (for docs/TESTING.md): at stage 3 or higher, on open natural ground with no light source near your feet,
 kill genome mobs that carry the hive's `pne_flk` tag (FLK >= 0.5; for example
 `/execute if entity @e[tag=pne_flk,distance=..32]`) **from more than 24 blocks away** (a bow; a kill within 24 blocks
-roots no beckon, with or without FLK), until a reinforcement beckon appears (up to 9% per kill, one per 100 ticks). It
-should stand 24-40 blocks behind you, relative to where you face, also when the mob died off to your side, and its
-bell should come from behind. Repeat facing north, east, south and west. Next to a torch (block light 8 or more at
-your feet) the beckon appears where the mob died. At the edge of a dark forest the beckon may stand on the ground under
-the canopy, never on the leaves; behind a building with a roof it never stands under the roof. spark shows no chunk
-load on the death tick of a flanking beckon.
+roots no beckon, with or without FLK), until a reinforcement beckon appears (on Hard up to 9% per kill, one per 100
+ticks; Normal and Easy are slower, see Difficulty profiles). It should stand 24-40 blocks behind you, relative to where
+you face, also when the mob died off to your side, and its bell should come from behind. Repeat facing north, east,
+south and west. Next to a torch (block light 8 or more at your feet) the beckon appears where the mob died. At the edge
+of a dark forest the beckon may stand on the ground under the canopy, never on the leaves; behind a building with a roof
+it never stands under the roof. spark shows no chunk load on the death tick of a flanking beckon.
 
 ## Tests
 
 | Suite | What it checks |
 | --- | --- |
 | `director-node` | FSM invariants on 108,000 synthetic steps (dwell, PANIC only to RELEASE, 45 s cap, spawn <= 0.2 in PANIC / RELEASE / mercy / grace), the ceiling never raises the tier and is monotone in e, Pace publication and tags, commands, notice, ledger rules (comfort Hive Night heartbeat >= 70 s apart), bags (A1 half-pool rule on every catalog pool and a 12-variant pool, bag halves keep mixing), L0 rules (vacuum before the approach, RELEASE hush), PANIC/RELEASE overrides under mercy and the ledger backstop, L0 (a) under mercy, the first-sighting stinger, refused bed segments, refused probes |
-| `director-parity` | Python = Node = Rhino, every field, e bit for bit; shipped Python = TDD prototype (state, e, spawn; aggression outside grace) |
+| `director-parity` | Python = Node = Rhino, every field, e bit for bit, for all 4 difficulty profiles (the input `diff`; Hard traces carry none, as in 1.4; one trace switches profile every 100 steps), and `director.py`'s `PROFILES` equals the pace and governor of the core's `PNE_CORE_DIFF`; shipped Python = TDD prototype (state, e, spawn; aggression outside grace) |
 | `director-ledger-sim` | One simulated hour per mode, synthetic and generated catalogs, re-checked by an independent model built from the command text; includes the TDD 2.5.4 overrides from the pacing state at each onset (A5 in PANIC, the RELEASE hush, mercy/grace layers), the Hive Night heartbeat interval, and L0 (a) over all QUIET time and over the mercy/grace seconds alone (the player respawns at base). Follows RESONANCE's asset gate: the level-jump check uses the catalog `mmax` for the files the manifest marks V15 not applicable (and checks `PNE_RES_SHORT_S` covers them), and comfort-mode onsets of the `tdd_pins.PENDING_CE` pools (L5 phrase gating, L8 click trains) are reported as PENDING a lead decision, never as passes (the set must equal the manifest's CE pending list) |
 | `director-closed-loop` | 150 players x 1 h: at a 60% natural share gated deaths/hr <= 1.10 (TDD 1.03) and at least 0.10 below the ungated run; arousal increase <= 0.04 at k = 0.3; dread audio outside encounters <= 0.01% as a raw fraction |
 | `director-routing` | No `playsound` left in `pne_horror.js`; flags per call; the real file on the mocks |
 | `director-flank` | The FLK flank placement on the mocks with a terrain model (block states, block light and block tags through `level.getBlock`) and an interpreter of the beckon chain as written, with and without its summon: FLK 0.8 at block light 0 over 400 deaths with facings all around the compass puts every moved beckon 24-40 blocks from the player and inside the rear 120° of `getYaw()`, at the rate FLK; the arc follows the facing, not the dying mob (mobs dying beside and behind the player, and 300 deaths with facing and bearing drawn independently); the light is read at the player's feet block (a light that differs there from everywhere else); the boundaries FLK 0.5 / light 7 (in) and draw >= FLK / light 8 (out); high light, FLK < 0.5 and FLK 0 give a command stream identical to a world without the hive (no extra random draw); no `flk`, NaN, the hive off, no readable facing or light, no survival player near: today's placement; FLK changes where, never whether: the same 270 deaths with FLK 1 and without a genome give the same beckon count death by death (a kill 3 blocks away, kills within 24 blocks, on planks, near a beckon, near a creative player, in a horde: no beckon either way); every rule binds the flank spot (planks, also with a lying or unreadable tag read, deep water, cliffs, a player within 24, a horde behind, beckons within 32, the multiplier 0 / 1.25, mercy, grace and PANIC near the spot, cooldown, stage, chance, beckon and flesh deaths); the ground search passes through a canopy to the grass below and stops at a roof; at most 8 probes, 14 block reads and 14 tag reads per probe (reached exactly by an alternating leaves column), then today's placement; the nearest survival player is the one flanked; the bell through the ledger at the spot. `PNE_FLANK_HORROR=<file>` runs it on another copy of `pne_horror.js` (when this was written, each of 32 hand-made mutants of the placement failed it, including one that takes the arc from the mob's bearing, two that read the light at the mob or the eyes, one without the test and one that only checks players within 24, and it passed under 20/20 `PNE_TEST_SEED` seeds) |
 | `director-gate` | The gate formula in Rhino on a game-shaped level (`getTime()` only, F37), including `spawn_gate` 0 in `global`, stale tags, the `getGameTime()` mock fallback, and a level with no readable time (mercy and low health still deny; one logged, counted failure; the gate stays on) |
 | `director-gate-parity` | The gate's multiplier equals `pneCoreNaturalMult(At)` on 9,000 random player states, its clock equals the core's, and the `PositionCheck` handler's decision equals `random >= m` on 3,000 events with `Math.random` pinned (Rhino, game-shaped level) |
-| `director-rhino`, `director-horror-rhino` | Rhino smoke of `pne_resonance.js` (empty, missing and inline catalogs) and of `pne_horror.js` with the core and the director, including the FLK flank placement in real Rhino (no `Math.PI` there, F26): the spot is finite, 24-40 blocks away and inside the rear 120° of `getYaw()`, also with the mob 90° off the facing; the light is read at the player's feet block; today's placement at block light 12; a kill 3 blocks away moves nothing |
+| `director-rhino`, `director-horror-rhino` | Rhino smoke of `pne_resonance.js` (empty, missing and inline catalogs) and of `pne_horror.js` with the core and the director, including the FLK flank placement in real Rhino (no `Math.PI` there, F26): the spot is finite, 24-40 blocks away and inside the rear 120° of `getYaw()`, also with the mob 90° off the facing; the light is read at the player's feet block; today's placement at block light 12; a kill 3 blocks away moves nothing. Contract 1.5 in Rhino: `pneHDiff()` is the core's row, the Easy night command reads `distance=..32`, the doom floors, Peaceful issues nothing at night, the director's pacing per profile, and no horror command or tellraw before the first tick or after a `/reload` until the next |
 | `director-trims` | Committed trims against the table and the jars |
+| `director-diff` | Contract 1.5. **Hard is release 1.4 bit for bit**: `tools/director/diff_world.js` plays 20 minutes (24,000 ticks) of a scripted world with three players (telemetry and probe sensing, fights with mercy, deaths and respawns, a Hive Night horde, parasites of every kind dying every 17 ticks, some in the air, some with FLK, day 0 to day 110 so every doom floor is raised), and the command stream of `pne_horror.js` and `pne_resonance.js` (13,232 commands), the Pace at every 1 Hz step (3,600), `pneResPaceOut` over its grid and `pneResPureStep` over 8 traces must equal, text for text, `tools/director/fixtures/horror_hard_baseline.json`, recorded from the 1.4 scripts before editing (`record_hard_baseline.js`, which refuses to overwrite it; the 1.4 core of the last commit gives the same bytes). Also on a pinned Hard over vanilla Easy and on hardcore over vanilla Peaceful; two planted mutants must break it. Profiles 0-2 (and Hard): Mobs Inside burst, flesh-burst and product rates over 4 x 10^5 host kills at CALM within 1% of the row (spec row 4a: 0, 0.49, 1.18, 1.75; checked over 10 seeds, worst 0.43%), cap and roll boundaries; beckon chance per stage 0-13 at its exact boundary and the cooldown; the night command strings; the doom floors per day 0-200 and the day-factor rounding; the pacing table and governor per profile; the live step following the pause menu and the pin; start gating; the other profiles in the scripted world. It also checks this file: the Difficulty profiles table states the numbers of `PNE_CORE_DIFF` and the horror doom days, the API it names exists, every suite in `tools/suites/director.json` has a row in this table, and this row quotes the fixture's counts. Planted edits must fail that check: the profile section removed (as in the release 1.4 file), this row removed, one number changed (`PNE_DIFF_DOC=<file>` checks another copy of the file) |
 
 The Node suites are deterministic: `tools/director/pack.js` gives every mock world a seeded `Math.random`, so the
 random player pids (and with them the director's RNG, seeded worldSeed ^ pidHash ^ day) repeat on every run. Set
@@ -217,8 +256,8 @@ positional segments are the only bed.
   `String(entity.level.dimension)`; in game `entity.level` is the Mojang method `level()` (contract F27), so the result
   was the string `undefined` and every `execute in undefined ...` command failed silently: gore particles and slams,
   Mobs Inside bursts (summons) and reinforcement beckons never happened in play (the retired whisper pool too). The
-  rewrite (`pneHLevel` / `pneHDim` through `pneCoreDim`) fixes that, so all three run for the first time, now scaled
-  by the scripted-spawn multiplier (up to x1.25 in CALM, `floor(count x m + random)`). No code change was made for
+  rewrite (`pneHLevel` / `pneHDim` through `pneCoreDim`) fixes that, so all three run for the first time, now scaled by
+  the scripted-spawn multiplier (up to x1.25 in CALM on Hard, `floor(count x m + random)`). No code change was made for
   this; it needs in-game checks and the lead may want a config switch for bursts and beckons.
 - **No core, no horror sounds.** Without `pne_00_core.js`, `pneHEmitPlayer` / `pneHEmitAt` skip every horror sound
   (gore particles, bursts, beckons, the doom clock and messages still run). Contract section 8 (CORE row, "Existing

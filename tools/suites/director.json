@@ -25,6 +25,7 @@
                                               "tools/director/fixtures/empty_catalog.js", "overrides/kubejs/server_scripts/pne_resonance.js",
                                               "overrides/kubejs/server_scripts/pne_horror.js", "tools/director/rhino_horror.js"],
      "needs": ["rhino"], "expect": "PASS", "timeout": 600},
-    {"name": "director-trims", "cmd": ["{python}", "tools/director/trims.py", "check"], "needs": [], "expect": "PASS", "timeout": 600}
+    {"name": "director-trims", "cmd": ["{python}", "tools/director/trims.py", "check"], "needs": [], "expect": "PASS", "timeout": 600},
+    {"name": "director-diff", "cmd": ["{node}", "tools/director/test_diff.js"], "needs": ["node"], "expect": "PASS", "timeout": 900}
   ]
 }

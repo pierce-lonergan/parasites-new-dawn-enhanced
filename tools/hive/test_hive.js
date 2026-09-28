@@ -11,6 +11,13 @@
 // k_mercy weighting of damage, kill share and team pressure (I3); removal classification; persistence round trip;
 // light aversion; intra-day governor; dawn inputs; SIL tells, the 3-block rule, the 30% cap and fail-safe
 // unsilencing; the PRC axe; PRJ projectile scaling; pneHiveInfo / pneHiveNear shapes; the hive switch.
+// Contract 1.5: no load and no command before the start (ServerEvents.loaded), the load, the seed read and the epoch on
+// the first tick, and the restart invariant (a stop before the first tick leaves the stored state byte for byte)
+// (pneHTStartGate, pneHTEpochFirstTick); the difficulty profiles: Hard B bit-identical to PNE_HIVE_GA.budget over a grid,
+// the Normal, Easy and Peaceful formulas (pneHTDiffB), phen only on HPX and DMG (pneHTDiffPhen), Peaceful's zero
+// modifiers (pneHTDiffPeaceful), the governor trigger (pneHTDiffGovernor), targetK (pneHTDiffTarget), luxMin
+// (pneHTDiffLux), the dream's budget site (pneHTDiffDream) and one read of the row per drain call (pneHTDiffReads).
+// tools/hive/test_hard.js adds the whole-scenario Hard baseline against release 1.4.
 
 var pneHT = { n: 0, fails: [] }
 var pneHTTells = []
@@ -108,11 +115,12 @@ function pneHTReset() {
   if (q !== undefined && q !== null) q.clear()
   q = global.pneHiveQLeave
   if (q !== undefined && q !== null) q.clear()
-  pneHTSrv = __pneMock.server({ tickCount: 1000, gameTime: 100000 })
+  pneHTSrv = __pneMock.server({ tickCount: 999, gameTime: 99999 })
   __pneMock.fire('ServerEvents.loaded', { server: pneHTSrv })
-  // what the first hive tick after a load does first (pneHTEpochFirstTick covers the tick itself), so the tests below
-  // start from a state whose load epoch is declared and count GA events from there
-  pneHiveEpochApply()
+  // the server's first tick (contract 1.5): the core marks the start, then the hive loads and declares the load epoch, so
+  // the tests below start from a loaded state whose epoch is declared (pneHTStartGate covers the start itself); tick 1000,
+  // game time 100000, so every later tick falls where the tests expect it
+  __pneMock.tick(pneHTSrv, 1)
   return pneHTSrv
 }
 
@@ -148,7 +156,7 @@ function pneHTShape() {
   pneHTok(pneHiveReady === true, 'hive ready (core + GA core loaded)')
   pneHTok((__pneMock.handlers['EntityEvents.checkSpawn'] || []).length === 0, 'EntityEvents.checkSpawn not used')
   pneHTok((pneCoreCmds.hive || []).length === 3, '/pne hive has the core pillar spec, the hive status spec and the admin prev spec')
-  pneHTok(pneHiveSt !== null, 'state loaded in ServerEvents.loaded')
+  pneHTok(pneHiveSt !== null, 'state loaded on the first tick')
   pneHTok(/^[0-9a-f-]{36}$/.test(pneHiveWid), 'world id created')
   pneHTok(Number(global.pneOnHive) === 1, 'core mirrored the hive switch into global')
 }
@@ -1413,9 +1421,10 @@ function pneHTEpoch() {
   pneHTok(pneHiveRunId('j7.3') === 'j7.3' && pneHiveRunId('b1.13') === 'b1.13.3' && pneHiveRunId('j12') === 'j12.3', 'run ids: the current epoch is kept, anything else gets it appended')
 }
 
-// The load epoch is declared to the GA on the first hive tick after a load: the load itself leaves the GA state as saved
-// (a restart round-trips it), the tick logs E and raises the GA's epoch; the new epoch is recorded in the stored compound
-// at the load, and it is above both the persisted counter and the GA state's own epoch.
+// The load and its epoch on the first hive tick after the start (contract 1.5, rule 15): ServerEvents.loaded loads nothing
+// and leaves the stored compound as it is; the first tick loads the GA state exactly as saved, then declares the new epoch
+// to the GA (an E event) in the same tick, before anything can generate an id, and records it in the stored hv; the new
+// epoch is above both the persisted counter and the GA state's own epoch.
 function pneHTEpochFirstTick() {
   var srv = pneHTReset()
   var GA = PNE_HIVE_GA
@@ -1424,23 +1433,36 @@ function pneHTEpochFirstTick() {
   var tag
   var j
   var lastE = ''
+  var canon
+  var atEpoch = null
+  var epochReal = GA.epoch
   pneHTTick(srv, 3)
   pneHiveSave(srv)
   h = GA.hashAll(pneHiveSt)
   pneHiveClearRuntime()
   pneHiveSt = null
   pneHiveLoadTried = false
+  canon = pneHTCanon(srv.persistentData.getCompound('pne_hive'))
   __pneMock.fire('ServerEvents.loaded', { server: srv })
+  pneHTok(pneHiveSt === null && pneHiveEpochDue === false && pneHTCanon(srv.persistentData.getCompound('pne_hive')) === canon,
+    'ServerEvents.loaded loads nothing and leaves the stored pne_hive as it is')
+  GA.epoch = function (st, ep) {
+    atEpoch = GA.hashAll(st)
+    return epochReal(st, ep)
+  }
+  try {
+    pneHTTick(srv, 1)
+  } finally {
+    GA.epoch = epochReal
+  }
   tag = srv.persistentData.getCompound('pne_hive')
-  pneHTok(pneHiveSt !== null && pneHiveEpochDue === true && GA.hashAll(pneHiveSt) === h && GA.ep(pneHiveSt) === 1 && pneHiveEpoch === 2 &&
-    String(tag.getString('hv')).indexOf(';ep=2;') > 0, 'right after a load: the GA state exactly as saved (epoch 1), the new epoch 2 already recorded in the stored hv')
-  pneHTTick(srv, 1)
   ev = GA.events(pneHiveSt, 0)
   for (j = 0; j < ev.length; j++) {
     if (String(ev[j]).indexOf('E|') === 0) lastE = String(ev[j])
   }
-  pneHTok(pneHiveEpochDue === false && GA.ep(pneHiveSt) === 2 && pneHiveEpoch === 2 && lastE.split('|')[2] === '2',
-    'the first hive tick declares epoch 2 to the GA (' + lastE + ')')
+  pneHTok(pneHiveSt !== null && atEpoch === h, 'the first tick loads the GA state exactly as saved (hashAll ' + h + ') and only then declares the epoch')
+  pneHTok(pneHiveEpochDue === false && GA.ep(pneHiveSt) === 2 && pneHiveEpoch === 2 && lastE.split('|')[2] === '2' &&
+    String(tag.getString('hv')).indexOf(';ep=2;') > 0, 'the same tick declares epoch 2 to the GA (' + lastE + ') and records it in the stored hv')
   // an hv counter that lags the GA's own epoch (a save written by an older run): the new epoch is above both
   pneHiveSave(srv)
   srv.persistentData.getCompound('pne_hive').putString('hv', 'day=1;ep=0')
@@ -1448,11 +1470,91 @@ function pneHTEpochFirstTick() {
   pneHiveSt = null
   pneHiveLoadTried = false
   __pneMock.fire('ServerEvents.loaded', { server: srv })
-  // the stored hv records the new epoch at the load itself (what a crash before the first hive tick starts from)
-  pneHTok(pneHiveEpoch === 3 && String(srv.persistentData.getCompound('pne_hive').getString('hv')).indexOf(';ep=3;') > 0,
-    'a lagging persisted counter: the stored hv records epoch 3 at the load itself')
+  pneHTok(String(srv.persistentData.getCompound('pne_hive').getString('hv')) === 'day=1;ep=0', 'the lagging stored hv is untouched until the first tick')
   pneHTTick(srv, 1)
-  pneHTok(pneHiveEpoch === 3 && GA.ep(pneHiveSt) === 3, 'a lagging persisted counter (0) still gives a new epoch above the GA state\'s own (2): 3')
+  pneHTok(pneHiveEpoch === 3 && GA.ep(pneHiveSt) === 3 && String(srv.persistentData.getCompound('pne_hive').getString('hv')).indexOf(';ep=3;') > 0,
+    'a lagging persisted counter (0) still gives a new epoch above the GA state\'s own (2): 3, recorded in the stored hv at the load')
+}
+
+// Contract 1.5, Appendix A rule 15: nothing before the server started. ServerEvents.loaded runs before Recruits is ready,
+// so the hive neither loads there (the load reads the seed with /seed) nor issues any command; pneHiveEnsureLoaded and
+// pneHiveCmd refuse until the core's first tick sets pneCoreStarted. The restart invariant: a server that stops before its
+// first tick saves nothing and leaves the stored pne_hive byte for byte as the last run stored it; the next start loads it on
+// its first tick, with the seed read after the start (one /seed, cached), and declares the next epoch. /reload the same way.
+function pneHTStartGate() {
+  var srv = pneHTReset()
+  var GA = PNE_HIVE_GA
+  var m
+  var canon
+  var ep0
+  var n0
+  var saves0
+  var j0
+  var b0
+  var g0
+  var seeds
+  var i
+  // a first run with some state, stopped cleanly (the one-call save at ServerEvents.unloaded)
+  __pneHiveSpawn(srv, 'epca:ripper', { x: 5 })
+  pneHTTick(srv, 3)
+  GA.breed(pneHiveSt)
+  __pneMock.fire('ServerEvents.unloaded', { server: srv })
+  ep0 = pneHiveEpoch
+  j0 = pneHiveSt.joins
+  b0 = pneHiveSt.births
+  g0 = GA.gen(pneHiveSt)
+  canon = pneHTCanon(srv.persistentData.getCompound('pne_hive'))
+  // the next start: its scripts ran afresh (module state gone); ServerEvents.loaded fires inside ServerStartingEvent
+  pneHiveClearRuntime()
+  pneHiveSt = null
+  pneHiveLoadTried = false
+  pneHiveDay = -1
+  n0 = srv.cmds.length
+  __pneMock.fire('ServerEvents.loaded', { server: srv })
+  // a saved silent genome mob in the spawn chunks joins during the level load, before the start
+  m = __pneHiveSaved(srv, 'epca:ripper', { SIL: 65535 }, { x: 7, sil: true })
+  pneHTok(pneCoreStarted === false && pneHiveSt === null && pneHiveLoadTried === false, 'ServerEvents.loaded: not started, nothing loaded, the load not even tried')
+  pneHiveEnsureLoaded(srv)
+  pneHTok(pneHiveSt === null && pneHiveLoadTried === false, 'pneHiveEnsureLoaded before the start does nothing (the first tick tries)')
+  pneHTok(pneHiveCmd(srv, 'say pne test') === 0, 'pneHiveCmd before the start answers 0')
+  pneHTok(srv.cmds.length === n0, 'no command at all before the start (' + (srv.cmds.length - n0) + ': ' + srv.cmds.slice(n0).join(' / ') + ')')
+  pneHTok(pneHiveRejoinQ.length === 1 && m.silent === true, 'a genome mob joining before the start is only queued')
+  // the restart invariant: this run stops before its first tick
+  saves0 = pneHiveStats.saves
+  __pneMock.fire('ServerEvents.unloaded', { server: srv })
+  pneHTok(pneHiveStats.saves === saves0 && pneHTCanon(srv.persistentData.getCompound('pne_hive')) === canon,
+    'a stop before the first tick saves nothing: the stored pne_hive is byte for byte what the last run stored')
+  // start again; this time the first tick comes
+  pneHiveClearRuntime()
+  pneHiveSt = null
+  pneHiveLoadTried = false
+  pneHiveDay = -1
+  __pneMock.fire('ServerEvents.loaded', { server: srv })
+  n0 = srv.cmds.length
+  pneHTTick(srv, 1)
+  seeds = 0
+  for (i = n0; i < srv.cmds.length; i++) {
+    if (srv.cmds[i] === 'seed') seeds++
+  }
+  pneHTok(pneCoreStarted === true && pneHiveSt !== null && pneHiveSeed === (123456789 >>> 0) && seeds === 1,
+    'the first tick loads, with the seed read after the start (' + pneHiveSeed + ', ' + seeds + ' /seed)')
+  pneHTok(pneHiveSt.joins === j0 && pneHiveSt.births === b0 && GA.gen(pneHiveSt) === g0, 'the state the last run stored (joins, births, generation)')
+  pneHTok(pneHiveEpoch === ep0 + 1 && GA.ep(pneHiveSt) === ep0 + 1 && pneHiveEpochDue === false &&
+    String(srv.persistentData.getCompound('pne_hive').getString('hv')).indexOf(';ep=' + (ep0 + 1) + ';') > 0,
+    'and declares the next epoch in the same tick (' + pneHiveEpoch + '), recorded in the stored hv')
+  pneHTTick(srv, 2)
+  pneHTok(pneHiveMobs[m.uuid] !== undefined, 'the genome mob that joined before the start is adopted after it (rediscovery)')
+  // /reload: the core's file runs again (pneCoreStarted false until the next tick, the seed cache empty), the hive's too
+  pneCoreStarted = false
+  pneCoreSeedCache = null
+  pneHiveClearRuntime()
+  pneHiveSt = null
+  pneHiveLoadTried = false
+  n0 = srv.cmds.length
+  pneHiveEnsureLoaded(srv)
+  pneHTok(pneHiveSt === null && srv.cmds.length === n0, '/reload: no load and no command until the next tick')
+  pneHTTick(srv, 1)
+  pneHTok(pneHiveSt !== null && pneHiveEpoch === ep0 + 2 && pneHiveSeed === (123456789 >>> 0), '/reload: the next tick loads and declares epoch ' + (ep0 + 2))
 }
 
 // A crash before the first world save that follows a load (S-HIVE-R8): KubeJS writes server.persistentData to disk only
@@ -1502,8 +1604,8 @@ function pneHTEpochCrash() {
     pneHiveSt = null
     pneHiveLoadTried = false
     __pneMock.fire('ServerEvents.loaded', { server: srv })
-    ea = pneHiveEpoch
     pneHTTick(srv, 1)
+    ea = pneHiveEpoch
     m = __pneHiveSpawn(srv, 'epca:ripper', { x: 30 })
     pneHTTick(srv, 2)
     ga = String(m.persistentData.getString('pne_gi'))
@@ -1515,11 +1617,11 @@ function pneHTEpochCrash() {
     pneHiveSt = null
     pneHiveLoadTried = false
     __pneMock.fire('ServerEvents.loaded', { server: srv })
+    pneHTTick(srv, 1)
     eb = pneHiveEpoch
     pneHTok(ea === 2 + 0x2bc && eb === 2 + 0x0f1 && pneHiveSt.joins === j0 &&
       String(srv.persistentData.getCompound('pne_hive').getString('hv')).indexOf(';ep=' + eb + ';') > 0,
       'both starts from the same stored counter (1) get salted epochs (' + ea + ', ' + eb + '), the GA counters rolled back')
-    pneHTTick(srv, 1)
     n = __pneHiveSpawn(srv, 'epca:ripper', { x: 30 })
     pneHTTick(srv, 2)
     gb = String(n.persistentData.getString('pne_gi'))
@@ -1532,6 +1634,7 @@ function pneHTEpochCrash() {
     pneHiveSt = null
     pneHiveLoadTried = false
     __pneMock.fire('ServerEvents.loaded', { server: srv })
+    pneHTTick(srv, 1)
     pneHTok(pneHiveEpoch === PNE_HIVE_EP_MAX - 999, 'next to the GA epoch limit the epoch is the counter plus one, unsalted (' + pneHiveEpoch + ')')
     // the real function: the UUID's last three hex digits masked to 10 bits; anything else falls back to Math.random
     tails = ['7ff', 'abc']
@@ -1571,6 +1674,7 @@ function pneHTEpochFresh() {
   pneHiveSt = null
   pneHiveLoadTried = false
   __pneMock.fire('ServerEvents.loaded', { server: srv })
+  pneHTTick(srv, 1)
   pneHTok(pneHiveEpoch === e1 + 1 && pneHiveSaveDue === false, '/reload after it: epoch ' + (e1 + 1) + ' (the stored counter plus one, salt 0 here), no extra save')
 }
 
@@ -1665,12 +1769,498 @@ function pneHTConvSearch() {
   q.clear()
 }
 
+// ---------------------------------------------------------------------------------------------
+// Difficulty profiles (contract 1.5, PNE_CORE_DIFF[id].hive through pneCoreDiff()): the tests pin a profile with
+// /pne config diff_profile (1..4 = Peaceful, Easy, Normal, Hard) and read the row's values from the core's table.
+
+function pneHTPin(srv, id) {
+  pneCoreCfgSet(srv, 'diff_profile', id + 1)
+  return pneCoreDiffId() === id
+}
+
+function pneHTSame(a, b) {
+  return a === b && 1 / a === 1 / b
+}
+
+// One budget helper at every budget site: pneHiveB(stage, graceNear) = GA.budget(stage, min(GA.gov(st), govCap), graceNear)
+// x budget. Hard (pinned or vanilla) and a core without the profiles give PNE_HIVE_GA.budget itself, bit for bit, over a
+// grid of stages, governors and the grace flag; Normal, Easy and Peaceful follow the formula with their rows; the vanilla
+// difficulty is followed within a second.
+function pneHTDiffB() {
+  var srv = pneHTReset()
+  var GA = PNE_HIVE_GA
+  var stages = [-3, -1, 0, 0.5, 1, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10, 10.5, 11, 12, NaN]
+  var govs = [0.6, 0.6123, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.999999, 1, 1.000001, 1.05, 1.0999, 1.1, 1.100001, 1.12, 1.149999, 1.15]
+  var gov0 = pneHiveSt.gov
+  var bad = [0, 0, 0, 0, 0]
+  var pinned = true
+  var n = 0
+  var diffReal = pneCoreDiff
+  var id
+  var i
+  var j
+  var k
+  var H
+  var want
+  function grid(which, fn) {
+    var a
+    var b
+    var c
+    for (a = 0; a < stages.length; a++) {
+      for (b = 0; b < govs.length; b++) {
+        pneHiveSt.gov = govs[b]
+        for (c = 0; c < 2; c++) {
+          n++
+          if (!pneHTSame(pneHiveB(stages[a], c === 1), fn(stages[a], c === 1))) bad[which]++
+        }
+      }
+    }
+  }
+  for (id = 0; id < 4; id++) {
+    if (!pneHTPin(srv, id)) pinned = false
+    H = PNE_CORE_DIFF[id].hive
+    if (id === 3) {
+      // Hard: exactly release 1.4's expression, PNE_HIVE_GA.budget(stage, GA.gov(st), graceNear)
+      grid(3, function (s, g) { return GA.budget(s, GA.gov(pneHiveSt), g) })
+    } else {
+      grid(id, function (s, g) { return GA.budget(s, Math.min(GA.gov(pneHiveSt), H.govCap), g) * H.budget })
+    }
+  }
+  // a core without the profiles: release 1.4's expression too
+  pneCoreDiff = undefined
+  try {
+    grid(4, function (s, g) { return GA.budget(s, GA.gov(pneHiveSt), g) })
+    pneHTok(pneHiveLuxMin() === 11 && pneHiveF(pneHiveRow(), 'phen', 1) === 1 && pneHiveF(pneHiveRow(), 'govDeaths', PNE_HIVE_GOV_DEATHS) === 2,
+      'without the profiles every other factor is release 1.4\'s too (luxMin 11, phen 1, 2 deaths)')
+  } finally {
+    pneCoreDiff = diffReal
+  }
+  pneHTok(pinned && n === 5 * stages.length * govs.length * 2, 'diff_profile pins every profile (' + n + ' B values compared)')
+  pneHTok(bad[3] === 0, 'Hard: pneHiveB is PNE_HIVE_GA.budget bit for bit over the grid (' + (n / 5) + ' points, ' + bad[3] + ' differ)')
+  pneHTok(bad[4] === 0, 'no profiles in the core: PNE_HIVE_GA.budget bit for bit (' + bad[4] + ' differ)')
+  pneHTok(bad[2] === 0 && bad[1] === 0 && bad[0] === 0, 'Normal, Easy and Peaceful follow budget(stage, min(gov, govCap), grace) x budget (' +
+    bad[2] + ', ' + bad[1] + ', ' + bad[0] + ' differ)')
+  // the rows' numbers at a few points (spec row 10 and 11: factor 0.85 / 0.65 / 0, cap 1.10 / 1.00)
+  pneHiveSt.gov = 1
+  pneHTPin(srv, 1)
+  i = pneHiveB(0, false)
+  pneHiveSt.gov = 1.15
+  j = pneHiveB(4, false)
+  pneHTPin(srv, 2)
+  k = pneHiveB(10, true)
+  pneHTok(Math.abs(i - 1.95) < 1e-12 && Math.abs(j - 4.4 * 0.65) < 1e-12 && Math.abs(k - 6.5 * 1.1 * 0.7 * 0.85) < 1e-12,
+    'Easy stage 0 gov 1: B 1.95; Easy gov 1.15 is capped at 1.00 (stage 4: ' + pneCoreFmt(j) + '); Normal stage 10 gov 1.15 near grace: ' + k)
+  pneHTPin(srv, 0)
+  pneHTok(pneHiveB(10, false) === 0 && pneHiveB(0, true) === 0, 'Peaceful: B 0 at every stage')
+  // the vanilla difficulty, followed by the core's poll within a second (no pin)
+  pneHTPin(srv, -1)
+  pneHiveSt.gov = 1.12
+  srv.difficulty = 1
+  pneHTTickTo(srv, 20, 5)
+  i = pneCoreDiffId()
+  want = GA.budget(4, Math.min(1.12, PNE_CORE_DIFF[1].hive.govCap), false) * PNE_CORE_DIFF[1].hive.budget
+  j = pneHiveB(4, false)
+  srv.difficulty = 3
+  pneHTTickTo(srv, 20, 5)
+  pneHTok(i === 1 && pneHTSame(j, want) && pneCoreDiffId() === 3 && pneHTSame(pneHiveB(4, false), GA.budget(4, 1.12, false)),
+    'vanilla Easy then Hard (no pin): the helper follows within a second')
+  pneHiveSt.gov = gov0
+}
+
+// The expression uses pneHiveB at the newborn and at the rejoin, and the profile's phen scales the HPX and DMG amounts only
+// (rec.e, HiveInfo and the GA's I events keep the expressed values): Easy 0.6, Normal and Hard 1.
+function pneHTDiffPhen() {
+  var ids = [1, 2, 3]
+  var genes = { SPD: 65535, ACU: 65535, KBR: 65535, ARM: 30000, PRC: 65535, HPX: 65535, DMG: 65535, PRJ: 20000 }
+  var GA = PNE_HIVE_GA
+  var srv
+  var id
+  var H
+  var ms
+  var e
+  var rec
+  var want
+  var i
+  var j
+  var k
+  var row
+  var inst
+  var mod
+  var amt
+  var badE
+  var badA
+  var nPhen
+  var nOther
+  var info
+  for (k = 0; k < ids.length; k++) {
+    id = ids[k]
+    srv = pneHTReset()
+    pneHTPin(srv, id)
+    H = PNE_CORE_DIFF[id].hive
+    ms = [__pneHiveSaved(srv, 'epca:ripper', genes, { x: 6 }), __pneHiveSpawn(srv, 'spore:knight', { x: 8 })]
+    pneHTTick(srv, 2)
+    badE = 0
+    badA = 0
+    nPhen = 0
+    nOther = 0
+    for (j = 0; j < ms.length; j++) {
+      e = ms[j]
+      rec = pneHiveMobs[e.uuid]
+      if (!rec || !rec.e) {
+        badE++
+        continue
+      }
+      want = GA.express(rec.g, GA.mask(rec.type), GA.budget(rec.stage, Math.min(GA.gov(pneHiveSt), H.govCap), false) * H.budget)
+      for (i = 0; i < 14; i++) {
+        if (rec.e[i] !== want[i]) badE++
+      }
+      for (i = 0; i < PNE_HIVE_ATTRS.length; i++) {
+        row = PNE_HIVE_ATTRS[i]
+        inst = e.getAttribute(row[1])
+        if (!inst) continue
+        mod = inst.getModifier(pneHiveModUuid(row[0]))
+        amt = row[3] * rec.e[row[0]]
+        if (row[0] === 10 || row[0] === 11) {
+          amt = amt * H.phen
+          nPhen++
+        } else {
+          nOther++
+        }
+        if (amt > 0 ? !(mod && mod.amount === amt) : mod !== null) badA++
+      }
+    }
+    info = pneCoreHiveInfo(ms[0])
+    pneHTok(badE === 0, PNE_CORE_DIFF_NAMES[id] + ': newborn and rejoin expressed at pneHiveB (' + badE + ' genes differ)')
+    pneHTok(badA === 0 && nPhen === 4 && nOther > 8, PNE_CORE_DIFF_NAMES[id] + ': HPX and DMG amounts x phen ' + H.phen + ', every other gene unscaled (' +
+      nPhen + ' + ' + nOther + ' modifiers, ' + badA + ' differ)')
+    pneHTok(info && info.e[10] === pneHiveMobs[ms[0].uuid].e[10] && info.e[11] === pneHiveMobs[ms[0].uuid].e[11], PNE_CORE_DIFF_NAMES[id] +
+      ': HiveInfo keeps the expressed HPX and DMG (phen scales only the amounts)')
+  }
+  pneHTok(PNE_CORE_DIFF[1].hive.phen === 0.6 && PNE_CORE_DIFF[2].hive.phen === 1 && PNE_CORE_DIFF[3].hive.phen === 1, 'phen: Easy 0.6, Normal and Hard 1')
+}
+
+// Peaceful gives zero modifiers: B 0 and phen 0, so a newborn gets a genome and nothing else (no modifier, no Silent, no axe,
+// no FLK), a rejoin loses its transient modifiers (the saved permanent max-health modifier stays: never removed, that
+// would clip health), and HiveInfo reports a zero expression. Switching back re-expresses at the next rejoin.
+function pneHTDiffPeaceful() {
+  var srv = pneHTReset()
+  var p = __pneMock.player(srv, 'A', 'aaaa0000-0000-4000-8000-000000000001', { x: 0 })
+  var genes = { SPD: 65535, ARM: 65535, HPX: 65535, DMG: 65535, SIL: 65535, PRC: 65535, FLK: 65535, PRJ: 65535, KBR: 65535, ACU: 65535 }
+  var ids = ['generic.movement_speed', 'generic.follow_range', 'generic.knockback_resistance', 'generic.armor', 'generic.attack_knockback',
+    'generic.max_health', 'generic.attack_damage']
+  var m = __pneHiveSaved(srv, 'epca:ripper', genes, { x: 6 })
+  var n
+  var nb
+  var u
+  var rec
+  var info
+  var zero
+  var trans
+  var all
+  function zeros(e) {
+    var a
+    if (!e || e.length !== 14) return false
+    for (a = 0; a < 14; a++) {
+      if (e[a] !== 0) return false
+    }
+    return true
+  }
+  function count(ent, transientOnly) {
+    var c = 0
+    var b
+    var inst
+    var k
+    for (b = 0; b < ids.length; b++) {
+      inst = ent.getAttribute(ids[b])
+      if (!inst) continue
+      for (k in inst.trans) {
+        if (inst.trans.hasOwnProperty(k)) c++
+      }
+      if (transientOnly) continue
+      for (k in inst.perm) {
+        if (inst.perm.hasOwnProperty(k)) c++
+      }
+    }
+    return c
+  }
+  pneHTTick(srv, 1)
+  pneHTok(count(m, false) >= 6 && m.getAttribute('generic.max_health').count() === 1, 'Hard first: the genome is expressed (' + count(m, false) + ' modifiers)')
+  pneHTok(pneHTPin(srv, 0) && pneHiveB(10, false) === 0, 'Peaceful pinned: B 0')
+  n = __pneHiveReload(srv, m)
+  nb = __pneHiveSpawn(srv, 'epca:ripper', { x: 9 })
+  pneHTTick(srv, 2)
+  rec = pneHiveMobs[n.uuid]
+  trans = count(n, true)
+  pneHTok(rec && zeros(rec.e) && trans === 0 && n.getAttribute('generic.max_health').perm[String(pneHiveModUuid(10))] !== undefined &&
+    n.silent === false && !n.getTags().contains('pne_flk') && Number(pneHTPd(n).getInt('pne_prj')) === 0,
+    'Peaceful rejoin: zero expression, no transient modifier, the saved permanent max health kept, audible, no FLK, PRJ 0')
+  rec = pneHiveMobs[nb.uuid]
+  all = count(nb, false)
+  pneHTok(PNE_HIVE_HEX_RX.test(pneHTG(nb)) && rec && zeros(rec.e) && all === 0 && nb.silent === false &&
+    __pneHiveCmds(srv, 'item replace entity ' + nb.uuid).length === 0 && !nb.getTags().contains('pne_flk'),
+    'Peaceful newborn: a genome, zero modifiers (' + all + '), not silenced, no axe')
+  u = __pneMock.mob(srv, 'epca:ripper', { x: 40 })
+  u.persistentData.putString('pne_g', __pneHiveGenome(genes))
+  info = pneCoreHiveInfo(u)
+  pneHTok(info && zeros(info.e) && info.flk === 0, 'Peaceful HiveInfo of an untracked genome mob: zero expression, flk 0')
+  pneHTok(pneHiveStatusLine().indexOf('diff x0.00') > 0, 'status line: diff x0.00 (' + pneHiveStatusLine() + ')')
+  // back to Hard: the next expression has modifiers again
+  pneHTPin(srv, 3)
+  n = __pneHiveReload(srv, n)
+  pneHTTick(srv, 1)
+  zero = zeros(pneHiveMobs[n.uuid].e)
+  pneHTok(!zero && count(n, true) >= 5 && pneHiveStatusLine().indexOf('diff x1.00') > 0, 'Hard again: re-expressed at the next rejoin (' + count(n, true) + ' transient)')
+  pneHTPin(srv, 1)
+  pneHTok(pneHiveStatusLine().indexOf('diff x0.65') > 0, 'status line on Easy: diff x0.65')
+}
+
+// The intra-day governor steps at the profile's govDeaths hive deaths of one player within 24000 ticks: Easy and Peaceful 1,
+// Normal 2 (Hard 2: pneHTGovernor).
+function pneHTDiffGovernor() {
+  var ids = [1, 2, 0]
+  var w1 = [0.85, 1, 0.85]
+  var w2 = [0.7225, 0.85, 0.7225]
+  var k
+  var srv
+  var p
+  var pd
+  var g0
+  var g1
+  var g2
+  for (k = 0; k < ids.length; k++) {
+    srv = pneHTReset()
+    pneHTPin(srv, ids[k])
+    p = __pneMock.player(srv, 'A', 'aaaa0000-0000-4000-8000-000000000001', { x: 0 })
+    pd = p.persistentData
+    pd.putString('pne_hd', String(srv.gameTime - 30000))
+    pneHTTickTo(srv, 20, 2)
+    g0 = PNE_HIVE_GA.gov(pneHiveSt)
+    pd.putString('pne_hd', String(pd.getString('pne_hd')) + ',' + String(srv.gameTime))
+    pneHTTickTo(srv, 20, 2)
+    g1 = PNE_HIVE_GA.gov(pneHiveSt)
+    pd.putString('pne_hd', String(pd.getString('pne_hd')) + ',' + String(srv.gameTime))
+    pneHTTickTo(srv, 20, 2)
+    g2 = PNE_HIVE_GA.gov(pneHiveSt)
+    pneHTok(g0 === 1 && Math.abs(g1 - w1[k]) < 1e-9 && Math.abs(g2 - w2[k]) < 1e-9,
+      PNE_CORE_DIFF_NAMES[ids[k]] + ': govDeaths ' + PNE_CORE_DIFF[ids[k]].hive.govDeaths + ' (gov ' + g0 + ' -> ' + g1 + ' -> ' + g2 + ')')
+  }
+}
+
+// The dawn's death target x targetK: Hard 1 (release 1.4's number exactly), Normal 0.75, Easy and Peaceful 0.5.
+function pneHTDiffTarget() {
+  var srv = pneHTReset()
+  var now = pneCoreGameTime(srv)
+  var want = [1, 1, 1.5, 2]
+  var got = []
+  var id
+  var diffReal = pneCoreDiff
+  var t0
+  pneHivePids = {}
+  pneHivePids['0123456789abcdef0123456789abcdef'] = now
+  pneHivePids['fedcba9876543210fedcba9876543210'] = now
+  for (id = 0; id < 4; id++) {
+    pneHTPin(srv, id)
+    got.push(pneHiveDawnInput(srv).target)
+  }
+  pneCoreDiff = undefined
+  try {
+    t0 = pneHiveDawnInput(srv).target
+  } finally {
+    pneCoreDiff = diffReal
+  }
+  pneHTok(got[3] === 2 && t0 === 2 && Math.abs(got[2] - want[2]) < 1e-12 && Math.abs(got[1] - want[1]) < 1e-12 && Math.abs(got[0] - want[0]) < 1e-12,
+    'dawn target with 2 players seen: Peaceful ' + got[0] + ', Easy ' + got[1] + ', Normal ' + got[2] + ', Hard ' + got[3] + ' (without profiles ' + t0 + ')')
+}
+
+// Light aversion and the T_est light rule at the profile's luxMin: Easy 10, every other profile 11.
+function pneHTDiffLux() {
+  var srv = pneHTReset()
+  var p = __pneMock.player(srv, 'A', 'aaaa0000-0000-4000-8000-000000000001', { x: 0 })
+  var m = __pneHiveSaved(srv, 'epca:ripper', { LUX: 0 }, { x: 8 })
+  var cases = [[1, 10, 2], [3, 10, 0], [2, 10, 0], [0, 10, 0], [1, 11, 4], [3, 11, 2], [0, 11, 2], [1, 12, 6], [3, 12, 4]]
+  var i
+  var c
+  var bad = []
+  var ev
+  pneHTTick(srv, 1)
+  for (i = 0; i < cases.length; i++) {
+    pneHTPin(srv, cases[i][0])
+    srv.light = cases[i][1]
+    srv.cmds = []
+    pneHTTickTo(srv, 100, 42)
+    c = __pneHiveCmds(srv, 'effect give').length
+    if (c !== cases[i][2]) bad.push(PNE_CORE_DIFF_NAMES[cases[i][0]] + ' at ' + cases[i][1] + ': ' + c)
+  }
+  pneHTok(bad.length === 0, 'light aversion from luxMin + tier: Easy at block light 10, the others at 11 (' + (bad.length ? bad.join(', ') : cases.length + ' cases') + ')')
+  // the T_est light rule at block light 10 while engaged: evidence on Easy, none on Hard
+  srv.light = 10
+  m.target = p
+  pneHTPin(srv, 1)
+  pneHTTick(srv, 3)
+  pneHiveTDay = [0, 0, 0, 0, 0]
+  pneHTTick(srv, 40)
+  ev = pneHiveTDay[3]
+  pneHTPin(srv, 3)
+  pneHiveTDay = [0, 0, 0, 0, 0]
+  pneHTTick(srv, 40)
+  pneHTok(ev > 0 && pneHiveTDay[3] === 0, 'the T_est light rule at block light 10: Easy counts it (' + ev + '), Hard does not')
+  srv.light = 0
+}
+
+// The dawn dream's slices run at pneHiveB too (the dream's budget site): Easy's B, and Peaceful's 0 (no NaN: the GA core
+// treats B 0 as a zero expression).
+function pneHTDiffDream() {
+  var srv = pneHTReset()
+  var GA = PNE_HIVE_GA
+  var mk = GA.mask('epca:ripper')
+  var real = GA.dreamSlice
+  var got = []
+  var want = []
+  var ids = [1, 0]
+  var i
+  var k
+  var ch
+  var guard
+  var stage
+  for (i = 0; i < 60; i++) {
+    GA.breed(pneHiveSt)
+    ch = GA.join(pneHiveSt, null)
+    GA.outcome(pneHiveSt, { id: ch.id, g: ch.g, parents: ch.parents, ctx: 'epca:ripper/' + (i % 2) + '/' + (i % 4) + '/surface', e: GA.express(ch.g, mk, 4),
+      tel: { dmg: i % 12, engagedSec: 5 + i % 40, located: 1, killShare: i % 17 === 0 ? 1 : 0, teamPressure: (i % 9) / 3, fastKill: false, cheese: false } })
+  }
+  __pneHiveStage = 4
+  pneCoreStageCache = {}
+  stage = pneCoreStage(srv.getOverworld())
+  GA.dreamSlice = function (st, m, B) {
+    got.push(B)
+    return real(st, m, B)
+  }
+  try {
+    for (k = 0; k < ids.length; k++) {
+      pneHTPin(srv, ids[k])
+      pneHiveDawn(srv)
+      want.push(GA.budget(stage, Math.min(GA.gov(pneHiveSt), PNE_CORE_DIFF[ids[k]].hive.govCap), false) * PNE_CORE_DIFF[ids[k]].hive.budget)
+      guard = 0
+      i = got.length
+      while (got.length < i + 2 && GA.dreamPending(pneHiveSt) && guard++ < 200) pneHTTick(srv, 1)
+    }
+  } finally {
+    GA.dreamSlice = real
+    __pneHiveStage = 0
+    pneCoreStageCache = {}
+  }
+  pneHTok(got.length >= 4 && got[0] === want[0] && got[1] === want[0] && got[got.length - 1] === 0 && want[1] === 0 && want[0] > 0 && want[0] < 3.0 + 0.35 * stage,
+    'dream slices at pneHiveB: Easy ' + (got.length ? got[0] : '?') + ' (stage ' + stage + '), Peaceful ' + (got.length ? got[got.length - 1] : '?'))
+  pneHTok(GA.gen(pneHiveSt) >= 0 && isFinite(GA.gov(pneHiveSt)) && isFinite(GA.sigma(pneHiveSt)), 'a Peaceful dream slice (B 0) leaves the GA state finite')
+}
+
+// The drain reads the difficulty row once per call for all the rejoins and newborns it expresses (one read per item would
+// repeat it up to 16 times a tick), never when it expresses nothing, and every expression of that call uses that row. The
+// next drain call reads it again, so a profile change is followed at the next tick. A direct call (no row passed) still
+// reads it itself.
+function pneHTDiffReads() {
+  var srv = pneHTReset()
+  var GA = PNE_HIVE_GA
+  var diffReal = pneCoreDiff
+  var drainReal = pneHiveDrains
+  var reads = []
+  var inDrain = -1
+  var genes = { SPD: 65535, HPX: 65535, DMG: 65535 }
+  var ms = []
+  var i
+  var e
+  var rec
+  var want
+  var bad = 0
+  var mod
+  var r0
+  var j0
+  var n
+  var direct
+  function expected(r, id) {
+    var H = PNE_CORE_DIFF[id].hive
+    var B = id === 3 ? GA.budget(r.stage, GA.gov(pneHiveSt), false) : GA.budget(r.stage, Math.min(GA.gov(pneHiveSt), H.govCap), false) * H.budget
+    return GA.express(r.g, GA.mask(r.type), B)
+  }
+  function sameE(a, b) {
+    var k
+    if (!a || !b || a.length !== 14 || b.length !== 14) return false
+    for (k = 0; k < 14; k++) {
+      if (a[k] !== b[k]) return false
+    }
+    return true
+  }
+  pneHTPin(srv, 1)
+  for (i = 0; i < 2; i++) ms.push(__pneHiveSpawn(srv, 'spore:knight', { x: 20 + i }))
+  pneHTTick(srv, 1)
+  for (i = 0; i < 3; i++) ms.push(__pneHiveSaved(srv, 'epca:ripper', genes, { x: 6 + i }))
+  r0 = pneHiveStats.rejoins
+  j0 = pneHiveStats.joins
+  pneCoreDiff = function () {
+    if (inDrain >= 0) reads[inDrain]++
+    return diffReal()
+  }
+  pneHiveDrains = function (s, now) {
+    var r
+    inDrain = reads.length
+    reads.push(0)
+    try {
+      r = drainReal(s, now)
+    } finally {
+      inDrain = -1
+    }
+    return r
+  }
+  try {
+    // one drain call: 3 rejoins and the 2 newborns (joined in an earlier tick)
+    pneHTTick(srv, 1)
+    pneHTok(reads.length === 1 && reads[0] === 1 && pneHiveStats.rejoins - r0 === 3 && pneHiveStats.joins - j0 === 2,
+      'one read of the difficulty row for a drain call with 3 rejoins and 2 newborns (' + reads.join(',') + ' reads; ' +
+      (pneHiveStats.rejoins - r0) + ' rejoins, ' + (pneHiveStats.joins - j0) + ' newborns)')
+    for (i = 0; i < ms.length; i++) {
+      e = ms[i]
+      rec = pneHiveMobs[e.uuid]
+      if (!rec || !sameE(rec.e, expected(rec, 1))) {
+        bad++
+        continue
+      }
+      mod = e.getAttribute('generic.max_health').getModifier(pneHiveModUuid(10))
+      want = PNE_HIVE_ATTRS[6][3] * rec.e[10] * PNE_CORE_DIFF[1].hive.phen
+      if (want > 0 ? !(mod && mod.amount === want) : mod !== null) bad++
+    }
+    pneHTok(bad === 0, 'every expression of that drain call used the row it read (Easy B and phen; ' + bad + ' of ' + ms.length + ' differ)')
+    // nothing to express: no read
+    pneHTTick(srv, 1)
+    pneHTok(reads.length === 2 && reads[1] === 0, 'a drain call that expresses nothing reads no row (' + reads[1] + ')')
+    // a profile change between ticks is followed by the next drain call (the row is not kept across ticks)
+    pneHTPin(srv, 3)
+    n = __pneHiveReload(srv, ms[2])
+    pneHTTick(srv, 1)
+    rec = pneHiveMobs[n.uuid]
+    mod = n.getAttribute('generic.attack_damage').getModifier(pneHiveModUuid(11))
+    pneHTok(reads.length === 3 && reads[2] === 1 && rec && sameE(rec.e, expected(rec, 3)) && rec.e[11] > 0 && mod !== null &&
+      mod.amount === PNE_HIVE_ATTRS[7][3] * rec.e[11],
+      'Hard pinned between ticks: the next drain call reads the row again and expresses at Hard, DMG unscaled (' + reads[2] + ' read)')
+    // a direct call without a row reads it itself
+    inDrain = 0
+    reads[0] = 0
+    pneHiveRejoin(srv, n, n.uuid)
+    direct = reads[0]
+    inDrain = -1
+    pneHTok(direct === 1 && sameE(pneHiveMobs[n.uuid].e, expected(pneHiveMobs[n.uuid], 3)), 'a direct pneHiveRejoin (no row passed) reads the row itself (' + direct + ')')
+  } finally {
+    pneCoreDiff = diffReal
+    pneHiveDrains = drainReal
+  }
+}
+
 function pneHTRun() {
   var tests = [pneHTShape, pneHTNewborn, pneHTRejoin, pneHTHealth, pneHTBackstop, pneHTLink, pneHTSil, pneHTSilCap, pneHTAxe, pneHTPrj,
     pneHTTelemetry, pneHTOutcome, pneHTPersist, pneHTLight, pneHTGovernor, pneHTDawn, pneHTAudio, pneHTApi, pneHTSwitch, pneHTQueues,
     pneHTBackstopMoved, pneHTRejoinQueued, pneHTSilBudget, pneHTGaSlots, pneHTSaveSlots, pneHTDawnCost, pneHTYaw, pneHTToggleSave, pneHTPrev,
     pneHTEpoch, pneHTNearTable, pneHTSteer, pneHTConvSearch, pneHTTellsAll, pneHTSaveInc, pneHTEpochFirstTick, pneHTInfoFlk,
-    pneHTEpochCrash, pneHTEpochFresh]
+    pneHTEpochCrash, pneHTEpochFresh, pneHTStartGate, pneHTDiffB, pneHTDiffPhen, pneHTDiffPeaceful, pneHTDiffGovernor, pneHTDiffTarget,
+    pneHTDiffLux, pneHTDiffDream, pneHTDiffReads]
   var i
   for (i = 0; i < tests.length; i++) {
     try {

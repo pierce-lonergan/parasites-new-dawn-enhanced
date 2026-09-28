@@ -1,15 +1,19 @@
 // Script-side cost of pne_visual.js in the real Rhino fork (suite visual-rhino-bench). ES5. Files, in order:
 // tools/tests/kjs_mocks.js, tools/visual/vis_prelude.js, pne_00_core.js, pne_visual.js, this file.
 //
-// The world (200 engaged hosts, 30 grafts, 250 team entries of which 50 leaked) is built with the mock interpreter, then
-// runCommandSilent is replaced by a stub that returns 1, so the numbers are VISUAL's own logic per call:
-// bookkeeping, scoreboard reads, string building. Minecraft's own command execution is NOT included (checked in
+// The world (200 engaged hosts, 30 grafts, 250 team entries of which 50 leaked) is built with the mock interpreter and
+// the mock ServerScoreboard, then runCommandSilent is replaced by a stub that returns 1 and the scoreboard's membership
+// and option writes are made no-ops (vis_prelude __pneVisMock.sbFault: they answer as if done), so every timed call
+// meets the same state and the numbers are VISUAL's own logic per call: bookkeeping, scoreboard reads and read-backs,
+// string building. Minecraft's own command execution and ServerScoreboard's broadcasts are NOT included (checked in
 // game with spark), and mock objects are plain JS, so in-game Java calls add to these figures. Timing uses Date
 // (ms resolution) averaged over many iterations: the class filter allows no nanosecond clock (F25).
-// Result: pneVisBenchResult = "PASS visual bench: ..." The bench fails only when one scheduled step's logic alone
-// exceeds 1 ms, which would put I9 (3 ms per tick) at risk before any command runs, or when one scan record costs
-// more than a graftSync token covers (PNE_CORE_COST.graftSync / PNE_VIS_SCAN_PER_TOKEN). The figures are reported
-// for the lead's PNE_CORE_COST table (visApply, graftSync, sweep).
+// Result: pneVisBenchResult = "PASS visual bench: ..." The bench fails when one scheduled step's logic alone
+// exceeds 1 ms, which would put I9 (3 ms per tick) at risk before any command runs, when one scan record costs
+// more than a graftSync token covers (PNE_CORE_COST.graftSync / PNE_VIS_SCAN_PER_TOKEN), or when a full apply (a team
+// move with its read-backs, the name and graft checks) costs more than the visApply token it is charged (contract 7.3:
+// the deferred-apply drain charges one visApply per apply, so a dearer apply would under-count a tick's work). The
+// figures are reported for the lead's PNE_CORE_COST table (visApply, graftSync, sweep).
 
 // Mean ms per call in the fastest of 5 trials (n calls in total): other processes on the machine only ever add
 // time, so the minimum is the least noisy estimate of the code's own cost.
@@ -65,13 +69,17 @@ function pneVisBenchRun() {
     pneCoreLeftMs = 1e9
     pneVisScanStep(srv, 1000)
   }
-  for (i = 0; i < 50; i++) srv.runCommandSilent('team join pne_clade_1 dead0000-0000-4000-8000-0000000000' + (10 + i))
+  for (i = 0; i < 50; i++) __pneVisMock.join(srv, 'pne_clade_1', 'dead0000-0000-4000-8000-0000000000' + (10 + i))
   for (i = 0; i < hosts.length; i++) {
     if (pneVisGraftOf(hosts[i])) grafted.push(hosts[i])
   }
   out.push(hosts.length + ' engaged hosts, ' + grafted.length + ' grafts, 250 team entries')
   if (grafted.length !== 30) fails.push('expected 30 grafts, got ' + grafted.length)
+  if (!pneVisTeamsReady || __pneVisMock.teamSize(srv, 'pne_clade_1') < 50) fails.push('teams not set up through the Java API')
   srv.runCommandSilent = function (cmd) { return 1 }
+  __pneVisMock.sbFault.join = true
+  __pneVisMock.sbFault.leave = true
+  __pneVisMock.sbFault.set = true
 
   ms = pneVisBenchTime(function (k) {
     var j = k % 200
@@ -87,8 +95,9 @@ function pneVisBenchRun() {
     info.clade = k % 4
     pneVisApplyNow(m, m.uuid, pneVisWant(m, info))
   }, 5000)
-  out.push('apply (name, team, graft checks) ' + pneVisBenchUs(ms))
+  out.push('apply (name, team, graft checks) ' + pneVisBenchUs(ms) + ' (visApply ' + pneVisBenchUs(PNE_CORE_COST.visApply) + ')')
   if (ms > 1) fails.push('apply logic ' + ms + ' ms')
+  if (ms > PNE_CORE_COST.visApply) fails.push('full apply ' + pneVisBenchUs(ms) + ' over the visApply token ' + pneVisBenchUs(PNE_CORE_COST.visApply))
 
   for (i = 0; i < hosts.length; i++) {
     pneCoreLeftMs = 1e9

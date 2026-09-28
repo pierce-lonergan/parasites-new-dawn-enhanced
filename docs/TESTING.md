@@ -8,8 +8,9 @@ Use a **throwaway world with cheats on**. Never test in a world you care about.
 
 ## In-game checklist
 
-- **LOGS FIRST**: logs/kubejs/startup.log 'Loaded 7/7 KubeJS startup scripts ... 0 errors'; logs/kubejs/server.log 'Loaded 13/13 KubeJS server scripts ... 0 errors' (with The Hive Remembers files; 5/5 and 6/6 without them) and a '[minecraft:entity_type] Found N tags, added ...' line; no '[pne' warning lines anywhere; logs/hordes.log loads hordes:default and hordes:drowned.
+- **LOGS FIRST**: logs/kubejs/startup.log 'Loaded 8/8 KubeJS startup scripts ... 0 errors'; logs/kubejs/server.log 'Loaded 13/13 KubeJS server scripts ... 0 errors' (with The Hive Remembers files, 1.5 included; 5/5 and 6/6 without them) and a '[minecraft:entity_type] Found N tags, added ...' line; no '[pne' warning lines anywhere; logs/hordes.log loads hordes:default and hordes:drowned.
 - **Setup**: make a THROWAWAY world with cheats on. Never test in 'New World'. Several tests need a separate world, as noted.
+- **Difficulty first (1.5)**: the pack now follows Options > Difficulty (Peaceful, Easy, Normal, Hard; see "Difficulty profiles and the Recruits-safe start" below). The numbers in this list are the **Hard** profile's (vanilla Hard, or '/pne config diff_profile 4'); on the other profiles night buffs, bursts, beckons and hordes are gentler as that section lists. The login line and '/pne difficulty' show which profile is active.
 - **Comfort (creative)**: '/effect give @s epca:fear 20', '/effect give @s minecraft:nausea 10' and '/effect give @s spore:madness 30' should not apply (no icon, no camera jitter). '/effect give @s minecraft:blindness 10' applies. After '/summon spore:bloater ~6 ~ ~', blindness is refused. '/effect give @s minecraft:blindness 45000' (900000 ticks) is refused. '/summon spore:nuke ~ ~ ~' spawns nothing and the screen does not shake. Holding right-click with spore:cleaver does not spin the camera. Options should show FOV Effects 0%, Darkness Pulsing 0% and View Bobbing ON.
 - **BadMobs**: '/summon spore:gargoyle', 'spore:grober', 'spore:howitzer' and 'spore:hohlfresser' should each vanish at once, while '/summon spore:inf_human' still works.
 - **Alliance (survival, stand about 15 blocks away)**: '/summon epca:infested_zombie' next to '/summon spore:inf_human'. They should ignore each other, not keep switching targets, and both come for you. Give a Spore mob '/effect give @e[type=spore:inf_human,limit=1,sort=nearest] epca:coth 60 2': it must never convert.
@@ -22,7 +23,7 @@ Use a **throwaway world with cheats on**. Never test in a world you care about.
 - **Death line**: die to any parasite, for example '/summon spore:brute'. Exactly one dark-red italic line appears after the vanilla death message.
 - **Horde and Hive Night**: at night, '/hordes start @s 6000' (or '/hordes start 6000 hordes:drowned' in an ocean). When the first wave spawns about 75 blocks out, expect one dark-red Hive Night line and the beckon stinger, then a heartbeat every 15 s. '/tag @s list' shows pne_horde, and 'execute if entity @e[tag=pne_horde_mob]' returns the mob count. No scripted beckons appear during the horde. Command hordes test the mob mix, not the scaled horde size.
 - **Leftover cleanup**: after the horde ends, the pne_horde tag is gone. Run '/time set 1000' and walk more than 24 blocks from any survivors. Within about 10 s they vanish with no drops, bursts or conversions, and server.log shows '[pne_horde_cull] removed N horde leftovers after dawn'.
-- **Bed rule**: '/time set 181000' (night of day 7), then use a bed. Sleep is refused with a dark action-bar line and no screen or camera effect. '/time set 157000' (night of day 6): the bed works unless a horde is running or overdue.
+- **Bed rule**: '/time set 181000' (night of day 7), then use a bed. Sleep is refused with a dark action-bar line and no screen or camera effect. '/time set 157000' (night of day 6): the bed works unless a horde is running or overdue. On the Peaceful profile (1.5) the day-7 refusal is off and no horde runs (see the Peaceful checks below).
 - **Spore griefing**: '/summon spore:griefer' next to a stone wall and let it explode. It deals damage but breaks no blocks.
 - **Lore and quests**: '/epca_evolution setstage 5' shows the new stage-5 chat line; set the stage back afterwards. A Stage I Beckon egg used below stage 3 shows 'Erosion is below stage 3...' on the action bar. The effect list reads 'Call of the Hive'. The 'Hive Nights' chapter appears after 'Counter-Infection'. Looking at and killing spore:inf_human, spore:mound, epca:reshape_longarms and cave_dweller:cave_dweller completes the matching quests.
 - **Lost Cities (new world made with the Cities button)**: haunted building1-3 and other buildings spawn EPCA or Spore infected with no armour or weapons, no Speed IV or Regeneration IV, and at most about 1.5x base health.
@@ -42,7 +43,7 @@ launch. Check that the pre-seeded values survived Forge's correction pass:
 - Lost Cities: config/lostcities/common.toml needs no change (optimizedHeightmap already false). For 'New World', confirm serverconfig/lostcities-server.toml kept selectedProfile="" and specialBedBlock="minecraft:barrier" (check latest.log for a rejection). New Lost Cities worlds are made with the 'Cities' button on Create World.
 - Lost Souls: after creating a Lost Cities world, confirm saves/<world>/serverconfig/lostsouls-server.toml was copied from defaultconfigs (parasite mob list, randomEffects=[], bonuses 1.0-1.5 and 1.0-1.2). Check latest.log for no codec error on lostsouls:buildings/zombiesonly.
 - Patchouli: no settings required (library only). Check that it loads without errors. The nuclearcraft:patchouli_book recipe that failed before Patchouli was installed should now parse; the KubeJS server.log failed-recipe count should drop by one.
-- KubeJS: confirm logs/kubejs/startup.log reads 'Loaded 7/7 KubeJS startup scripts ... with 0 errors' and logs/kubejs/server.log reads 'Loaded 13/13 KubeJS server scripts ... with 0 errors' (5/5 and 6/6 before The Hive Remembers). Confirm there are no lines starting '[pne', '[pne_alliance]', '[pne_hive_rules] could not', '[pne_horde_rules] could not', '[pne_horror] ... failed' or '[pne_horde_cull] pass failed', and no tag 'missing references' error for pne:hive, pne:beckon, pne:flesh, pne:spore, pne:spore_basic or pne:beckon_ground in latest.log.
+- KubeJS: confirm logs/kubejs/startup.log reads 'Loaded 8/8 KubeJS startup scripts ... with 0 errors' and logs/kubejs/server.log reads 'Loaded 13/13 KubeJS server scripts ... with 0 errors' (5/5 and 6/6 before The Hive Remembers; 7/7 startup scripts before 1.5 added pne_diff_events.js). Confirm there are no lines starting '[pne', '[pne_alliance]', '[pne_hive_rules] could not', '[pne_horde_rules] could not', '[pne_horror] ... failed' or '[pne_horde_cull] pass failed', and no tag 'missing references' error for pne:hive, pne:beckon, pne:flesh, pne:spore, pne:spore_basic or pne:beckon_ground in latest.log.
 - User decisions still open (from the comfort track): whether epca:ender_erosion's pulsing edge vignette is acceptable (if not, add it to PNE_COMFORT_ALWAYS_DENY); whether Spore-sourced Blindness should stay denied (currently denied within 40 blocks of any spore mob); whether being carried by grabbing Spore mobs (Umarmer, Ogre and similar) counts as camera movement (if so, block them in BadMobs after checking their IDs); and tell the user that the Spore Infected Cleaver's hold-right-click ability is disabled (melee still works).
 
 ## The Hive Remembers: in-game checks
@@ -63,6 +64,10 @@ Before you start:
   behaviour itself.
 - `/pne status` lists the four pillars (`resonance=on hive=on oracle=on visual=on`), the tick-budget peak (at most
   `2.50/2.50 ms`) and one line per module. `/pne` alone prints the command list.
+- **Check Options > Difficulty** (1.5). The pack follows it: Peaceful, Easy, Normal and Hard each have their own profile
+  (docs/IMPLEMENTATION.md 3.8); Hard is exactly the 1.4 behaviour. The first-test world that felt "aggressively hard" was
+  saved on Normal, and 1.4 ignored the setting entirely. The login line and `/pne difficulty` now show which profile is
+  active; `/pne config diff_profile 2` pins Easy whatever the menu says (`0` follows the menu again).
 
 ### Switching things off if something misbehaves
 
@@ -97,6 +102,63 @@ hidden-name rule now guard them. Confirm the behaviour in game with the **F37** 
   so the backstop, damage telemetry and projectile scaling stopped (M3, "Backstop").
 - ORACLE (`pne_oracle_bridge.js`: `getYRot`, `getEntity`, `isDedicatedServer`) and HIVE (`pne_hive.js`: `getYRot`) lost
   one telemetry field each (yaw, damage attribution) without any log line (M0, look_rate).
+- **1.5, found in the first in-game test (Recruits)**: every command the 1.4 scripts issued in `ServerEvents.loaded` (25
+  per start: the seed read and VISUAL's team setup) failed on a Recruits NullPointerException, so the hive ran the whole
+  session with seed 0, the clade teams were never created, and after the start Recruits turned `team add pne_clade_N`
+  into factions and swallowed every team join. Fixed by the Recruits-safe start (docs/IMPLEMENTATION.md Appendix A rule
+  15); confirm with "Difficulty profiles and the Recruits-safe start" below and M4 "Clade teams".
+
+### Difficulty profiles and the Recruits-safe start (contract 1.5; signs off M0, with the module items under M2-M4)
+
+Test a profile in a **fresh world**: parasites that already exist keep the EPCA stats they got when they first joined
+(EPCA applies them once), and New World (2) from the first test also keeps two empty Recruits factions (`pne_clade_2`,
+`pne_clade_3`) that nothing cleans up. Discard that world rather than clean it.
+
+Start and logs
+- latest.log after a world start: no `FactionEvents.onTypeCommandEvent` NullPointerException (1.4 logged 25 of them per
+  start), no `[pne_core] seed read before start` warning, no `[pne] hive.load failed` line.
+- The log shows one `[pne_core] difficulty: vanilla X, profile Y (follows vanilla)` line on the first tick.
+- The login chat line `[PNE] Difficulty ... (pack profile ..., EPCA tier ...). /pne difficulty shows the details.`
+  appears once per player and not again at the next login (unless the profile or the overworld tier changed meanwhile).
+- `/team list` shows the 8 teams `pne_clade_0`..`pne_clade_3` and `pne_clade_0_named`..`pne_clade_3_named`, and the
+  Recruits faction list shows no `pne_` faction (M4 has the team details).
+- The runtime names resolve: `getAllLevels()`, `Level.getDifficulty().getId()`, `getWorldData().getDifficulty().getId()`,
+  `isHardcore()`, EPCA's `WorldDifficultyData.get/getDifficulty/setDifficulty` and `DifficultyLevel.fromId`, and the
+  scoreboard team enums. A failure shows as `EPCA tier unavailable` with one warning (`epca.api` or `epca.read`), a
+  profile stuck at Hard, or the `[pne_visual] clade teams not ready` warning.
+
+The profile and EPCA's tier
+- `/pne difficulty` (anyone) prints 4 lines: the vanilla value and the profile (`follows vanilla` or pinned), the EPCA
+  tier per dimension with its state (overworld Expert, `pack-managed`, on a default-button world at Hard), then the night,
+  burst, beckon, doom, spawn, gene, Spore and horde numbers of the profile. `/pne status` has the line
+  `difficulty: Easy (vanilla Easy, auto); EPCA overworld Normal (managed)` (with the real values). Without EPCA's classes
+  both show `EPCA tier unavailable` and the log has one warning.
+- Switching the difficulty in the pause menu gives exactly one gray chat line within about 2 s. On a default-button world
+  Easy flips the overworld EPCA tier from Expert to Normal (the line ends `... use EPCA tier Normal (was Expert).`), and
+  Hard flips it back.
+- After a switch to Easy, `/summon epca:infested_zombie`, then
+  `/data get entity @e[type=epca:infested_zombie,limit=1,sort=nearest] Attributes`: `minecraft:generic.max_health` has
+  base 15 on Easy, against 22.5 on Normal or Hard (EPCA Expert x1.5).
+- `/pne config diff_profile 2` pins Easy whatever the pause menu says; `/pne config diff_profile 0` follows the menu
+  again. `/pne difficulty epca master` (operator) sets Master everywhere and marks each dimension deliberate (the pack
+  leaves them alone); `/pne difficulty epca auto` hands them back, and the next sync writes the profile's tier.
+- A world created with the EPCA button on Normal while vanilla is Hard: the log reports once that the overworld tier was
+  chosen outside the pack, and the pack never writes it.
+- Dedicated server, new world on Hard: latest.log has no `EPCA tier Normal in minecraft:overworld was chosen outside the
+  pack` warning, `/pne difficulty` shows the overworld Normal (pack-managed), and switching to Easy and back to Hard, or
+  `/pne difficulty epca auto` followed by Hard, never writes Expert (a dedicated server's EPCA baseline is Normal).
+
+Damage and hordes
+- On Easy, a Spore mob's hit on a player lands at about 70% of the Hard value (on Peaceful about 50%). EPCA hits are not
+  scaled by the script (vanilla's difficulty scales them).
+- The day-7 Hordes wave is about 9 mobs on Easy and 12 on Normal (15 on Hard).
+- Peaceful, single player: on day 7 at midnight no horde starts and no Hordes start message appears; latest.log shows one
+  Hordes start attempt for day 7 per player, not one per tick; no `the Hordes schedule could not be moved` warning. A bed
+  works on the evening of day 7, after midnight on day 7, and on nights 8, 13 and 14. No player gets the `pne_horde` tag
+  (pne_hive_rules.js tags only a horde that starts), and no `pne_horde_mob` appears.
+- Peaceful persistence: on day 8 save and quit, rejoin, then sleep at dusk: the bed works (the moved schedule was saved).
+- Leaving Peaceful: switch to Easy on day 18. No catch-up horde happens; the next horde is on day 21 with about 9 mobs
+  (the size of a first horde at x0.6).
 
 ### M0: core, telemetry, genome core
 
@@ -170,6 +232,22 @@ Pacing and audio behaviour
   (line of sight on GeckoLib mobs); n16/n32 count only #pne:hive / #pne:spore mobs; light drops at night and in rain; a
   few modded EPCA/Spore weapons show a sensible held-item class (many fall back to `other`).
 
+Difficulty profiles (1.5; Options > Difficulty, or `/pne config diff_profile 1`..`4`)
+- Easy: at night, EPCA parasites within 32 blocks get Speed I and never Strength, and Spore basic infected get nothing
+  (`/data get entity @e[type=epca:infested_zombie,limit=1,sort=nearest] ActiveEffects`).
+- Normal: Strength I on EPCA at night appears only once the overworld doom stage is at least 1 (the day-6 floor); Speed I
+  on `#pne:spore_basic` within 48 blocks.
+- `/pne resonance status` in CALM shows spawn 1.25 on Hard, 1.10 on Normal, 1.00 on Easy and 0.00 on Peaceful, and follows
+  a pause-menu change within about 2 s. On Peaceful no parasites spawn naturally near the player (`pne_m` 0).
+- Easy: about 1 in 3 host kills bursts, with 1-2 flesh, and at most 4 burst products within 24 blocks. Reinforcement
+  beckons appear only from overworld stage 4 (the day-32 floor), at most one per 400 ticks.
+- The doom clock on Easy and Normal raises the same floors on the same days as Hard (400 points on day 6, and so on:
+  lead decision L1). On Peaceful the points never rise (no `/epca_evolution setpoints` line in the log).
+- Hard plays exactly as before: the same night buffs, burst rates and beckon rates. The only new output is the core's
+  login line.
+- latest.log after loading a world and after `/reload`: no NullPointerException from FactionEvents caused by
+  pne_horror.js or pne_resonance.js commands, and the first-run audio notice arrives once after joining.
+
 Commands and notice
 - `/pne comfort`, `/pne audio`, `/pne resonance whispers|throb|approach|stingers|self on|off` work for a non-op
   single-player owner; `/pne resonance status` shows state, tier, e, theta and m.
@@ -212,6 +290,28 @@ Load, save, cost
   most likely to need raising: report the spark value. Do the same for the incremental save's samples piece against
   `gaSavePart` 0.4 ms.
 - `/reload` with genome mobs nearby: no errors, and `tracked` in `/pne hive status` recovers within a few seconds.
+
+Difficulty profiles and the first-tick load (1.5)
+- After the world loads, `/pne hive status` shows a pool (not `not loaded yet`) within about a second, and the status
+  line ends with `diff x1.00` on Hard, `x0.85` on Normal, `x0.65` on Easy (`x0.00` on Peaceful). latest.log has no
+  `[pne_core] seed read before start` and no `[pne] hive.load failed` line.
+- Load epoch: note `epoch` in `/pne hive status`, run `/reload`, then quit to title and reopen the world: the epoch rises
+  each time, and pool and gen are kept.
+- Easy (`/pne config diff_profile 2`): spawn several parasites at once (for example 5 x `/summon epca:infested_zombie`,
+  so one drain call expresses them together). On each, `/data get entity <uuid> Attributes` shows the `pne.gene.HPX`
+  amount at most 0.30 and `pne.gene.DMG` at most 0.24. On Hard (`/pne config diff_profile 4`) newly spawned ones stay
+  at most 0.5 and 0.4, as in 1.4. Undo with `/pne config diff_profile 0`.
+- Peaceful pin (`/pne config diff_profile 1`): a newly spawned parasite gets a genome (`pne_g`) but no `pne.gene.*`
+  attribute modifier, is not silent and has no axe. Undo with `/pne config diff_profile 0`.
+- Light aversion on Easy: standing at block light 10, nearby LUX-tier-0 parasites get Slowness (particles hidden,
+  nothing on your screen). On Hard nothing happens until block light 11.
+- Governor on Easy: after one hive-caused death, `governor steps` in `/pne hive status` rises by 1. On Normal and Hard
+  it rises only after the second hive death within 20 minutes.
+- Profile switch between ticks: switch Options > Difficulty from Hard to Easy, wait 2 s, then reload a chunk that has
+  genome parasites in it: the rejoined mobs' transient `pne.gene.*` modifiers drop to the Easy amounts, and the permanent
+  HPX modifier stays.
+- spark during a chunk-load burst of parasites: the hive's drain stays within its budget share, with no tick spike above
+  3 ms of KubeJS work.
 
 Expression and phenotype
 - Modifiers survive a chunk reload: note a genome mob's max health (`/data get entity <mob> Attributes`), leave and come
@@ -281,9 +381,32 @@ Backstop, conversions, deaths
 
 ### M4: the visual phenotype
 
+Clade teams (1.5: the ServerScoreboard Java API, made on the first tick after the start)
+- Fresh world with Recruits installed: latest.log has no `FactionEvents.onTypeCommandEvent` NullPointerException, no
+  `[pne_visual] clade teams not ready` warning and no `[pne_visual] refused a console command naming a scoreboard team`.
+- Right after joining, `/pne visual status` starts with `visual: teams 8/8`. `/team list` shows `pne_clade_0`..`3` and
+  `pne_clade_0_named`..`3_named`, and the Recruits faction list shows no `pne_` faction.
+- Once genome mobs have spawned, `/team list pne_clade_<c>` lists mob UUIDs and the entries count in `/pne visual status`
+  grows. A mob given a name tag moves to `pne_clade_<c>_named` within about 25 s and its name shows; when the name is
+  removed (kill and respawn, or `data remove` as an operator) it moves back to `pne_clade_<c>`.
+- Save and quit, then reload the same world: `/pne visual status` again shows `teams 8/8` (Recruits resets friendly fire
+  and seeing invisibles at every start; VISUAL restores them on the first tick).
+- `/pne visual status` and `/pne status` show `visual: teams 8/8, ...` in chat as plain text; the chat never shows an
+  escape sequence such as a backslash-u. latest.log has no Recruits `team.notFound` reply and no new faction whose name
+  starts with `{"text"`.
+- `/pne visual sweep` (operator) replies `visual sweep cleared N orphan grafts or stale clade entries`, and the `/pne`
+  help lists both visual lines (1.4's texts said "team" and would have been swallowed by Recruits).
+- `/pne visual off`, then wait about 10 s: `/team list pne_clade_0` ... `_3_named` show no members. `/pne visual on`
+  brings back `teams 8/8` and the entries as mobs are re-applied.
+- In a fight with many genome mobs at stage 4 or higher, `/spark profiler --timeout 60` shows the pne_visual apply path
+  well under the tick budget (the Rhino bench predicts about 17 us of script time per full apply before Java call costs).
+
+Phenotype
 - After the install step (tools/apply.py step 8 generates the clade variants from your own jars),
   `/team join pne_clade_1 <uuid of an EPCA mob>` switches it to the rust variant within seconds and `/team leave <uuid>`
   restores it; the same for a Spore mob. If GeckoLib EPCA does not switch, the fallback is names, particles and grafts.
+  (Recruits lets a player's `team join` / `team leave` run, but takes over any command holding `team` and `add`: pick a
+  mob whose UUID does not contain `add`.)
 - No axe is visible on Spore mobs holding iron_axe with CustomModelData 7301, nor on EPCA hosts.
 - Players and parasites push each other as without the pack (teams use `collisionRule always`).
 - A grafted mob is not pushed while it carries its graft and does not stroll when idle (vanilla Entity.push and
@@ -303,6 +426,8 @@ Backstop, conversions, deaths
 - Team membership changes no parasite infighting; EPCA infection and conversion still work for team members.
 - `/pne visual off` removes every graft and every "Hive Apex" name within 10 s, including apex mobs in chunks loaded
   later, and empties the teams; `/pne visual on` restores them as mobs rejoin.
+- Players and parasites still push each other (collision rule always), and the ETF clade texture variant appears on team
+  members.
 - spark: the visual scan, sweep phases and yaw sync together stay well under 0.3 ms per tick, commands included.
 
 ### M5: the Oracle
@@ -342,7 +467,11 @@ Display grafts never despawn and apex names persist, so clean up before removing
 - `/pne visual off`, wait 10 s, then `kill @e[type=minecraft:item_display,tag=pne_graft]`
 - `execute as @e[tag=pne_vis_apex] run data remove entity @s CustomName` and `tag @e[tag=pne_vis_apex] remove pne_vis_apex`
   (repeat after visiting areas where apex mobs were saved)
-- `team remove pne_clade_0` ... `team remove pne_clade_3` and `team remove pne_clade_0_named` ... `team remove pne_clade_3_named`
+- the clade teams: `/pne visual off` empties all 8 within about 10 s. With Recruits installed, `team remove pne_clade_0`
+  and the rest do **not** work, from a player or from the console: Recruits takes over any command holding `team` and
+  `remove` (it cancels it and runs its own faction-leave logic), so the 8 empty teams stay in the scoreboard, where they
+  are harmless. Without Recruits: `team remove pne_clade_0` ... `team remove pne_clade_3` and `team remove
+  pne_clade_0_named` ... `team remove pne_clade_3_named`
 - `python tools/visual/etf_variants_local.py --instance "<instance>" --clean` (removes exactly the generated textures)
 - run stop_oracle.cmd, then delete `<instance>/local/pne_oracle` if you do not want the sidecar or its logs
 - genome mobs keep their modifiers (`pne.gene.*`); silent ones are unsilenced by `/pne hive off` before removal

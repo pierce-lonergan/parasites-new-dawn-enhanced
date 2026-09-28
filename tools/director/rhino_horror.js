@@ -6,6 +6,9 @@
 // 120 degrees of getYaw() (F37) also when the mob died off to the player's side, that the light is read at the
 // player's feet block, that high block light keeps today's placement, and that a kill within 24 blocks of the
 // player moves nothing (today's chain without its summon refuses there).
+// Contract 1.5 in real Rhino: the difficulty profile rows reach pne_horror.js and the director (pneHDiff is the core's
+// row; the Easy night command reads distance=..32, not 32.0; the doom floors; Peaceful issues no night command; the
+// director's pacing per profile), and no horror command runs before the first tick or after a /reload until the next.
 // Files: kjs_mocks.js, pne_00_core.js, fixtures/empty_catalog.js, pne_resonance.js, pne_horror.js, this file.
 // Result: pneHorrorResult. ES5.
 
@@ -193,10 +196,62 @@ function pneHorFlank() {
   }
 }
 
+// Difficulty profiles and start gating (contract 1.5) in Rhino.
+function pneHorProfiles() {
+  var srv = __pneMock.server({ difficulty: 1 })
+  var p = __pneMock.player(srv, 'Prof', 'aaaa0000-0000-4000-8000-0000000000a1', { x: 0, y: 64, z: 0 })
+  var n0
+  var cmds
+  var o
+  var st
+  srv.level.getDayTime = function () { return 18000 }
+  __pneMock.fire('ServerEvents.loaded', { server: srv })
+  // before the first tick: a parasite death issues nothing
+  n0 = srv.cmds.length
+  __pneMock.fire('EntityEvents.death', { entity: __pneMock.mob(srv, 'epca:infested_zombie', { x: 30, y: 64, z: 0 }), source: __pneMock.damage('mob', p) })
+  pneHorT(srv.cmds.length === n0, 'no horror command before the first tick (' + (srv.cmds.length - n0) + ')')
+  __pneMock.tick(srv, 20)
+  pneHorT(pneCoreDiffId() === 1 && pneHDiff() === PNE_CORE_DIFF[1], 'vanilla Easy: pneHDiff() is the Easy row of the core')
+  n0 = srv.cmds.length
+  pneHNightAggression(srv)
+  cmds = srv.cmds.slice(n0)
+  pneHorT(cmds.length === 1 && String(cmds[0]) === PNE_H_SURVIVORS + 'effect give @e[type=#pne:hive,distance=..32] minecraft:speed 7 0 true',
+    'Easy night: Speed I on EPCA within 32 only (' + cmds.join(' | ') + ')')
+  pneHorT(pneHFloorForDay(47) === '20000' && pneHFloorForDay(48) === '200000' && pneHFloorForDay(100) === '1800000000' && pneHDoomK() === 1,
+    'Easy doom floors on the Hard days (L1)')
+  o = pneResPaceOut('DREAD', false, false, 1, PNE_CORE_DIFF[1])
+  pneHorT(o.spawn === 0.65 * 0.75 && o.aggro === 0.9 && o.gov === 0.75, 'Easy DREAD with 1 hourly death: spawn 0.65 x 0.75, aggro 0.9')
+  st = { fsm: pneResFsmNew(), tier: pneResTierNew() }
+  o = pneResPureStep(st, { eo: 0, conf: 0.9, fresh: true, sh: 0, theta: 0, nearest: 32, tsd: 600, pflee: 0, mercy: false, grace: false, deaths1h: 0, diff: 2 })
+  pneHorT(o.spawn === 1.1, 'pure step with inp.diff 2: Normal CALM spawn 1.10')
+  srv.difficulty = 0
+  __pneMock.tick(srv, 20)
+  n0 = srv.cmds.length
+  pneHNightAggression(srv)
+  pneHDoomClock(srv)
+  pneHorT(pneCoreDiffId() === 0 && srv.cmds.length === n0 && !pneHNightOn() && pneHFloorForDay(100) === '0',
+    'Peaceful: no night command, no doom query, no floor')
+  srv.difficulty = 3
+  __pneMock.tick(srv, 20)
+  n0 = srv.cmds.length
+  pneHNightAggression(srv)
+  cmds = srv.cmds.slice(n0)
+  pneHorT(cmds.length === 3 && String(cmds[1]).indexOf('@e[type=#pne:hive,distance=..48] minecraft:strength 7 0 true') > 0,
+    'Hard again: the three 1.4 night commands')
+  // /reload: nothing until the next tick
+  __pneMock.fire('ServerEvents.loaded', { server: srv })
+  n0 = srv.cmds.length
+  __pneMock.fire('EntityEvents.death', { entity: __pneMock.mob(srv, 'epca:infested_zombie', { x: 30, y: 64, z: 0 }), source: __pneMock.damage('mob', p) })
+  pneHorT(srv.cmds.length === n0 && pneResTellraw(srv, 'x', 'y') === false, 'after /reload, before the next tick: no command, no tellraw')
+  __pneMock.tick(srv, 1)
+  pneHorT(pneResTellraw(srv, 'x', 'y') === true, 'after the next tick: tellraw issued')
+}
+
 var pneHorrorResult = 'FAIL not run'
 try {
   pneHorRun()
   pneHorFlank()
+  pneHorProfiles()
   pneHorrorResult = pneHorFails.length ? 'FAIL ' + pneHorFails.length + '/' + pneHorCount + ': ' + pneHorFails.join(' | ') : 'PASS ' + pneHorCount
 } catch (err) {
   pneHorrorResult = 'FAIL exception: ' + err + (err && err.stack ? ' ' + err.stack : '')

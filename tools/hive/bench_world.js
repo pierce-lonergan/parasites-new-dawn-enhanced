@@ -102,6 +102,8 @@ function pneHBSetup() {
   pneHB.srv = srv
   srv.lightAt = function (x, y, z) { return z < 0 ? 12 : 4 }
   __pneMock.fire('ServerEvents.loaded', { server: srv })
+  // the server's first tick: the hive loads there (contract 1.5, never in ServerEvents.loaded)
+  __pneMock.tick(srv, 1)
   for (i = 0; i < 8; i++) {
     pneHB.players.push(__pneMock.player(srv, 'P' + i, 'aaaa0000-0000-4000-8000-00000000000' + i, { x: i * 64 - 224, z: i % 2 ? -12 : 12 }))
   }
@@ -293,6 +295,7 @@ function pneHBRun(name, n) {
   var r
   var q
   var p
+  var H
   if (!pneHBRecs || pneHBRecs.length < 50) pneHBRecs = pneHBTracked()
   for (i = 0; i < n; i++) {
     pneHB.cyc++
@@ -300,10 +303,15 @@ function pneHBRun(name, n) {
     if (pneHiveMobs.hasOwnProperty(r.u)) r = pneHiveMobs[r.u]
     p = pneHB.players[pneHB.cyc % 8]
     if (name === 'rejoin') {
-      pneHiveRejoin(srv, r.mob, r.u)
+      // as the drain runs them: one read of the difficulty row per drain call, which expresses at most
+      // PNE_HIVE_REJOIN_MAX rejoins (the timed unit includes its share of that read)
+      if (i % PNE_HIVE_REJOIN_MAX === 0) H = pneHiveRow()
+      pneHiveRejoin(srv, r.mob, r.u, H)
     } else if (name === 'newborn') {
+      // the same for newborns: one read per drain call of at most PNE_HIVE_NEWBORN_MAX (not shared with rejoins here)
+      if (i % PNE_HIVE_NEWBORN_MAX === 0) H = pneHiveRow()
       q = pneHB.fresh.length ? pneHB.fresh.pop() : pneHBFresh(p, pneHB.cyc)
-      pneHiveNewborn(srv, { mob: q, u: String(q.getStringUuid()), n: 0, t: now })
+      pneHiveNewborn(srv, { mob: q, u: String(q.getStringUuid()), n: 0, t: now }, H)
     } else if (name === 'sample') {
       pneHiveSample(srv, r, now + i)
     } else if (name === 'damage') {

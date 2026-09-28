@@ -35,8 +35,33 @@
 // console and Java; in Node the runner binds a global that wraps numbers and strings the same way, and this
 // file provides Java.loadClass('java.util.ArrayList') as a small shim (add, size, get, remove, clear,
 // isEmpty). Code that touches global or the startup queues must also be tested in Rhino.
+//
+// Contract 1.5 additions (difficulty profiles, the Recruits-safe start):
+//   * Java.loadClass answers __pneMock.classes first (in Node and in Rhino): the vanilla enums
+//     'net.minecraft.world.scores.Team$Visibility' (ALWAYS, NEVER, HIDE_FOR_OTHER_TEAMS, HIDE_FOR_OWN_TEAM) and
+//     'net.minecraft.world.scores.Team$CollisionRule' (ALWAYS, NEVER, PUSH_OTHER_TEAMS, PUSH_OWN_TEAM); String(constant)
+//     is its name ('NEVER'), like a Java enum. Everything else goes to the harness's own loader.
+//   * the server: srv.difficulty (0..3, default 3 = Hard, the behaviour of release 1.4) and srv.hardcore, read through
+//     level.getDifficulty().getId(), server.getWorldData().getDifficulty().getId() and server.isHardcore() (set
+//     srv.difficultyBroken = true to make the level read throw); server.getAllLevels() (a Java-like Iterable of the
+//     overworld and srv.extraLevels); server.getScoreboard(), the ServerScoreboard Java API over srv.sb (below).
+//   * __pneMock.scoreboard(srv): getPlayerTeam(name), getPlayersTeam(entry), addPlayerTeam(name) (throws when it
+//     exists, like vanilla), removePlayerTeam(team), getPlayerTeams(), addPlayerToTeam(entry, team) (moves the entry),
+//     removePlayerFromTeam(entry) (boolean) / removePlayerFromTeam(entry, team) (throws when the entry is not on it); a
+//     team: getName, getPlayers, set/getNameTagVisibility, set/getCollisionRule, setAllowFriendlyFire /
+//     isAllowFriendlyFire, setSeeFriendlyInvisibles / canSeeFriendlyInvisibles. The storage srv.sb = { teams: { name: {
+//     name, nametagVisibility: 'always'|'never'|..., collisionRule: 'always'|..., members: { entry: true },
+//     friendlyFire, seeFriendlyInvisibles } }, byEntry: { entry: name } } is the one VISUAL's command interpreter
+//     (tools/visual/vis_prelude.js) uses, and the API reads srv.sb at call time, so both agree on one scoreboard.
+//     srv.noScoreboard = true makes getScoreboard() throw.
+//   * __pneMock.epca(opts): EPCA's WorldDifficultyData / DifficultyLevel for the core's test seam: assign
+//     $PneCoreEpcaWDD = E.WDD and $PneCoreEpcaDL = E.DL. E.tiers maps a dimension id to its tier id (default: overworld
+//     2 = EXPERT, any other dimension 1 = NORMAL, EPCA's own default), E.writes logs every setDifficulty, E.broken = true
+//     makes get() throw. DifficultyLevel ids: EASY 0, NORMAL 1, EXPERT 2, MASTER 3, CUSTOM 4, LEGENDARY 5; fromId of an
+//     unknown id gives NORMAL (as EPCA's does).
+//   * nbt tags answer getAllKeys() (a Java-like Set).
 
-var __pneMock = { handlers: {}, uuidN: 0, opts: { typeAsObject: false, noEncodeId: false, mojangNames: false } }
+var __pneMock = { handlers: {}, uuidN: 0, opts: { typeAsObject: false, noEncodeId: false, mojangNames: false }, classes: {} }
 
 function __pneMockReg(group, name) {
   return function (a, b) {
@@ -73,10 +98,54 @@ function __pneMockArrayList() {
   this.isEmpty = function () { return a.length === 0 }
 }
 
-var Java = (typeof Java !== 'undefined') ? Java : {
+// A Java-like Iterable over a JS array (iterator, size, get).
+function __pneMockIterable(arr) {
+  return {
+    arr: arr,
+    size: function () { return arr.length },
+    get: function (i) { return arr[i] },
+    iterator: function () {
+      var i = 0
+      return { hasNext: function () { return i < arr.length }, next: function () { return arr[i++] } }
+    }
+  }
+}
+
+// A Java-like enum: constants are objects whose String() is the constant name; values() lists them.
+function __pneMockEnum(names, ids) {
+  var E = { __all: [] }
+  var i
+  for (i = 0; i < names.length; i++) {
+    E[names[i]] = (function (name, id, ord) {
+      return { __enum: true, id: id, ordinal: function () { return ord }, name: function () { return name }, toString: function () { return name } }
+    })(names[i], ids[i], i)
+    E.__all.push(E[names[i]])
+  }
+  E.values = function () { return E.__all.slice(0) }
+  E.byId = function (id) {
+    var j
+    for (j = 0; j < E.__all.length; j++) {
+      if (E.__all[j].id === id) return E.__all[j]
+    }
+    return null
+  }
+  return E
+}
+
+__pneMock.classes['net.minecraft.world.scores.Team$Visibility'] = __pneMockEnum(['ALWAYS', 'NEVER', 'HIDE_FOR_OTHER_TEAMS', 'HIDE_FOR_OWN_TEAM'],
+  ['always', 'never', 'hideForOtherTeams', 'hideForOwnTeam'])
+__pneMock.classes['net.minecraft.world.scores.Team$CollisionRule'] = __pneMockEnum(['ALWAYS', 'NEVER', 'PUSH_OTHER_TEAMS', 'PUSH_OWN_TEAM'],
+  ['always', 'never', 'pushOtherTeams', 'pushOwnTeam'])
+
+// __pneMock.classes first (Node and Rhino), then the harness's loader (Rhino), else the Node shims.
+var __pneMockJava0 = (typeof Java !== 'undefined') ? Java : null
+var Java = {
   loadClass: function (n) {
-    if (n === 'java.util.ArrayList') return __pneMockArrayList
-    throw new Error('mock: class ' + n + ' not available')
+    var k = String(n)
+    if (__pneMock.classes.hasOwnProperty(k)) return __pneMock.classes[k]
+    if (__pneMockJava0) return __pneMockJava0.loadClass(k)
+    if (k === 'java.util.ArrayList') return __pneMockArrayList
+    throw new Error('mock: class ' + k + ' not available')
   }
 }
 
@@ -97,6 +166,14 @@ __pneMock.nbt = function () {
     m: m,
     isMockNbt: true,
     contains: function (k) { return m.hasOwnProperty(k) },
+    getAllKeys: function () {
+      var ks = []
+      var k
+      for (k in m) {
+        if (m.hasOwnProperty(k)) ks.push(k)
+      }
+      return __pneMockIterable(ks)
+    },
     getCompound: function (k) { return (m.hasOwnProperty(k) && m[k] && m[k].isMockNbt) ? m[k] : __pneMock.nbt() },
     put: function (k, v) { m[k] = v; return null },
     remove: function (k) { delete m[k] },
@@ -126,9 +203,32 @@ __pneMock.server = function (opts) {
     cmds: [],
     cmdResults: o.cmdResults || { seed: 123456789 },
     owner: o.owner || '',
-    persistentData: __pneMock.nbt()
+    persistentData: __pneMock.nbt(),
+    difficulty: o.difficulty === undefined ? 3 : o.difficulty,
+    hardcore: o.hardcore === true,
+    difficultyBroken: false,
+    extraLevels: [],
+    sb: { teams: {}, byEntry: {} },
+    noScoreboard: false
   }
   srv.level = { dimension: 'minecraft:overworld', server: srv }
+  // Level.getDifficulty() / Difficulty.getId() (Mojang names, not hidden by KubeJS), read at call time
+  srv.level.getDifficulty = function () {
+    if (srv.difficultyBroken) throw new Error('mock: difficulty unreadable')
+    return __pneMock.difficulty(srv.difficulty)
+  }
+  srv.getWorldData = function () {
+    return {
+      getDifficulty: function () { return __pneMock.difficulty(srv.difficulty) },
+      isHardcore: function () { return srv.hardcore }
+    }
+  }
+  srv.isHardcore = function () { return srv.hardcore }
+  srv.getAllLevels = function () { return __pneMockIterable([srv.level].concat(srv.extraLevels)) }
+  srv.getScoreboard = function () {
+    if (srv.noScoreboard) throw new Error('mock: scoreboard unavailable')
+    return __pneMock.scoreboard(srv)
+  }
   srv.level.getTime = function () { return srv.gameTime }
   srv.level.getDimensionKey = function () { return { location: function () { return 'minecraft:overworld' } } }
   if (__pneMock.opts.mojangNames) srv.level.getGameTime = function () { return srv.gameTime }
@@ -156,6 +256,159 @@ __pneMock.server = function (opts) {
   }
   srv.runCommand = srv.runCommandSilent
   return srv
+}
+
+// Minecraft's Difficulty enum stand-in: getId() 0..3, String() 'PEACEFUL'..'HARD'.
+__pneMock.difficulty = function (id) {
+  var names = ['PEACEFUL', 'EASY', 'NORMAL', 'HARD']
+  var n = Number(id)
+  return {
+    getId: function () { return n },
+    getKey: function () { return (names[n] || '?').toLowerCase() },
+    toString: function () { return names[n] || String(n) }
+  }
+}
+
+// The ServerScoreboard Java API over srv.sb (see the header). Team objects are made on each lookup; state lives in srv.sb.
+__pneMock.scoreboard = function (srv) {
+  var V = __pneMock.classes['net.minecraft.world.scores.Team$Visibility']
+  var C = __pneMock.classes['net.minecraft.world.scores.Team$CollisionRule']
+  function rec(name) { return srv.sb.teams.hasOwnProperty(name) ? srv.sb.teams[name] : null }
+  function leave(entry) {
+    var t = srv.sb.byEntry[entry]
+    if (!t) return false
+    if (srv.sb.teams[t]) delete srv.sb.teams[t].members[entry]
+    delete srv.sb.byEntry[entry]
+    return true
+  }
+  function team(name) {
+    return {
+      __team: name,
+      getName: function () { return name },
+      getPlayers: function () {
+        var r = rec(name)
+        var ks = []
+        var k
+        if (r) {
+          for (k in r.members) {
+            if (r.members.hasOwnProperty(k)) ks.push(k)
+          }
+        }
+        return __pneMockIterable(ks)
+      },
+      setNameTagVisibility: function (v) { var r = rec(name); if (r && v) r.nametagVisibility = v.id },
+      getNameTagVisibility: function () { var r = rec(name); return r ? (V.byId(r.nametagVisibility) || V.ALWAYS) : V.ALWAYS },
+      setCollisionRule: function (c) { var r = rec(name); if (r && c) r.collisionRule = c.id },
+      getCollisionRule: function () { var r = rec(name); return r ? (C.byId(r.collisionRule) || C.ALWAYS) : C.ALWAYS },
+      setAllowFriendlyFire: function (b) { var r = rec(name); if (r) r.friendlyFire = b ? true : false },
+      isAllowFriendlyFire: function () { var r = rec(name); return r ? r.friendlyFire !== false : true },
+      setSeeFriendlyInvisibles: function (b) { var r = rec(name); if (r) r.seeFriendlyInvisibles = b ? true : false },
+      canSeeFriendlyInvisibles: function () { var r = rec(name); return r ? r.seeFriendlyInvisibles !== false : true }
+    }
+  }
+  return {
+    getPlayerTeam: function (n) { return rec(String(n)) ? team(String(n)) : null },
+    getPlayersTeam: function (entry) {
+      var t = srv.sb.byEntry[String(entry)]
+      return t && rec(t) ? team(t) : null
+    },
+    addPlayerTeam: function (n) {
+      var k = String(n)
+      if (rec(k)) throw new Error('IllegalArgumentException: A team with the name \'' + k + '\' already exists!')
+      srv.sb.teams[k] = { name: k, nametagVisibility: 'always', collisionRule: 'always', members: {}, friendlyFire: true, seeFriendlyInvisibles: true }
+      return team(k)
+    },
+    removePlayerTeam: function (t) {
+      var k = String(t.getName())
+      var r = rec(k)
+      var e
+      if (!r) return
+      for (e in r.members) {
+        if (r.members.hasOwnProperty(e)) delete srv.sb.byEntry[e]
+      }
+      delete srv.sb.teams[k]
+    },
+    getPlayerTeams: function () {
+      var out = []
+      var k
+      for (k in srv.sb.teams) {
+        if (srv.sb.teams.hasOwnProperty(k)) out.push(team(k))
+      }
+      return __pneMockIterable(out)
+    },
+    addPlayerToTeam: function (entry, t) {
+      var e = String(entry)
+      var k = String(t.getName())
+      var r = rec(k)
+      if (!r) return false
+      if (srv.sb.byEntry[e] === k) return false
+      leave(e)
+      r.members[e] = true
+      srv.sb.byEntry[e] = k
+      return true
+    },
+    removePlayerFromTeam: function (entry, t) {
+      var e = String(entry)
+      if (t !== undefined && t !== null) {
+        if (srv.sb.byEntry[e] !== String(t.getName())) throw new Error('IllegalStateException: Player is either on another team or not on any team.')
+        return leave(e)
+      }
+      return leave(e)
+    }
+  }
+}
+
+// EPCA's per-level tier classes for the core's test seam (see the header).
+__pneMock.epca = function (opts) {
+  var o = opts || {}
+  var E = { tiers: {}, writes: [], broken: false, gets: 0 }
+  var names = ['EASY', 'NORMAL', 'EXPERT', 'MASTER', 'CUSTOM', 'LEGENDARY']
+  var DL = { __all: [] }
+  var k
+  var i
+  for (i = 0; i < names.length; i++) {
+    DL[names[i]] = (function (name, id) {
+      return { getId: function () { return id }, getName: function () { return name.toLowerCase() }, toString: function () { return name } }
+    })(names[i], i)
+    DL.__all.push(DL[names[i]])
+  }
+  DL.fromId = function (n) {
+    var j
+    for (j = 0; j < DL.__all.length; j++) {
+      if (DL.__all[j].getId() === Number(n)) return DL.__all[j]
+    }
+    return DL.NORMAL
+  }
+  E.tiers['minecraft:overworld'] = 2
+  if (o.tiers) {
+    for (k in o.tiers) {
+      if (o.tiers.hasOwnProperty(k)) E.tiers[k] = o.tiers[k]
+    }
+  }
+  function dimOf(level) {
+    var d = ''
+    try { d = String(level.getDimension()) } catch (e) { d = '' }
+    if (d.indexOf(':') > 0) return d
+    try { d = String(level.dimension) } catch (e2) { d = '' }
+    return d.indexOf(':') > 0 ? d : 'minecraft:overworld'
+  }
+  E.WDD = {
+    get: function (level) {
+      var dim = dimOf(level)
+      E.gets++
+      if (E.broken) throw new Error('mock: EPCA data unavailable')
+      if (!E.tiers.hasOwnProperty(dim)) E.tiers[dim] = 1
+      return {
+        getDifficulty: function () { return DL.fromId(E.tiers[dim]) },
+        setDifficulty: function (v) {
+          E.tiers[dim] = Number(v.getId())
+          E.writes.push({ dim: dim, id: Number(v.getId()) })
+        }
+      }
+    }
+  }
+  E.DL = DL
+  return E
 }
 
 __pneMock.entity = function (srv, typeId, opts) {

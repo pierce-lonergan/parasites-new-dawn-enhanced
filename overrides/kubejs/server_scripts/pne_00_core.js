@@ -7,7 +7,9 @@
 //   3. the broken-counter helper, logging, and a status-line registry,
 //   4. per-player helpers: survival check, UUID, comfort, pseudonymous pid, mercy and grace,
 //   5. safe cross-module wrappers that fall back to defaults when a module is absent,
-//   6. the one /pne command hub that every module registers its subcommands with.
+//   6. the one /pne command hub that every module registers its subcommands with,
+//   7. the difficulty profiles (PNE_CORE_DIFF, contract 1.5): the vanilla difficulty read, the EPCA tier sync, the
+//      notices, /pne difficulty, and pneCoreStarted (no command before the first server tick: Recruits, rule 15).
 // The contract every builder follows is docs/IMPLEMENTATION.md. Names here are binding.
 //
 // Load order: KubeJS sorts server scripts by the priority header, highest first
@@ -38,6 +40,9 @@ var PNE_CORE_PILLARS = ['resonance', 'hive', 'oracle', 'visual']
 // for anyone else (TDD 4.4.2, I11).
 // vis_grafts (VISUAL): 0 removes the display grafts but keeps teams, names and particles (a grafted host is not pushed
 // by other entities and does not stroll while it carries one, docs/modules/visual.md).
+// diff_profile (contract 1.5, section E): 0 follows the vanilla difficulty; 1-4 pin the pack profile Peaceful, Easy,
+// Normal or Hard. epca_follow: 1 lets the core manage EPCA's tier in pack-default dimensions (pneCoreEpcaSync), 0 never
+// writes an EPCA tier.
 var PNE_CORE_DEFAULTS = {
   on_resonance: 1, on_hive: 1, on_oracle: 1, on_visual: 1,
   light_aversion: 1,
@@ -47,12 +52,15 @@ var PNE_CORE_DEFAULTS = {
   spawn_gate: 1,
   spawn_backstop: 1,
   vis_grafts: 1,
+  diff_profile: 0,
+  epca_follow: 1,
   debug: 0
 }
 var PNE_CORE_BOUNDS = {
   on_resonance: [0, 1], on_hive: [0, 1], on_oracle: [0, 1], on_visual: [0, 1],
   light_aversion: [0, 1], gov_deaths: [1, 20], gov_days: [1, 30],
-  bridge_dedicated: [0, 1], spawn_gate: [0, 1], spawn_backstop: [0, 1], vis_grafts: [0, 1], debug: [0, 1]
+  bridge_dedicated: [0, 1], spawn_gate: [0, 1], spawn_backstop: [0, 1], vis_grafts: [0, 1],
+  diff_profile: [0, 4], epca_follow: [0, 1], debug: [0, 1]
 }
 
 // Token budget (TDD 3.7). Costs are fixed constants in ms, measured in Rhino on the desktop JVM,
@@ -65,7 +73,8 @@ var PNE_CORE_BOUNDS = {
 // outcome: one GA outcome insert (PNE_HIVE_GA.outcome), hive-rhino-bench p50 x ~1.3 (lead decision, contract 7.3: the
 // measured value like every other hive key, not GA-CORE's 0.7 cold-JVM margin). steer: one Mob#getNavigation().moveTo
 // for SCT steering (config debug 1 only); a PLACEHOLDER, never measured offline, until the spark measurement of
-// docs/TESTING.md M3 replaces it.
+// docs/TESTING.md M3 replaces it. diffSync: the EPCA tier sync, per level (an estimate: one SavedData lookup and at
+// most one enum write); spent only on the first tick after a load and when the difficulty profile changes.
 var PNE_CORE_BUDGET_MS = 2.5
 var PNE_CORE_COST = {
   rejoin: 0.12,
@@ -93,7 +102,8 @@ var PNE_CORE_COST = {
   nearBase: 0.015,
   nearRec: 0.0007,
   outcome: 0.6,
-  steer: 1.0
+  steer: 1.0,
+  diffSync: 0.05
 }
 
 // Tick slots (tick % 20). 0 = bridge write, 10 = bridge read; nothing else heavy runs there.
@@ -122,6 +132,110 @@ var PNE_CORE_TAG_COMFORT_OFF = 'pne_comfort_off'
 var PNE_CORE_TAG_GATE = 'pne_gate'
 var PNE_CORE_TAG_PACE_SOFT = 'pne_pace_soft'
 
+// ---------------------------------------------------------------------------------------------
+// Difficulty profiles (contract 1.5; binding like PNE_CORE_COST). Index = profile id: 0 Peaceful, 1 Easy, 2 Normal,
+// 3 Hard. The id follows the vanilla difficulty (hardcore counts as 3) unless /pne config diff_profile pins it. Modules
+// read the active row with pneCoreDiff() and never keep their own copy (horror keeps a local copy of the Hard row
+// only as its fallback when the core is absent).
+// The Hard row reproduces release 1.4 bit for bit (lead decision L5): every Hard value is today's constant, so a module
+// that computes with the row gets exactly today's numbers and draws Math.random in today's order.
+// Lead decision L1: the doom clock keeps the 100-day arc on Easy and Normal (doomK 1, the Hard days); only Peaceful has
+// no raises (doomK 0).
+// Row fields (docs/IMPLEMENTATION.md 3.1):
+//   epca        'base' (the pack baseline: PNE_CORE_EPCA_BASE in the overworld of an integrated server, NORMAL in
+//               every other dimension and on a dedicated server) or 'normal' (EPCA tier NORMAL); EPCA EASY and MASTER
+//               are never written by the sync
+//   night       { r: blocks around each survivor, spd: Speed I on #pne:hive, str: Strength I on #pne:hive,
+//                 strStage: lowest overworld doom stage for Strength, spore: Speed I on #pne:spore_basic }
+//   burst       Mobs Inside: { p: burst chance per host kill, flesh: roll below this makes flesh, fmin + floor(rand x
+//                 fspan): flesh count, cap: burst products allowed within 24 blocks }
+//   beckon      reinforcement beckon: { stage: lowest doom stage, c0 + c1 x (stage - beckon.stage) capped at cap, cd:
+//                 cooldown ticks }
+//   doomK       doom clock days are round(day x doomK); 0 = no raises
+//   pace        director pacing per FSM state { spawn, aggro, beckon, ga } (the shape of PNE_RES_PACING)
+//   gov1h       hourly governor max(floor, 1 - slope x max(0, deaths1h - free)) (Peaceful: identity; spawn is 0 anyway)
+//   hive        { budget: GA budget factor, govCap: cap on GA.gov at use, targetK: dawn death-target factor,
+//                 govDeaths: intra-day governor step trigger (hive deaths of one player per 24000 ticks),
+//                 phen: DMG and HPX phenotype amount scale, luxMin: light-aversion block-light threshold }
+//   spore       Spore-to-player damage factor (startup_scripts/pne_diff_events.js PNE_DIFF_SPORE_K)
+//   horde       Hordes wave-size factor, 0 = cancel (pne_diff_events.js PNE_DIFF_HORDE_K)
+//   bed         the day-7 bed refusal of pne_horde_rules.js applies
+// Mercy (0.30) and grace (2400 ticks) are the same in every profile (contract 3.3/3.4).
+var PNE_CORE_DIFF_NAMES = ['Peaceful', 'Easy', 'Normal', 'Hard']
+// EXPERT: equals defaultExtraDifficulty in overrides/config/E-PCA/epca_main_config.toml (tools/validate.py pins it).
+var PNE_CORE_EPCA_BASE = 2
+var PNE_CORE_EPCA_NAMES = ['Easy', 'Normal', 'Expert', 'Master', 'Custom', 'Legendary']
+var PNE_CORE_DIFF = [
+  {
+    id: 0, name: 'Peaceful', epca: 'normal',
+    night: { r: 0, spd: false, str: false, strStage: 0, spore: false },
+    burst: { p: 0, flesh: 0, fmin: 0, fspan: 0, cap: 0 },
+    beckon: { stage: 99, c0: 0, c1: 0, cap: 0, cd: 400 },
+    doomK: 0,
+    pace: {
+      CALM: { spawn: 0, aggro: 0.8, beckon: false, ga: 0 },
+      UNEASE: { spawn: 0, aggro: 0.8, beckon: false, ga: 0 },
+      DREAD: { spawn: 0, aggro: 0.8, beckon: false, ga: 0 },
+      PANIC: { spawn: 0, aggro: 0.8, beckon: false, ga: 0 },
+      RELEASE: { spawn: 0, aggro: 0.8, beckon: false, ga: 0 }
+    },
+    gov1h: { floor: 1, slope: 0, free: 0 },
+    hive: { budget: 0, govCap: 1.0, targetK: 0.5, govDeaths: 1, phen: 0, luxMin: 11 },
+    spore: 0.5, horde: 0, bed: false
+  },
+  {
+    id: 1, name: 'Easy', epca: 'normal',
+    night: { r: 32, spd: true, str: false, strStage: 0, spore: false },
+    burst: { p: 0.35, flesh: 0.27, fmin: 1, fspan: 2, cap: 4 },
+    beckon: { stage: 4, c0: 0.01, c1: 0.005, cap: 0.04, cd: 400 },
+    doomK: 1,
+    pace: {
+      CALM: { spawn: 1.00, aggro: 1.0, beckon: true, ga: 1.0 },
+      UNEASE: { spawn: 0.95, aggro: 1.0, beckon: true, ga: 1.0 },
+      DREAD: { spawn: 0.65, aggro: 0.9, beckon: false, ga: 1.0 },
+      PANIC: { spawn: 0.00, aggro: 0.9, beckon: false, ga: 0.5 },
+      RELEASE: { spawn: 0.10, aggro: 0.8, beckon: false, ga: 0.0 }
+    },
+    gov1h: { floor: 0.40, slope: 0.25, free: 0 },
+    hive: { budget: 0.65, govCap: 1.00, targetK: 0.5, govDeaths: 1, phen: 0.6, luxMin: 10 },
+    spore: 0.70, horde: 0.6, bed: true
+  },
+  {
+    id: 2, name: 'Normal', epca: 'base',
+    night: { r: 48, spd: true, str: true, strStage: 1, spore: true },
+    burst: { p: 0.50, flesh: 0.38, fmin: 2, fspan: 2, cap: 6 },
+    beckon: { stage: 3, c0: 0.015, c1: 0.0075, cap: 0.06, cd: 200 },
+    doomK: 1,
+    pace: {
+      CALM: { spawn: 1.10, aggro: 1.0, beckon: true, ga: 1.0 },
+      UNEASE: { spawn: 1.00, aggro: 1.0, beckon: true, ga: 1.0 },
+      DREAD: { spawn: 0.75, aggro: 1.0, beckon: false, ga: 1.0 },
+      PANIC: { spawn: 0.00, aggro: 0.9, beckon: false, ga: 0.5 },
+      RELEASE: { spawn: 0.15, aggro: 0.8, beckon: false, ga: 0.0 }
+    },
+    gov1h: { floor: 0.45, slope: 0.20, free: 1 },
+    hive: { budget: 0.85, govCap: 1.10, targetK: 0.75, govDeaths: 2, phen: 1.0, luxMin: 11 },
+    spore: 1.0, horde: 0.8, bed: true
+  },
+  {
+    id: 3, name: 'Hard', epca: 'base',
+    night: { r: 48, spd: true, str: true, strStage: 0, spore: true },
+    burst: { p: 0.65, flesh: 0.5, fmin: 2, fspan: 2, cap: 8 },
+    beckon: { stage: 3, c0: 0.02, c1: 0.01, cap: 0.09, cd: 100 },
+    doomK: 1,
+    pace: {
+      CALM: { spawn: 1.25, aggro: 1.0, beckon: true, ga: 1.0 },
+      UNEASE: { spawn: 1.10, aggro: 1.0, beckon: true, ga: 1.0 },
+      DREAD: { spawn: 0.80, aggro: 1.0, beckon: false, ga: 1.0 },
+      PANIC: { spawn: 0.00, aggro: 0.9, beckon: false, ga: 0.5 },
+      RELEASE: { spawn: 0.20, aggro: 0.8, beckon: false, ga: 0.0 }
+    },
+    gov1h: { floor: 0.50, slope: 0.15, free: 1 },
+    hive: { budget: 1.0, govCap: 1.15, targetK: 1.0, govDeaths: 2, phen: 1.0, luxMin: 11 },
+    spore: 1.0, horde: 1.0, bed: true
+  }
+]
+
 // FNV-1a over this table (charCodeAt is unusable in Rhino: it returns a java.lang.Character)
 var PNE_CORE_ASCII = ' !"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~'
 
@@ -138,6 +252,16 @@ try { $PneCoreTagKey = Java.loadClass('net.minecraft.tags.TagKey') } catch (e) {
 try { $PneCoreRegistries = Java.loadClass('net.minecraft.core.registries.Registries') } catch (e) { $PneCoreRegistries = null }
 try { $PneCoreResourceLocation = Java.loadClass('net.minecraft.resources.ResourceLocation') } catch (e) { $PneCoreResourceLocation = null }
 try { $PneCoreForgeRegistries = Java.loadClass('net.minecraftforge.registries.ForgeRegistries') } catch (e) { $PneCoreForgeRegistries = null }
+// EPCA's per-level tier (verified with javap on the installed E-PCA jar): WorldDifficultyData.get(ServerLevel) is a
+// SavedData (DimensionDataStorage.computeIfAbsent 'epca_world_difficulty'; a new one starts at NORMAL),
+// getDifficulty()/setDifficulty(DifficultyLevel) (the setter calls setDirty), DifficultyLevel ids EASY 0, NORMAL 1,
+// EXPERT 2, MASTER 3, CUSTOM 4, LEGENDARY 5, fromId(int) (NORMAL for an unknown id). EPCA's own names, not remapped;
+// the KubeJS class filter allows the package. Tests replace these two top-level values with mocks (the test seam of
+// pneCoreEpcaTier / pneCoreEpcaSet).
+var $PneCoreEpcaWDD = null
+var $PneCoreEpcaDL = null
+try { $PneCoreEpcaWDD = Java.loadClass('org.tdddd.epca.impl.overworld.data.WorldDifficultyData') } catch (e) { $PneCoreEpcaWDD = null }
+try { $PneCoreEpcaDL = Java.loadClass('org.tdddd.epca.impl.overworld.difficulty.DifficultyLevel') } catch (e) { $PneCoreEpcaDL = null }
 
 // ---------------------------------------------------------------------------------------------
 // Logging and the broken counter
@@ -307,6 +431,13 @@ var pneCoreTick = 0         // MinecraftServer tick count this run (monotonic ac
 var pneCoreSlot = 0         // pneCoreTick % 20
 var pneCoreLocalTicks = 0   // fallback counter
 var pneCoreServer = null
+// false until the first server tick after a load (contract 1.5, Appendix A rule 15). KubeJS fires ServerEvents.loaded
+// inside Forge's ServerStartingEvent, before Recruits' own ServerStartingEvent listener has set its server field, so a
+// command issued there makes Recruits throw a NullPointerException in its CommandEvent listener; Forge catches it and the
+// command never runs (result 0). Nothing may issue a command before this is true: loaded handlers only read Java state.
+// Set by the core's tick handler, which runs first in every tick, so every module sees it the same tick; reset in
+// ServerEvents.loaded, and a /reload re-runs this file, so it is false again until the next tick.
+var pneCoreStarted = false
 
 // Level.getGameTime() is visible to scripts only as getTime(): KubeJS puts @RemapForJS("getTime") on it and Mixin
 // merges that annotation (contract F37, suite visual-kjs-renames). getGameTime() stays as the fallback for mocks,
@@ -570,15 +701,28 @@ function pneCorePidRotate(player) {
 
 var pneCoreSeedCache = null
 
-// Unsigned 32-bit world seed: (int) of /seed, then >>> 0 (TDD 3.3.1). Cached per server run.
+// Unsigned 32-bit world seed: (int) of /seed, then >>> 0 (TDD 3.3.1). Cached per server run, but only a value read
+// after the server started (pneCoreStarted): before that the command cannot run (Recruits, see pneCoreStarted), its
+// result 0 would be cached for the whole session and every module seeded with 0. So a call before the start returns 0,
+// caches nothing and warns once; the caller reads it again after the first tick. After the start any finite result is
+// cached (spec D, approved by L2); a 0 is cached too and warned once (a world whose seed has 0 in its low 32 bits, or
+// a /seed that failed after the start, which Recruits does not cause: it intercepts only team commands). A result that
+// is not a number is not cached, so the next call asks again.
 function pneCoreSeed32(server) {
   var srv = server || pneCoreServer
   var n
   if (pneCoreSeedCache !== null) return pneCoreSeedCache
+  if (!pneCoreStarted) {
+    pneCoreWarn('core', 'seed.early', 'seed read before start: returning 0 for now, not cached (read it again after the first tick)', 1)
+    return 0
+  }
   n = NaN
   try { n = Number(srv.runCommandSilent('seed')) } catch (e) { n = NaN }
   if (!isFinite(n)) return 0
   pneCoreSeedCache = (n | 0) >>> 0
+  if (pneCoreSeedCache === 0) {
+    pneCoreWarn('core', 'seed.zero', 'the /seed command answered 0 after the start: the seed is 0 for this run (a seed with 0 in its low 32 bits, or /seed failed)', 1)
+  }
   return pneCoreSeedCache
 }
 
@@ -954,11 +1098,13 @@ function pneCoreApiCall(pillar, fn, args) {
 // Pacing for one player: the director's cached Pace while it is fresh (tick at most
 // PNE_CORE_PACE_STALE old), else the fallback. Whatever the source, mercy or grace right now forces
 // spawn 0, beckon false, ga 0 and aggro <= 0.8, so the safety override never depends on the
-// director being alive.
+// director being alive. The fallback is Peaceful-aware (contract 1.5): on the Peaceful profile it has spawn 0, beckon
+// false, ga 0 and the Peaceful row's aggro (0.8) like every state of that row; on the other profiles it is unchanged.
 function pneCorePace(player) {
   var r = null
   var v = pneCoreVuln(player)
   var soft = v.mercy || v.grace
+  var peaceful = pneCoreDiffId() === 0
   var out
   var k
   if (pneCoreOn('resonance') && typeof pneResPace === 'function') {
@@ -966,6 +1112,7 @@ function pneCorePace(player) {
     if (r && !(pneCoreTick - Number(r.tick) <= PNE_CORE_PACE_STALE)) r = null
   }
   if (!r) {
+    if (peaceful) soft = true
     return {
       state: 'CALM', spawn: soft ? 0 : 1, aggro: soft ? 0.8 : 1, beckon: !soft, ga: soft ? 0 : 1,
       tier: 'QUIET', e: 0, theta: 0, mercy: v.mercy, grace: v.grace, tick: pneCoreTick, fallback: true
@@ -1074,6 +1221,7 @@ function pneCoreVisRemove(mob) {
 // (level-jump limits, LF exclusivity and duty, per-layer switches, comfort). Without it (absent, or its
 // API breaker tripped), the sound plays as it did before M2, except that comfort mode skips stingers
 // and spaces LF sounds (meta.lf, e.g. the Hive Night heartbeat) at least 70 s apart per player.
+// Before the server started (pneCoreStarted) nothing is played: every path ends in a command (rule 15 (a)).
 var pneCoreLfLast = {}
 
 function pneCoreEmit(player, event, category, pos, vol, meta) {
@@ -1081,6 +1229,7 @@ function pneCoreEmit(player, event, category, pos, vol, meta) {
   var uuid
   var r
   var last
+  if (!pneCoreStarted) return false
   if (typeof pneResEmit === 'function' && !PNE_CORE_B_API.resonance.off) {
     r = pneCoreApiCall('resonance', pneResEmit, [player, event, category, pos, vol, meta])
     if (r !== undefined) return r === true
@@ -1113,6 +1262,7 @@ function pneCoreEmitAt(server, dim, x, y, z, radius, event, category, vol, meta)
   var n = 0
   var key
   var last
+  if (!pneCoreStarted) return 0
   if (typeof pneResEmitAt === 'function' && !PNE_CORE_B_API.resonance.off) {
     n = pneCoreApiCall('resonance', pneResEmitAt, [srv, dim, x, y, z, radius, event, category, vol, meta])
     if (n !== undefined) return n > 0 ? n : 0
@@ -1162,13 +1312,584 @@ function pneCoreOnJoin(entity) {
   pneCoreUnsilenceQ.push(u)
 }
 
+// Drains up to 8 per tick; before the server started nothing is drained (the queue is kept for the first tick).
 function pneCoreUnsilenceDrain(server) {
   var k = 0
+  if (!pneCoreStarted) return 0
   while (pneCoreUnsilenceQ.length && k < 8) {
     if (!pneCoreTake(PNE_CORE_COST.emit)) return
     try { server.runCommandSilent('data merge entity ' + pneCoreUnsilenceQ.shift() + ' {Silent:0b}') } catch (e) { }
     k++
   }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Difficulty profiles (contract 1.5): the vanilla difficulty read, the diff_profile pin, the EPCA tier sync, the chat
+// notices and the login line.
+//
+// Read: in ServerEvents.loaded (a pure read: cache and global mirror, no side effect), on the first tick of every load
+// (read, then the EPCA sync) and then once per second at PNE_CORE_SLOT_HOUSE (a pause-menu change or a /pne config
+// diff_profile change is seen within 1 s: one log line, global.pneDiffProfile, the EPCA sync and one chat line to @a).
+// Never through runCommandSilent('difficulty'): its failure value 0 would read as Peaceful, and before the start the
+// command fires a CommandEvent that Recruits cannot handle. The Difficulty enum is never compared as an object (Rhino's
+// equality differs from the mocks): only Number(getId()).
+//
+// EPCA tier (section B): per dimension, state in server.persistentData.pne_diff: 'w.<dim>' (int) the tier the pack last
+// wrote (absent = the baseline), 'x.<dim>' (byte 1) hands off. At the first-tick sync and on every profile change, for
+// each loaded level: skip it when x is set; when its tier differs from w (or the baseline) somebody chose it (the
+// Create World button, an admin, another tool): set x and warn once; otherwise write the profile's target if it differs
+// and record it in w. The target is NORMAL (1) for Easy and Peaceful and the baseline for Normal and Hard; EASY and
+// MASTER are never written by the sync. The baseline is what EPCA itself gives a level: PNE_CORE_EPCA_BASE in the
+// overworld of an integrated server (the Create World screen applies defaultExtraDifficulty to the first level loaded)
+// and NORMAL everywhere else, including every level of a dedicated server (EPCA's WorldLoadHandler applies the pending
+// screen choice only when FMLEnvironment.dist is CLIENT; WorldDifficultyData starts at NORMAL; javap of E-PCA).
+// Parasites that already exist keep the stats EPCA gave them at their first join (EPCA applies them once).
+
+var pneCoreDiffLast = -1            // last good read 0..3 (hardcore counts as 3); -1 before the first good read
+var pneCoreDiffRaw = -1             // the vanilla difficulty itself at the last good read (display)
+var pneCoreDiffHc = false           // hardcore at the last good read (display)
+var pneCoreDiffFirst = false        // the first-tick read and sync of this load happened
+var pneCoreDiffApplied = -1         // profile id the notices and the sync last acted on (-1: none yet this load)
+var pneCoreDiffFollowApplied = -1   // epca_follow at the last sync
+var pneCoreDiffMirrored = -1        // the value last written to global.pneDiffProfile
+var pneCoreDiffPend = null          // { id, notice, before }: a sync (and its notice) waiting for budget
+var pneCoreDiffLogins = []          // UUIDs whose login line is due at the next slot 5 after the first-tick sync
+var PNE_CORE_DIFF_LOGIN_MAX = 64
+var PNE_CORE_B_DIFF = pneCoreBreaker('core.diff', 5, 'consecutive')
+var PNE_CORE_DIFF_FEEL = [
+  'no night buffs, bursts, reinforcements or hordes',
+  'calmer nights, fewer bursts and reinforcements',
+  'Strength at night only after the first Hive Night, somewhat fewer bursts and reinforcements',
+  'full night buffs, bursts and reinforcements'
+]
+
+// Vanilla difficulty as a profile id 0..3 (hardcore 3), or -1 when unreadable (the caller keeps its last good value).
+// Mojang names only (Level.getDifficulty, Difficulty.getId, MinecraftServer.getWorldData / isHardcore: none of them is
+// hidden by KubeJS, F37); each step in its own try. Caches the raw value for display; no command, no write.
+function pneCoreDiffRead(srv) {
+  var lvl = null
+  var d = NaN
+  var hc = false
+  if (!srv) return -1
+  try { lvl = srv.getOverworld() } catch (e) { lvl = null }
+  if (lvl) {
+    try { d = Number(lvl.getDifficulty().getId()) } catch (e2) { d = NaN }
+  }
+  if (!(d >= 0 && d <= 3 && Math.floor(d) === d)) {
+    try { d = Number(srv.getWorldData().getDifficulty().getId()) } catch (e3) { d = NaN }
+  }
+  try { hc = srv.isHardcore() ? true : false } catch (e4) { hc = false }
+  if (!(d >= 0 && d <= 3 && Math.floor(d) === d)) d = -1
+  if (d >= 0) {
+    pneCoreDiffRaw = d
+    pneCoreDiffHc = hc
+  }
+  if (hc) return 3
+  return d
+}
+
+// The active profile id: the pin (diff_profile 1..4 -> 0..3) when set, else the last good vanilla read, else 3 (Hard,
+// the behaviour of release 1.4) before the first read.
+function pneCoreDiffId() {
+  var pin = pneCoreCfg('diff_profile')
+  if (pin >= 1 && pin <= 4) return pin - 1
+  return pneCoreDiffLast >= 0 ? pneCoreDiffLast : 3
+}
+
+// The active row of PNE_CORE_DIFF (read-only; shared, never modify it).
+function pneCoreDiff() {
+  return PNE_CORE_DIFF[pneCoreDiffId()]
+}
+
+function pneCoreDiffPinned() {
+  var pin = pneCoreCfg('diff_profile')
+  return pin >= 1 && pin <= 4
+}
+
+// global.pneDiffProfile (number 0..3) for the startup scripts, which read it as a wrapped Double (F6).
+function pneCoreDiffMirror(id) {
+  if (id === pneCoreDiffMirrored) return
+  try {
+    global.pneDiffProfile = id
+    pneCoreDiffMirrored = id
+  } catch (e) { }
+}
+
+function pneCoreDiffVanillaName() {
+  if (pneCoreDiffRaw < 0) return '?'
+  return PNE_CORE_DIFF_NAMES[pneCoreDiffRaw] + (pneCoreDiffHc ? ' (hardcore)' : '')
+}
+
+// Every loaded ServerLevel (MinecraftServer.getAllLevels(), an Iterable), as a JS array; the overworld alone when the
+// iterable cannot be read.
+function pneCoreLevels(srv) {
+  var out = []
+  var list = null
+  var it = null
+  var ow = null
+  var n = 0
+  var i
+  if (!srv) return out
+  try { list = srv.getAllLevels() } catch (e) { list = null }
+  if (list) {
+    try { it = list.iterator() } catch (e2) { it = null }
+    if (it) {
+      try {
+        while (it.hasNext() && out.length < 256) out.push(it.next())
+      } catch (e3) { }
+    } else {
+      try { n = Number(list.size()) } catch (e4) { n = 0 }
+      for (i = 0; i < n && i < 256; i++) {
+        try { out.push(list.get(i)) } catch (e5) { }
+      }
+    }
+  }
+  if (!out.length) {
+    try { ow = srv.getOverworld() } catch (e6) { ow = null }
+    if (ow) out.push(ow)
+  }
+  return out
+}
+
+function pneCoreOverworld(srv) {
+  var lvl = null
+  if (!srv) return null
+  try { lvl = srv.getOverworld() } catch (e) { lvl = null }
+  return lvl ? lvl : null
+}
+
+// EPCA tier of a level (0..5), or -1 when EPCA's classes or data cannot be read.
+function pneCoreEpcaTier(level) {
+  var d = null
+  var n = NaN
+  if (!$PneCoreEpcaWDD || !level) return -1
+  try { d = $PneCoreEpcaWDD.get(level) } catch (e) { d = null }
+  if (!d) return -1
+  try { n = Number(d.getDifficulty().getId()) } catch (e2) { n = NaN }
+  return (n >= 0 && n <= 5 && Math.floor(n) === n) ? n : -1
+}
+
+// Writes EPCA tier id (0..3: easy, normal, expert, master) into a level; true only when a read afterwards shows it.
+// A Java write outside a command (Appendix A rule 8 exception, like the hive's attribute modifiers): EPCA keeps the
+// tier in a SavedData and its setter marks it dirty, so the world save writes it and the next join sees it.
+function pneCoreEpcaSet(level, id) {
+  var n = Math.floor(Number(id))
+  var d = null
+  var v = null
+  if (!$PneCoreEpcaWDD || !$PneCoreEpcaDL || !level || !(n >= 0 && n <= 3)) return false
+  try { d = $PneCoreEpcaWDD.get(level) } catch (e) { d = null }
+  if (!d) return false
+  try { v = $PneCoreEpcaDL.fromId(n) } catch (e2) { v = null }
+  if (!v) return false
+  try { d.setDifficulty(v) } catch (e3) { return false }
+  return pneCoreEpcaTier(level) === n
+}
+
+// true on a dedicated server, false on an integrated one or when unknown (then the integrated baseline applies, which
+// never writes anything a dedicated world did not already have: its overworld reads as deliberate). In game the method
+// is isDedicated() (KubeJS renames MinecraftServer.isDedicatedServer(), F37); the Mojang name is only the fallback.
+function pneCoreIsDedicated(srv) {
+  var d = null
+  if (!srv) return false
+  try { d = srv.isDedicated() ? true : false } catch (e) { d = null }
+  if (d === null) {
+    try { d = srv.isDedicatedServer() ? true : false } catch (e1) { d = null }
+  }
+  return d === true
+}
+
+// The tier EPCA itself gives a new level of this dimension (see the section header).
+function pneCoreEpcaBase(dim, srv) {
+  return (dim === 'minecraft:overworld' && !pneCoreIsDedicated(srv)) ? PNE_CORE_EPCA_BASE : 1
+}
+
+function pneCoreEpcaName(t) {
+  return (t >= 0 && t < PNE_CORE_EPCA_NAMES.length) ? PNE_CORE_EPCA_NAMES[t] : '?'
+}
+
+function pneCoreEpcaTag(srv) {
+  var spd = srv ? pneCorePD(srv) : null
+  if (!spd) return null
+  try { return spd.getCompound('pne_diff') } catch (e) { return null }
+}
+
+function pneCoreEpcaTagSave(srv, tag) {
+  var spd = srv ? pneCorePD(srv) : null
+  if (!spd || !tag) return
+  try { spd.put('pne_diff', tag) } catch (e) { }
+}
+
+function pneCoreEpcaHands(tag, dim) {
+  try { return tag.contains('x.' + dim) && Number(tag.getByte('x.' + dim)) === 1 } catch (e) { return false }
+}
+
+// 'managed', 'deliberate', 'not managed' (epca_follow 0) or 'unavailable' for one level, from the stored state.
+function pneCoreEpcaStateOf(srv, level) {
+  var dim = pneCoreDim(level)
+  var tag = pneCoreEpcaTag(srv)
+  if (pneCoreEpcaTier(level) < 0) return 'unavailable'
+  if (tag && pneCoreEpcaHands(tag, dim)) return 'deliberate'
+  if (pneCoreCfg('epca_follow') !== 1) return 'not managed'
+  return 'managed'
+}
+
+// The sync (section B). Returns { written, deliberate, unavailable } (unavailable -1: EPCA's classes are missing).
+function pneCoreEpcaSync(srv, id, levels) {
+  var row = PNE_CORE_DIFF[id]
+  var tag = pneCoreEpcaTag(srv)
+  var follow = pneCoreCfg('epca_follow') === 1
+  var out = { written: 0, deliberate: 0, unavailable: 0 }
+  var dirty = false
+  var i
+  var lv
+  var dim
+  var cur
+  var expect
+  var want
+  if (!$PneCoreEpcaWDD || !$PneCoreEpcaDL) {
+    pneCoreWarn('core', 'epca.api', "EPCA's tier API is unavailable (org.tdddd.epca classes not found): the difficulty profiles still apply, " +
+      'EPCA tiers stay as they are; /pne difficulty shows EPCA tier unavailable', 1)
+    out.unavailable = -1
+    return out
+  }
+  for (i = 0; i < levels.length; i++) {
+    lv = levels[i]
+    dim = pneCoreDim(lv)
+    cur = pneCoreEpcaTier(lv)
+    if (cur < 0) {
+      out.unavailable++
+      continue
+    }
+    if (tag && pneCoreEpcaHands(tag, dim)) {
+      out.deliberate++
+      continue
+    }
+    if (!follow) continue
+    expect = pneCoreEpcaBase(dim, srv)
+    try { if (tag && tag.contains('w.' + dim)) expect = Number(tag.getInt('w.' + dim)) } catch (e) { expect = pneCoreEpcaBase(dim, srv) }
+    if (cur !== expect) {
+      if (tag) {
+        tag.putByte('x.' + dim, 1)
+        dirty = true
+      }
+      out.deliberate++
+      pneCoreWarn('core', 'epca.x.' + dim, 'EPCA tier ' + pneCoreEpcaName(cur) + ' in ' + dim + ' was chosen outside the pack (the pack expected ' +
+        pneCoreEpcaName(expect) + '); the pack leaves this dimension alone from now on (/pne difficulty epca auto hands it back)', 1)
+      continue
+    }
+    want = row.epca === 'normal' ? 1 : pneCoreEpcaBase(dim, srv)
+    // never EPCA EASY or MASTER (nor anything else) from the sync
+    if (want === cur || (want !== 1 && want !== 2)) continue
+    if (pneCoreEpcaSet(lv, want)) {
+      if (tag) {
+        tag.putInt('w.' + dim, want)
+        dirty = true
+      }
+      out.written++
+      pneCoreLog('core', 'EPCA tier in ' + dim + ': ' + pneCoreEpcaName(cur) + ' -> ' + pneCoreEpcaName(want) + ' (profile ' + row.name + ')')
+    } else {
+      pneCoreWarn('core', 'epca.set.' + dim, 'writing EPCA tier ' + pneCoreEpcaName(want) + ' in ' + dim + ' did not take effect; the tier stays ' +
+        pneCoreEpcaName(pneCoreEpcaTier(lv)), 1)
+    }
+  }
+  if (dirty) pneCoreEpcaTagSave(srv, tag)
+  // the classes loaded but the tier data cannot be read (a changed EPCA signature, a call-time filter or remap
+  // problem): the same failure mode as missing classes, today's tiers plus one warning
+  if (out.unavailable > 0) {
+    pneCoreWarn('core', 'epca.read', "EPCA's tier data could not be read in " + out.unavailable + ' of ' + levels.length +
+      ' level(s): EPCA tiers there stay as they are; /pne difficulty shows unavailable', 1)
+  }
+  return out
+}
+
+// "<profile>/<overworld tier>": what a player's login line last showed (player.persistentData.pne_diff_seen).
+function pneCoreDiffSeenKey(srv) {
+  var t = pneCoreEpcaTier(pneCoreOverworld(srv))
+  return String(pneCoreDiffId()) + '/' + (t >= 0 ? String(t) : '?')
+}
+
+function pneCoreDiffMarkSeen(srv) {
+  var all = pneCoreAllPlayers(srv)
+  var key = pneCoreDiffSeenKey(srv)
+  var pd
+  var i
+  for (i = 0; i < all.length; i++) {
+    pd = pneCorePD(all[i])
+    try { if (pd) pd.putString('pne_diff_seen', key) } catch (e) { }
+  }
+}
+
+// One gray line to @a after a mid-game change; the EPCA clause only when the overworld tier changed.
+function pneCoreDiffNotice(srv, id, before, after) {
+  var text = '[PNE] Difficulty is now ' + PNE_CORE_DIFF_NAMES[id] + ': ' + PNE_CORE_DIFF_FEEL[id]
+  if (before >= 0 && after >= 0 && before !== after) {
+    text += '; parasites that spawn from now on use EPCA tier ' + pneCoreEpcaName(after) + ' (was ' + pneCoreEpcaName(before) + ')'
+  }
+  if (pneCoreTellraw(srv, '@a', text + '.', 'gray')) pneCoreDiffMarkSeen(srv)
+}
+
+function pneCoreDiffLoginText(srv) {
+  var id = pneCoreDiffId()
+  var t = pneCoreEpcaTier(pneCoreOverworld(srv))
+  return '[PNE] Difficulty ' + (pneCoreDiffRaw >= 0 ? pneCoreDiffVanillaName() : PNE_CORE_DIFF_NAMES[id]) + ' (pack profile ' + PNE_CORE_DIFF_NAMES[id] +
+    (t >= 0 ? ', EPCA tier ' + pneCoreEpcaName(t) : ', EPCA tier unavailable') + '). /pne difficulty shows the details.'
+}
+
+function pneCoreDiffQueueLogin(player) {
+  var u = pneCoreUuid(player)
+  if (!u || pneCoreDiffLogins.length >= PNE_CORE_DIFF_LOGIN_MAX || pneCoreDiffLogins.indexOf(u) >= 0) return
+  pneCoreDiffLogins.push(u)
+}
+
+// At slot 5, once the first-tick sync of this load is done: the one-time login line for every queued player whose
+// pne_diff_seen differs from the current "<profile>/<overworld tier>".
+function pneCoreDiffLoginFlush(srv) {
+  var all
+  var key
+  var text
+  var i
+  var j
+  var p
+  var pd
+  var seen
+  if (!pneCoreDiffLogins.length || !pneCoreDiffFirst || pneCoreDiffPend) return
+  all = pneCoreAllPlayers(srv)
+  key = pneCoreDiffSeenKey(srv)
+  text = pneCoreDiffLoginText(srv)
+  for (i = 0; i < pneCoreDiffLogins.length; i++) {
+    p = null
+    for (j = 0; j < all.length; j++) {
+      if (pneCoreUuid(all[j]) === pneCoreDiffLogins[i]) p = all[j]
+    }
+    if (!p) continue
+    pd = pneCorePD(p)
+    seen = ''
+    try { seen = pd ? String(pd.getString('pne_diff_seen')) : '' } catch (e) { seen = '' }
+    if (seen === key) continue
+    if (pneCoreTellraw(srv, pneCoreDiffLogins[i], text, 'gray')) {
+      try { pd.putString('pne_diff_seen', key) } catch (e2) { }
+    }
+  }
+  pneCoreDiffLogins = []
+}
+
+// Runs the pending sync when its cost fits this tick (a refused take retries on the next tick, contract 7.2), then its
+// notice.
+function pneCoreDiffRunPend(srv) {
+  var p = pneCoreDiffPend
+  var levels = $PneCoreEpcaWDD ? pneCoreLevels(srv) : []
+  var after
+  if (levels.length && !pneCoreTake(PNE_CORE_COST.diffSync * levels.length)) return
+  pneCoreDiffPend = null
+  pneCoreEpcaSync(srv, p.id, levels)
+  if (!p.notice) return
+  after = pneCoreEpcaTier(pneCoreOverworld(srv))
+  pneCoreDiffNotice(srv, p.id, p.before, after)
+}
+
+function pneCoreDiffSummary() {
+  return 'vanilla ' + pneCoreDiffVanillaName() + ', profile ' + PNE_CORE_DIFF_NAMES[pneCoreDiffId()] + (pneCoreDiffPinned() ? ' (pinned by diff_profile)' : ' (follows vanilla)')
+}
+
+// The core tick's difficulty work (its own breaker, so a fault here never stops the core's upkeep).
+function pneCoreDiffTick(srv) {
+  var d
+  var id
+  var follow
+  if (PNE_CORE_B_DIFF.off || !srv) return
+  try {
+    if (!pneCoreDiffFirst) {
+      d = pneCoreDiffRead(srv)
+      if (d >= 0) pneCoreDiffLast = d
+      id = pneCoreDiffId()
+      pneCoreDiffMirror(id)
+      pneCoreDiffPend = { id: id, notice: false, before: -1 }
+      pneCoreDiffApplied = id
+      pneCoreDiffFollowApplied = pneCoreCfg('epca_follow')
+      pneCoreDiffFirst = true
+      pneCoreLog('core', 'difficulty: ' + pneCoreDiffSummary())
+    } else if (pneCoreSlot === PNE_CORE_SLOT_HOUSE) {
+      d = pneCoreDiffRead(srv)
+      if (d >= 0) pneCoreDiffLast = d
+      id = pneCoreDiffId()
+      pneCoreDiffMirror(id)
+      follow = pneCoreCfg('epca_follow')
+      if (id !== pneCoreDiffApplied) {
+        pneCoreLog('core', 'difficulty profile ' + PNE_CORE_DIFF_NAMES[pneCoreDiffApplied >= 0 ? pneCoreDiffApplied : 3] + ' -> ' + PNE_CORE_DIFF_NAMES[id] +
+          ' (' + pneCoreDiffSummary() + ')')
+        pneCoreDiffPend = { id: id, notice: true, before: pneCoreDiffPend ? pneCoreDiffPend.before : pneCoreEpcaTier(pneCoreOverworld(srv)) }
+        pneCoreDiffApplied = id
+      } else if (follow !== pneCoreDiffFollowApplied && !pneCoreDiffPend) {
+        pneCoreDiffPend = { id: id, notice: false, before: -1 }
+      }
+      pneCoreDiffFollowApplied = follow
+    }
+    if (pneCoreDiffPend) pneCoreDiffRunPend(srv)
+    if (pneCoreSlot === PNE_CORE_SLOT_HOUSE) pneCoreDiffLoginFlush(srv)
+    pneCoreOk(PNE_CORE_B_DIFF)
+  } catch (err) {
+    pneCoreFail(PNE_CORE_B_DIFF, err)
+  }
+}
+
+// A compact factor: 0.6, 1, 0.65 (at most 2 decimals).
+function pneCoreDiffNum(v) {
+  return String(Math.round(Number(v) * 100) / 100)
+}
+
+// The next doom floor for line 4 of /pne difficulty, from DIRECTOR's read-only pneHDoomNext() (pne_horror.js, 3.2.1:
+// the first doom day round(day x doomK) above the world day its doom clock last read). Returns that day (>= 1), -1 when
+// every floor is reached, or 0 when it is not known: the helper is absent (horror not loaded or older), it threw, the
+// clock has not read the day yet (-2), or the answer is not a day. Pure read: no command, no write.
+function pneCoreDoomNext() {
+  var r
+  var n
+  if (typeof pneHDoomNext !== 'function') return 0
+  try { r = pneHDoomNext() } catch (e) { return 0 }
+  if (r === null || r === undefined) return 0
+  n = Number(r)
+  if (n === -1) return -1
+  if (!isFinite(n) || n < 1) return 0
+  return Math.floor(n)
+}
+
+// The doom part of line 4: 'doom clock as Hard (next floor day 9)', '... (all floors reached)', plain 'doom clock as Hard'
+// while the next floor is unknown, 'doom clock: no raises' on a row with doomK 0 (Peaceful; the helper is not asked).
+// A row whose doomK differs from Hard's (none today, lead decision L1) names its factor instead: 'doom clock days x1.5'.
+function pneCoreDiffDoom(P) {
+  var k = Number(P.doomK)
+  var n
+  if (!(k > 0)) return 'doom clock: no raises'
+  n = pneCoreDoomNext()
+  return (k === Number(PNE_CORE_DIFF[3].doomK) ? 'doom clock as Hard' : 'doom clock days x' + pneCoreDiffNum(k)) +
+    (n >= 1 ? ' (next floor day ' + n + ')' : (n === -1 ? ' (all floors reached)' : ''))
+}
+
+// The four lines of /pne difficulty.
+function pneCoreDiffLines(srv) {
+  var id = pneCoreDiffId()
+  var P = PNE_CORE_DIFF[id]
+  var pin = pneCoreCfg('diff_profile')
+  var out = []
+  var parts = []
+  var night = []
+  var levels
+  var i
+  var t
+  var st
+  var dim
+  out.push('difficulty: vanilla ' + pneCoreDiffVanillaName() + ' -> profile ' + P.name + (pin >= 1 && pin <= 4
+    ? ' (pinned by /pne config diff_profile ' + pin + '; 0 follows vanilla)' : ' (follows vanilla; /pne config diff_profile pins it)'))
+  if (!$PneCoreEpcaWDD || !$PneCoreEpcaDL) {
+    out.push('EPCA tier unavailable; epca_follow ' + pneCoreCfg('epca_follow'))
+  } else {
+    levels = pneCoreLevels(srv)
+    for (i = 0; i < levels.length; i++) {
+      dim = pneCoreDim(levels[i])
+      t = pneCoreEpcaTier(levels[i])
+      st = pneCoreEpcaStateOf(srv, levels[i])
+      parts.push(dim.replace(/^minecraft:/, '') + ' ' + (t >= 0 ? pneCoreEpcaName(t) : 'unavailable') + (st === 'managed' ? ' (pack-managed)' : (st === 'deliberate' ? ' (deliberate)' : '')))
+    }
+    out.push('EPCA tier: ' + (parts.length ? parts.join(', ') : 'no level') + '; epca_follow ' + pneCoreCfg('epca_follow'))
+  }
+  if (P.night.spd) night.push('Speed I within ' + P.night.r)
+  if (P.night.str) night.push(P.night.strStage > 0 ? 'Strength I from stage ' + P.night.strStage : 'Strength I')
+  else if (P.night.spd) night.push('no Strength')
+  night.push(P.night.spore ? 'Spore Speed I' : 'no Spore buff')
+  if (!P.night.spd && !P.night.str && !P.night.spore) night = ['no night buffs']
+  out.push('nights: ' + night.join(', ') + '; ' + (P.burst.p > 0 ? 'bursts ' + Math.round(P.burst.p * 100) + '% (cap ' + P.burst.cap + ')' : 'no bursts') + '; ' +
+    (P.beckon.cap > 0 ? 'beckons from stage ' + P.beckon.stage + ', <= ' + pneCoreDiffNum(P.beckon.cap * 100) + '%, ' + P.beckon.cd + ' t' : 'no beckons'))
+  out.push(pneCoreDiffDoom(P) + '; spawns CALM ' + pneCoreFmt(P.pace.CALM.spawn) + ' / UNEASE ' +
+    pneCoreFmt(P.pace.UNEASE.spawn) + ' / DREAD ' + pneCoreFmt(P.pace.DREAD.spawn) + '; genes x' + pneCoreDiffNum(P.hive.budget) + ', gov cap ' +
+    pneCoreFmt(P.hive.govCap) + '; Spore damage x' + pneCoreFmt(P.spore) + '; hordes ' + (P.horde > 0 ? 'x' + pneCoreDiffNum(P.horde) : 'cancelled'))
+  return out
+}
+
+// /pne status line: "Easy (vanilla Easy, auto); EPCA overworld Normal (managed)".
+function pneCoreDiffStatus(player) {
+  var srv = pneCoreServer
+  var ow = pneCoreOverworld(srv)
+  var t = pneCoreEpcaTier(ow)
+  return PNE_CORE_DIFF_NAMES[pneCoreDiffId()] + ' (vanilla ' + pneCoreDiffVanillaName() + ', ' + (pneCoreDiffPinned() ? 'pinned' : 'auto') + '); ' +
+    (t < 0 ? 'EPCA tier unavailable' : 'EPCA overworld ' + pneCoreEpcaName(t) + ' (' + pneCoreEpcaStateOf(srv, ow) + ')')
+}
+
+// /pne difficulty (anyone)
+function pneCoreCmdDiff(ctx) {
+  var lines
+  var i
+  if (ctx.args.length) return false
+  lines = pneCoreDiffLines(ctx.server)
+  for (i = 0; i < lines.length; i++) ctx.reply(lines[i], i === 0 ? 'gold' : 'gray')
+  return true
+}
+
+function pneCoreNbtKeys(tag) {
+  var out = []
+  var it = null
+  try { it = tag.getAllKeys().iterator() } catch (e) { it = null }
+  if (!it) return out
+  try {
+    while (it.hasNext() && out.length < 1024) out.push(String(it.next()))
+  } catch (e2) { }
+  return out
+}
+
+// /pne difficulty epca <easy|normal|expert|master|auto> (admin). A tier word writes every loaded level and marks each
+// one a deliberate choice; auto clears every x.* and records each level's current tier as w, so the next sync (queued
+// now) manages them again.
+function pneCoreCmdDiffEpca(ctx) {
+  var w
+  var id
+  var tag
+  var levels
+  var keys
+  var i
+  var t
+  var dim
+  var n = 0
+  if (ctx.args.length !== 2 || String(ctx.args[0]).toLowerCase() !== 'epca') return false
+  w = String(ctx.args[1]).toLowerCase()
+  id = ['easy', 'normal', 'expert', 'master'].indexOf(w)
+  if (w !== 'auto' && id < 0) {
+    ctx.reply('Usage: /pne difficulty epca <easy|normal|expert|master|auto>', 'red')
+    return true
+  }
+  if (!$PneCoreEpcaWDD || !$PneCoreEpcaDL) {
+    ctx.reply('EPCA tier unavailable: the EPCA classes were not found.', 'red')
+    return true
+  }
+  tag = pneCoreEpcaTag(ctx.server)
+  levels = pneCoreLevels(ctx.server)
+  if (w === 'auto' && tag) {
+    keys = pneCoreNbtKeys(tag)
+    for (i = 0; i < keys.length; i++) {
+      if (keys[i].indexOf('x.') === 0) tag.remove(keys[i])
+    }
+  }
+  for (i = 0; i < levels.length; i++) {
+    dim = pneCoreDim(levels[i])
+    if (w === 'auto') {
+      t = pneCoreEpcaTier(levels[i])
+      if (tag) {
+        tag.remove('x.' + dim)
+        if (t >= 0) tag.putInt('w.' + dim, t)
+      }
+      n++
+    } else {
+      if (pneCoreEpcaSet(levels[i], id)) n++
+      if (tag) tag.putByte('x.' + dim, 1)
+    }
+  }
+  pneCoreEpcaTagSave(ctx.server, tag)
+  if (w === 'auto') {
+    pneCoreDiffPend = { id: pneCoreDiffId(), notice: false, before: -1 }
+    ctx.reply('EPCA tiers handed back to the pack in ' + n + ' dimension(s); the sync now manages them for profile ' + PNE_CORE_DIFF_NAMES[pneCoreDiffId()] + '.', 'gold')
+  } else {
+    ctx.reply('EPCA tier ' + pneCoreEpcaName(id) + ' set in ' + n + ' of ' + levels.length + ' dimension(s); each is now a deliberate choice the pack leaves alone ' +
+      '(/pne difficulty epca auto hands them back). Parasites that already exist keep their stats.', 'gold')
+  }
+  return true
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1236,10 +1957,23 @@ function pneCoreCommand(word, spec) {
   return true
 }
 
+// A backslash and 'u0074eam': the JSON escape of 'team' (t is 't'), see pneCoreTellraw.
+var PNE_CORE_TEAM_ESC = String.fromCharCode(92) + 'u0074eam'
+
+// true when the tellraw command was issued; false before the server started (rule 15 (a)) or when it threw. Its
+// result count is not trusted either way (rule 15 (c)). Every 'team' in the JSON is written as the escape above
+// (rule 15 (b)): Recruits takes over any server command whose text contains 'team' (case-sensitive) plus 'add',
+// 'remove', 'join' or 'leave' anywhere, target included (FactionEvents.onTypeCommandEvent, javap), so a reply such as
+// VISUAL's 'teams 8/8' sent to a player whose UUID contains 'add' would be swallowed. Minecraft's JSON reader (Gson)
+// decodes the escape, so the chat shows the same text; targets are '@a' or a UUID, which never contains 'team'.
 function pneCoreTellraw(server, target, text, color) {
+  if (!pneCoreStarted || !server) return false
   try {
-    server.runCommandSilent('tellraw ' + target + ' ' + JSON.stringify({ text: String(text), color: color || 'gray' }))
-  } catch (e) { }
+    server.runCommandSilent('tellraw ' + target + ' ' + JSON.stringify({ text: String(text), color: color || 'gray' }).replace(/team/g, PNE_CORE_TEAM_ESC))
+    return true
+  } catch (e) {
+    return false
+  }
 }
 
 function pneCoreCmdCtx(c, word, argStr) {
@@ -1267,8 +2001,8 @@ function pneCoreCmdCtx(c, word, argStr) {
   ctx = { word: word, args: words, argStr: raw, server: server, player: player, source: src, admin: admin, reply: null }
   ctx.reply = function (text, color) {
     var u = ctx.player ? pneCoreUuid(ctx.player) : ''
-    if (u && ctx.server) pneCoreTellraw(ctx.server, u, text, color)
-    else console.info('[pne] ' + text)
+    if (u && ctx.server && pneCoreTellraw(ctx.server, u, text, color)) return
+    console.info('[pne] ' + text)
   }
   return ctx
 }
@@ -1379,6 +2113,9 @@ function pneCoreRegisterBuiltins() {
   for (i = 0; i < PNE_CORE_PILLARS.length; i++) {
     pneCoreCommand(PNE_CORE_PILLARS[i], { run: pneCorePillarCmd(PNE_CORE_PILLARS[i]), help: PNE_CORE_PILLARS[i] + ' [on|off]: pillar switch for this world' })
   }
+  pneCoreCommand('difficulty', { run: pneCoreCmdDiff, help: 'difficulty: the active difficulty profile, what it changes and the EPCA tiers' })
+  pneCoreCommand('difficulty', { run: pneCoreCmdDiffEpca, help: 'difficulty epca <easy|normal|expert|master|auto>: EPCA tier in every loaded dimension (auto hands it back to the pack)', admin: true })
+  pneCoreStatus('difficulty', pneCoreDiffStatus)
 }
 
 pneCoreRegisterBuiltins()
@@ -1402,13 +2139,25 @@ ServerEvents.commandRegistry(function (event) {
   }
 })
 
+// ServerEvents.loaded runs inside Forge's ServerStartingEvent, before Recruits is ready (see pneCoreStarted): only Java
+// reads here, never a command.
 ServerEvents.loaded(function (event) {
+  var d
+  pneCoreStarted = false
   try {
     pneCoreServer = event.server
     pneCoreScriptsLoaded = true
     pneCoreSeedCache = null
     pneCoreCfgCache = null
     pneCoreCfgLoad(event.server)
+    // the difficulty: a pure read (cache and global mirror); the EPCA sync waits for the first tick
+    pneCoreDiffFirst = false
+    pneCoreDiffApplied = -1
+    pneCoreDiffPend = null
+    pneCoreDiffLogins = []
+    d = pneCoreDiffRead(event.server)
+    if (d >= 0) pneCoreDiffLast = d
+    pneCoreDiffMirror(pneCoreDiffId())
   } catch (err) {
     pneCoreFail(PNE_CORE_B_EVENTS, err)
   }
@@ -1422,21 +2171,25 @@ ServerEvents.tick(function (event) {
   try { t = Number(event.server.getTickCount()) } catch (e) { t = NaN }
   pneCoreTick = (isFinite(t) && t >= 0) ? t : pneCoreLocalTicks
   pneCoreSlot = pneCoreTick % 20
-  if (PNE_CORE_B_TICK.off) return
-  try {
-    pneCoreServer = event.server
-    if (!pneCoreScriptsLoaded) {
-      // first tick after a load or /reload: every server script has run, so the hive flag can be mirrored
-      pneCoreScriptsLoaded = true
-      pneCoreCfgCache = null
+  pneCoreServer = event.server
+  // the server has started: from this tick on commands may run (rule 15 (a)); set before any module's handler runs
+  pneCoreStarted = true
+  if (!PNE_CORE_B_TICK.off) {
+    try {
+      if (!pneCoreScriptsLoaded) {
+        // first tick after a load or /reload: every server script has run, so the hive flag can be mirrored
+        pneCoreScriptsLoaded = true
+        pneCoreCfgCache = null
+      }
+      if (!pneCoreCfgCache) pneCoreCfgLoad(event.server)
+      if (pneCoreSlot === PNE_CORE_SLOT_HOUSE) pneCoreUpkeep(event.server)
+      if (pneCoreUnsilenceQ.length) pneCoreUnsilenceDrain(event.server)
+      pneCoreOk(PNE_CORE_B_TICK)
+    } catch (err) {
+      pneCoreFail(PNE_CORE_B_TICK, err)
     }
-    if (!pneCoreCfgCache) pneCoreCfgLoad(event.server)
-    if (pneCoreSlot === PNE_CORE_SLOT_HOUSE) pneCoreUpkeep(event.server)
-    if (pneCoreUnsilenceQ.length) pneCoreUnsilenceDrain(event.server)
-    pneCoreOk(PNE_CORE_B_TICK)
-  } catch (err) {
-    pneCoreFail(PNE_CORE_B_TICK, err)
   }
+  pneCoreDiffTick(event.server)
 })
 
 PlayerEvents.respawned(function (event) {
@@ -1453,6 +2206,7 @@ PlayerEvents.loggedIn(function (event) {
   try {
     pneCorePdCheck(event.player)
     pneCorePid(event.player)
+    pneCoreDiffQueueLogin(event.player)
   } catch (err) {
     pneCoreFail(PNE_CORE_B_EVENTS, err)
   }

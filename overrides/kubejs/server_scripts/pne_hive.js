@@ -27,7 +27,12 @@
 //     or a restart once that epoch is in the stored compound (at the load itself; a fresh or unreadable state saves at
 //     once); before that, and after a crash before the next world save (which alone writes the epoch to disk), an
 //     earlier run's epoch comes back only by chance (about 1 in 1000). Every string stays under 60,000 bytes
-//     (tools/genome/test/NbtSizeTest.java). An unreadable saved state is kept as pne_hive.prev, never overwritten.
+//     (tools/genome/test/NbtSizeTest.java). An unreadable saved state is kept as pne_hive.prev, never overwritten. The
+//     load runs on the first hive tick after the server started, never in ServerEvents.loaded (contract 1.5, rule 15:
+//     no command before pneCoreStarted, and the load reads the seed with /seed); no hive command runs before that tick.
+//   * difficulty profile (contract 1.5, PNE_CORE_DIFF[id].hive through pneCoreDiff()): one budget helper for every budget
+//     site (pneHiveB: the budget factor and the governor cap), the dawn death target x targetK, the intra-day governor
+//     step at govDeaths, the HPX and DMG amounts x phen, and luxMin as the light threshold. Hard is release 1.4 bit for bit.
 //   * dawn: governor, tactic profile (T_est from Oracle style buckets plus the light and audio rule tactics), and
 //     the sliced dawn dream; the intra-day governor from the core's hive-death tracking.
 //   * light aversion (config light_aversion); the silent pass first in the tick (L8 tells for every survival player
@@ -94,14 +99,18 @@ var PNE_HIVE_LIGHT_EVERY = 100
 var PNE_HIVE_LIGHT_AT = 42
 var PNE_HIVE_PRUNE_SLOT = 12       // kill-ledger pruning
 
-// Light aversion (TDD 3.2)
+// Light aversion (TDD 3.2). The threshold in play is the profile's luxMin (pneHiveLuxMin); this is release 1.4's value,
+// used only without a core that has the difficulty profiles.
 var PNE_HIVE_LIGHT_MIN = 11
 var PNE_HIVE_WK_BASE = 6
 
 // Governor and dawn (contract 3.7, TDD 3.6)
 var PNE_HIVE_PIDS_WINDOW = 72000   // players seen survival-online during the last 72000 ticks
 var PNE_HIVE_DEATHS_3D = 72000
-var PNE_HIVE_GOV_WINDOW = 24000    // 2 hive deaths of one player within 20 real minutes
+var PNE_HIVE_GOV_WINDOW = 24000    // the intra-day governor's window (20 real minutes)
+var PNE_HIVE_GOV_DEATHS = 2        // hive deaths of one player in that window that step the governor: the profile's govDeaths;
+                                   // this is release 1.4's count, used only without a core that has the profiles
+var PNE_HIVE_GOV_MAX = 1.15        // the GA's own bound on gov (the Hard row's govCap: min(gov, 1.15) is the identity)
 var PNE_HIVE_GRACE_WINDOW = 6000   // budget x 0.7 near a player with a hive death this recent
 var PNE_HIVE_SP_RING = 400         // outcome species ring (the dawn dream's species context)
 
@@ -126,6 +135,8 @@ var PNE_HIVE_ATTRS = [
   [10, 'generic.max_health', 'MULTIPLY_BASE', 0.5, true],
   [11, 'generic.attack_damage', 'MULTIPLY_BASE', 0.4, false]
 ]
+// The genes whose amounts the difficulty profile's phen scales (contract 1.5): HPX (10) and DMG (11), those two rows only.
+var PNE_HIVE_PHEN_GENES = { 10: true, 11: true }
 // Per-item costs measured by hive-rhino-bench (tools/hive/HiveBench.java: the instance's Rhino interpreter, JDK 17, Java
 // stand-in mobs, real CompoundTag and AttributeModifier), about 1.3x the p50. An item is charged the higher of this and the
 // core's constant, so the shared budget stays true to the work until the lead updates PNE_CORE_COST (docs/modules/hive.md).
@@ -268,10 +279,71 @@ function pneHivePdLong(pd, k) {
   try { return pd.contains(k) ? Number(pd.getLong(k)) : 0 } catch (e) { return 0 }
 }
 
+// A console command, never before the server started (contract 1.5, Appendix A rule 15 (a)): until the core's first tick
+// after a load or /reload sets pneCoreStarted, Recruits makes every command throw inside Forge and it never runs, so none
+// is issued and the answer is 0 (this also covers the Silent fallback of a saved silent mob joining during the level load).
 function pneHiveCmd(srv, cmd) {
   var n = 0
+  if (typeof pneCoreStarted === 'boolean' && !pneCoreStarted) return 0
   try { n = Number(srv.runCommandSilent(cmd)) } catch (e) { n = 0 }
   return isFinite(n) ? n : 0
+}
+
+// ---------------------------------------------------------------------------------------------
+// Difficulty profile (contract 1.5): the hive factors of the active row, PNE_CORE_DIFF[pneCoreDiffId()].hive = { budget,
+// govCap, targetK, govDeaths, phen, luxMin }. Read through pneCoreDiff() where it is used (it follows a pause-menu or pin
+// change within a second), never kept across ticks, copied or modified. The one sharing: a drain call reads it once for all
+// the rejoins and newborns it expresses (pneHiveDrains). That is exact, because the active id changes only in the core's
+// tick handler (which runs before the hive's) or by a command, and a drain issues none that could change it. The Hard row
+// is release 1.4 exactly: every factor there is an identity (x 1, min(gov, 1.15) with 1.15 the GA's own bound, 2 deaths,
+// block light 11), so Hard computes today's numbers bit for bit.
+
+// The active row's hive factors, or null without a core that has the profiles (then each factor is release 1.4's value).
+function pneHiveRow() {
+  var P = null
+  if (typeof pneCoreDiff !== 'function') return null
+  try { P = pneCoreDiff() } catch (e) { P = null }
+  return (P && P.hive) ? P.hive : null
+}
+
+// One factor of a row from pneHiveRow; d (release 1.4's value) when there is no row or the value is not a finite number.
+function pneHiveF(H, key, d) {
+  var v
+  if (!H) return d
+  v = H[key]
+  return (typeof v === 'number' && isFinite(v)) ? v : d
+}
+
+// The expression budget B at every budget site (newborn and rejoin expression, the dawn dream's slices, HiveInfo for a mob
+// the hive does not track): PNE_HIVE_GA.budget with the governor capped at the profile's govCap, times its budget factor.
+// Peaceful's factor 0 makes B 0, so nothing is expressed. R and I events log B and e as used, so replay is unaffected.
+// diffRow: the active row when the caller already read it (pneHiveExpress, for its drain call), else it is read here.
+function pneHiveB(stage, graceNear, diffRow) {
+  var GA = PNE_HIVE_GA
+  var H = diffRow === undefined ? pneHiveRow() : diffRow
+  return GA.budget(stage, Math.min(GA.gov(pneHiveSt), pneHiveF(H, 'govCap', PNE_HIVE_GOV_MAX)), graceNear) * pneHiveF(H, 'budget', 1)
+}
+
+// The light-aversion block-light threshold (also the T_est light rule): the profile's luxMin.
+// The lowest luxMin of any difficulty row. A light below it fails every row's test, so the player step skips the per-second
+// row read there: the outcome is identical on every profile, and the step stays inside its upkeep charge (lead decision 1.6).
+function pneHiveLuxFloor() {
+  var i
+  var v
+  var m = PNE_HIVE_LIGHT_MIN
+  try {
+    for (i = 0; i < PNE_CORE_DIFF.length; i++) {
+      v = Number(PNE_CORE_DIFF[i].hive.luxMin)
+      if (isFinite(v) && v < m) m = v
+    }
+  } catch (e) { }
+  return m
+}
+
+var PNE_HIVE_LUX_FLOOR = pneHiveLuxFloor()
+
+function pneHiveLuxMin() {
+  return pneHiveF(pneHiveRow(), 'luxMin', PNE_HIVE_LIGHT_MIN)
 }
 
 function pneHiveRemoved(ent) {
@@ -635,7 +707,7 @@ function pneHiveModUuid(gene) {
   return pneHiveUuidObj[gene]
 }
 
-function pneHiveApplyAttrs(mob, rec, pd) {
+function pneHiveApplyAttrs(mob, rec, pd, diffRow) {
   var i
   var row
   var attr
@@ -645,7 +717,10 @@ function pneHiveApplyAttrs(mob, rec, pd) {
   var base
   var op
   var name
+  var phen
   if (!$PneHiveAttrMod || !$PneHiveAttrOp || !$PneHiveUUID) return
+  // the profile's phenotype scale for HPX and DMG only (Hard 1: today's amounts; Peaceful 0); rec.e stays as expressed
+  phen = pneHiveF(diffRow === undefined ? pneHiveRow() : diffRow, 'phen', 1)
   for (i = 0; i < PNE_HIVE_ATTRS.length; i++) {
     row = PNE_HIVE_ATTRS[i]
     attr = pneHiveAttr(row[1])
@@ -655,6 +730,7 @@ function pneHiveApplyAttrs(mob, rec, pd) {
     if (!inst) continue
     uuid = pneHiveModUuid(row[0])
     amt = row[3] * rec.e[row[0]]
+    if (PNE_HIVE_PHEN_GENES[row[0]] === true) amt = amt * phen
     if (row[0] === 1) {
       base = pneHiveNum(inst.getBaseValue(), 0)
       if (base + amt > 48) amt = 48 - base
@@ -774,18 +850,22 @@ function pneHiveCtx(mob, type, level, pos, stage) {
   return type + '/' + night + '/' + band + '/' + biome
 }
 
-// Expression (TDD 3.3.1 express / expressWith, 3.1 phenotype). fresh = newborn (first expression).
-function pneHiveExpress(srv, mob, rec, pd, fresh) {
+// Expression (TDD 3.3.1 express / expressWith, 3.1 phenotype). fresh = newborn (first expression). diffRow: the difficulty
+// row the drain read for this call (pneHiveDrains); undefined (a direct call) reads it here.
+function pneHiveExpress(srv, mob, rec, pd, fresh, diffRow) {
   var GA = PNE_HIVE_GA
   var level = pneHiveLevel(mob)
   var pos = pneHivePos(mob)
   var type = pneCoreTypeId(mob)
   var stage = level ? pneCoreStage(level) : 0
   var B
+  var H
   var hadSil
   rec.type = type
   rec.strain = type.indexOf('spore:') === 0 ? 'spore' : 'epca'
-  B = GA.budget(stage, GA.gov(pneHiveSt), pneHiveGraceNear(level, pos))
+  // the difficulty row, one read for the budget and the phenotype scale (null without profiles: release 1.4's factors)
+  H = diffRow === undefined ? pneHiveRow() : diffRow
+  B = pneHiveB(stage, pneHiveGraceNear(level, pos), H)
   rec.e = GA.express(rec.g, GA.mask(type), B)
   rec.clade = GA.clade(rec.g)
   rec.stage = stage
@@ -795,7 +875,7 @@ function pneHiveExpress(srv, mob, rec, pd, fresh) {
     rec.z = pos[2]
   }
   rec.dim = level ? pneCoreDim(level) : ''
-  pneHiveApplyAttrs(mob, rec, pd)
+  pneHiveApplyAttrs(mob, rec, pd, H)
   try { pd.putInt('pne_prj', Math.round(1000 * rec.e[7])) } catch (e) { }
   // SIL: silent until the first attack or within 3 blocks, and only while a tell can be played
   rec.silGene = rec.e[5] >= PNE_HIVE_SIL_MIN
@@ -914,7 +994,8 @@ function pneHiveFallbackSpawned(ent) {
   try { pd.remove('pne_sil') } catch (e3) { }
 }
 
-function pneHiveRejoin(srv, mob, u) {
+// diffRow: passed on to pneHiveExpress (the drain's one read of the difficulty row; undefined reads it there).
+function pneHiveRejoin(srv, mob, u, diffRow) {
   var pd = pneCorePD(mob)
   var g
   var rec
@@ -940,7 +1021,7 @@ function pneHiveRejoin(srv, mob, u) {
   rec.parents = pneHivePdStr(pd, 'pne_gp')
   rec.ctx = pneHivePdStr(pd, 'pne_ctx')
   rec.t0 = pneHivePdLong(pd, 'pne_t0')
-  pneHiveExpress(srv, mob, rec, pd, false)
+  pneHiveExpress(srv, mob, rec, pd, false, diffRow)
   pneHiveTrack(rec)
   pneHiveStats.rejoins++
 }
@@ -996,7 +1077,8 @@ function pneHiveRunId(id) {
   return s + tail
 }
 
-function pneHiveNewborn(srv, q) {
+// diffRow: passed on to pneHiveExpress (the drain's one read of the difficulty row; undefined reads it there).
+function pneHiveNewborn(srv, q, diffRow) {
   var mob = q.mob
   var pd
   var level
@@ -1009,7 +1091,7 @@ function pneHiveNewborn(srv, q) {
   pd = pneCorePD(mob)
   if (!pd) return
   if (pneHivePdStr(pd, 'pne_g').length === 56) {
-    pneHiveRejoin(srv, mob, q.u)
+    pneHiveRejoin(srv, mob, q.u, diffRow)
     return
   }
   level = pneHiveLevel(mob)
@@ -1041,7 +1123,7 @@ function pneHiveNewborn(srv, q) {
   pd.putString('pne_gi', rec.id)
   pd.putString('pne_ctx', rec.ctx)
   pd.putLong('pne_t0', q.t)
-  pneHiveExpress(srv, mob, rec, pd, true)
+  pneHiveExpress(srv, mob, rec, pd, true, diffRow)
   try { pd.remove('pne_fresh') } catch (e3) { }
   pneHiveTrack(rec)
   pneHiveStats.joins++
@@ -1333,6 +1415,7 @@ function pneHiveDrains(srv, now) {
   var k
   var i
   var q
+  var H                      // the difficulty row, read at the first expression of this call and used for all of them
   var pending = false
   // leave records first, so a carrier's removal is buffered before its newborn is drained (and more of them while a
   // newborn is waiting on them)
@@ -1352,7 +1435,8 @@ function pneHiveDrains(srv, now) {
     if (!pneCoreTake(pneHiveCost('rejoin'))) break
     q = pneHiveRejoinQ.shift()
     if (pneHiveRejoinSet[q.u] === q) delete pneHiveRejoinSet[q.u]
-    pneHiveRejoin(srv, q.mob, q.u)
+    if (H === undefined) H = pneHiveRow()
+    pneHiveRejoin(srv, q.mob, q.u, H)
     k++
   }
   if (pneHiveRejoinQ.length) pending = true
@@ -1364,7 +1448,8 @@ function pneHiveDrains(srv, now) {
     if (pneHiveNewQ[0].n >= pneHiveTickNo - 1) break
     if (!pneHiveLeaveClear(q, pneHiveNewQ[0].t, now)) break
     if (!pneCoreTake(pneHiveCost('newborn'))) break
-    pneHiveNewborn(srv, pneHiveNewQ.shift())
+    if (H === undefined) H = pneHiveRow()
+    pneHiveNewborn(srv, pneHiveNewQ.shift(), H)
     k++
   }
   if (pneHiveNewQ.length && pneHiveNewQ[0].n < pneHiveTickNo - 1) pending = true
@@ -1725,8 +1810,9 @@ function pneHiveDeathCheck(p, u, pid, now) {
   }
   if (last <= pneHiveDeathSeen[pid]) return
   pneHiveDeathSeen[pid] = last
-  // intra-day governor: 2 hive-caused deaths of one player within 20 real minutes -> gov x 0.85
-  if (pneCoreHiveDeaths(p, PNE_HIVE_GOV_WINDOW) >= 2) {
+  // intra-day governor: the profile's govDeaths hive-caused deaths of one player within 20 real minutes -> gov x 0.85
+  // (Hard and Normal 2, as in release 1.4; Easy and Peaceful 1)
+  if (pneCoreHiveDeaths(p, PNE_HIVE_GOV_WINDOW) >= pneHiveF(pneHiveRow(), 'govDeaths', PNE_HIVE_GOV_DEATHS)) {
     PNE_HIVE_GA.govStep(pneHiveSt)
     pneHiveStats.gov++
   }
@@ -1783,7 +1869,7 @@ function pneHivePlayerStep(srv, p, now) {
       si = PNE_HIVE_STYLES.indexOf(String(v.style))
       if (si >= 0) pneHiveTDay[si] += w
     }
-    if (ps.light >= PNE_HIVE_LIGHT_MIN) pneHiveTDay[3] += w
+    if (ps.light >= PNE_HIVE_LUX_FLOOR && ps.light >= pneHiveLuxMin()) pneHiveTDay[3] += w
     if (torches > 0) pneHiveTDay[3] += w * Math.min(3, torches)
   }
   pneHiveDeathCheck(p, u, pid, now)
@@ -1870,7 +1956,8 @@ function pneHiveNearUpdate(p, now) {
 
 // ---------------------------------------------------------------------------------------------
 // Light aversion (TDD 3.2): every 100 ticks, hive mobs within 48 blocks of a survival player standing at block
-// light >= 11 + LUX tier get Slowness I for 5 s, and Weakness I where base attack_damage >= 6; tier 3 is immune.
+// light >= luxMin + LUX tier (luxMin: the profile's, 11 on Hard and Normal, 10 on Easy) get Slowness I for 5 s, and
+// Weakness I where base attack_damage >= 6; tier 3 is immune.
 // Mob effects only, particles hidden: nothing on any player's screen.
 
 function pneHiveLightJob(srv) {
@@ -1882,15 +1969,17 @@ function pneHiveLightJob(srv) {
   var light
   var kmax
   var k
+  var lux
   if (pneHiveLightAt === 0 && !pneCoreTake(PNE_CORE_COST.lightPass)) return
+  lux = pneHiveLuxMin()
   for (i = pneHiveLightAt; i < ps.length; i++) {
     p = ps[i]
     pos = pneHivePos(p)
     light = pneHiveBlockLight(pneHiveLevel(p), pos)
-    if (light < PNE_HIVE_LIGHT_MIN) continue
+    if (light < lux) continue
     u = pneCoreUuid(p)
     if (!u) continue
-    kmax = light - PNE_HIVE_LIGHT_MIN
+    kmax = light - lux
     if (kmax > 2) kmax = 2
     if (!pneCoreTake(2 * (kmax + 1) * PNE_CORE_COST.emit)) {
       pneHiveLightAt = i   // retried next tick from this player (contract 7.2)
@@ -1947,8 +2036,10 @@ function pneHivePlayersSeen(now) {
   return n > 1 ? n : 1
 }
 
-// Dawn inputs (contract 3.7): deaths3d from the core's hive-death ring, target from config and the players seen,
-// tDay = today's tactic evidence normalised to sum 1 (only buckets and rule scores: no arousal, no health, I2).
+// Dawn inputs (contract 3.7): deaths3d from the core's hive-death ring, target from config and the players seen, times the
+// difficulty profile's targetK (contract 1.5: Hard 1, Normal 0.75, Easy and Peaceful 0.5, so fewer hive deaths already
+// push the governor down), tDay = today's tactic evidence normalised to sum 1 (only buckets and rule scores: no arousal, no
+// health, I2).
 function pneHiveDawnInput(srv) {
   var now = pneCoreGameTime(srv)
   var sum = 0
@@ -1959,7 +2050,7 @@ function pneHiveDawnInput(srv) {
   for (i = 0; i < 5; i++) td.push(sum > 0 ? pneHiveTDay[i] / sum : 0)
   return {
     deaths3d: pneCoreHiveDeathsAll(PNE_HIVE_DEATHS_3D),
-    target: pneCoreCfg('gov_deaths') * pneHivePlayersSeen(now) * 3 / pneCoreCfg('gov_days'),
+    target: pneCoreCfg('gov_deaths') * pneHivePlayersSeen(now) * 3 / pneCoreCfg('gov_days') * pneHiveF(pneHiveRow(), 'targetK', 1),
     tDay: td,
     stage: ow ? pneCoreStage(ow) : 0
   }
@@ -1975,7 +2066,7 @@ function pneHiveDawn(srv) {
 
 function pneHiveDreamB(srv) {
   var ow = pneHiveOverworld(srv)
-  return PNE_HIVE_GA.budget(ow ? pneCoreStage(ow) : 0, PNE_HIVE_GA.gov(pneHiveSt), false)
+  return pneHiveB(ow ? pneCoreStage(ow) : 0, false)
 }
 
 // GA work (contract 7.2). Each GA tick's own job comes first: the breed on breed ticks (t % 4 == 3), the dream slice on
@@ -2221,17 +2312,21 @@ function pneHiveLoad(srv) {
   }
 }
 
-// Declares the load epoch to the GA (an E event), on the first hive tick after every load: before any drain or GA work
-// can generate an id, and after ServerEvents.loaded, so a load followed by a save with no hive tick in between (a quick
-// restart) round-trips the GA state unchanged.
+// Declares the load epoch to the GA (an E event), on the first hive tick after every load, right after the load itself:
+// before any drain or GA work can generate an id.
 function pneHiveEpochApply() {
   if (!pneHiveEpochDue || !pneHiveSt) return
   pneHiveEpochDue = false
   pneHiveEpoch = PNE_HIVE_GA.epoch(pneHiveSt, pneHiveEpoch)
 }
 
+// The load (contract 1.5, Appendix A rule 15): only once the server has started. ServerEvents.loaded runs before
+// Recruits is ready, when no command can run, and the load reads the world seed with /seed (pneCoreSeed32, which answers 0
+// and caches nothing before the start); so the first hive tick loads, and declares the epoch in the same tick. A server
+// stop before that tick saves nothing (pneHiveSt is null) and leaves the stored pne_hive untouched (contract 3.7).
 function pneHiveEnsureLoaded(srv) {
   if (pneHiveSt || pneHiveLoadTried) return
+  if (typeof pneCoreStarted === 'boolean' && !pneCoreStarted) return
   pneHiveLoadTried = true
   pneHiveLoad(srv)
   pneHiveRediscStart(srv)
@@ -2578,8 +2673,8 @@ function pneHiveOnTick(event) {
 
 // HiveInfo (contract 3.3) plus flk: the expressed FLK gene (e[4], PNE_HIVE_GA.GENE_IDS index 4) as a number in [0, 1], the
 // strength of the mob's flank bias (TDD 3.1: reinforcements and ambient spawns placed in the player's rear 120-degree arc
-// at low block light). It is the value the hive applied at the mob's last expression (budget-scaled by stage and
-// governor, combination caps applied, 0 where the species masks it); the hive's own tag pne_flk marks flk >= 0.5. A
+// at low block light). It is the value the hive applied at the mob's last expression (budget-scaled by stage, governor
+// and difficulty profile, combination caps applied, 0 where the species masks it); the hive's own tag pne_flk marks flk >= 0.5. A
 // genome mob the hive does not track (yet) gets the same expression computed from its genome at the current stage.
 function pneHiveInfo(entity) {
   var pd
@@ -2602,7 +2697,7 @@ function pneHiveInfo(entity) {
   } else {
     type = pneCoreTypeId(entity)
     level = pneHiveLevel(entity)
-    e = PNE_HIVE_GA.express(g, PNE_HIVE_GA.mask(type), PNE_HIVE_GA.budget(level ? pneCoreStage(level) : 0, PNE_HIVE_GA.gov(pneHiveSt), false))
+    e = PNE_HIVE_GA.express(g, PNE_HIVE_GA.mask(type), pneHiveB(level ? pneCoreStage(level) : 0, false))
   }
   flk = Number(e[4])
   if (!(flk > 0)) flk = 0
@@ -2630,12 +2725,15 @@ function pneHiveNear(player) {
 function pneHiveStatusLine() {
   var GA = PNE_HIVE_GA
   var st = pneHiveSt
+  var H
   if (!pneHiveReady) return 'GA core missing: the hive stays off'
   if (!pneCoreOn('hive')) return 'off'
   if (!st) return 'not loaded yet'
+  H = pneHiveRow()
   return 'pool ' + GA.poolSize(st) + '/' + GA.CAP + ', gen ' + GA.gen(st) + ', gov ' + pneCoreFmt(GA.gov(st)) + ', sigma ' +
     pneCoreFmt(GA.sigma(st)) + ', queue ' + GA.queueSize(st) + '/' + GA.QUEUE_MAX + (GA.dreamPending(st) ? ', dreaming' : '') +
-    ', tracked ' + pneHiveMobN + ', silent ' + pneHiveSil.length + (pneHivePrev ? ', unreadable old state kept (pne_hive.prev)' : '')
+    ', tracked ' + pneHiveMobN + ', silent ' + pneHiveSil.length + (H ? ', diff x' + pneCoreFmt(pneHiveF(H, 'budget', 1)) : '') +
+    (pneHivePrev ? ', unreadable old state kept (pne_hive.prev)' : '')
 }
 
 // /pne hive prev [drop] (admin): whether an unreadable saved state is being kept as pne_hive.prev, and discarding it.
@@ -2733,13 +2831,8 @@ if (pneHiveCoreOk && !pneHiveReady) {
   pneCoreStatus('hive', pneHiveStatusLine)
 }
 if (pneHiveReady) {
-  ServerEvents.loaded(function (event) {
-    try {
-      if (pneCoreOn('hive')) pneHiveEnsureLoaded(event.server)
-    } catch (err) {
-      pneCoreFail(PNE_HIVE_B_LOAD, err)
-    }
-  })
+  // No ServerEvents.loaded handler (contract 1.5, rule 15): the first hive tick after the start loads the state
+  // (pneHiveEnsureLoaded) and declares the load epoch in the same tick.
   ServerEvents.unloaded(function (event) {
     try {
       // the last save before shutdown must be synchronous: the one-call save (it abandons an incremental save still

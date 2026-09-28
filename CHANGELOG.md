@@ -2,6 +2,20 @@
 
 ## Unreleased: The Hive Remembers (milestones M0-M5, tested offline, not yet run in game)
 
+### Difficulty (contract 1.5, after the first in-game test)
+- Difficulty now follows the vanilla setting (Peaceful/Easy/Normal/Hard profiles, EPCA tier synced on pack-default
+  worlds). Hard plays exactly as before. Easy: Speed only at night within 32 blocks, a third of host kills burst,
+  reinforcements from stage 4, gentler hive genes, Spore hits at 70%, day-7 hordes of about 9. Normal sits between.
+  Peaceful: no night buffs, bursts, reinforcements, natural parasite spawns near players or hive genes. The doom clock
+  keeps its 100-day arc on Easy and Normal. A login line and `/pne difficulty` show the active profile;
+  `/pne config diff_profile` pins one. Parasites that already exist keep their stats: test a profile in a fresh world.
+- Peaceful skips hordes without blocking beds (the horde schedule moves on as if the horde had run); dedicated servers
+  keep EPCA's own NORMAL baseline, so Hard never writes a tier there.
+- Fixed: 25 startup command failures; clade teams never created; hive seed 0 for the whole session; Recruits turning
+  clade teams into factions. Nothing issues a command before the server's first tick any more, clade teams are made
+  through the scoreboard's Java API, and no command the pack sends names a team (Recruits takes those over).
+- The Hordes' wave-size comment in `hordes-common.toml` now matches the real formula (15 on day 7 at Hard, not 12).
+
 ### The Resonance
 - 126 rendered and verified sound assets under `assets/pne` (8 layers; 5.87 MB of OGG). The 18 stereo AmbientSounds
   beds (19.4 MB) are rendered into tools/resonance/out/ only and never ship: no AmbientSounds bed regions ship, because
@@ -34,7 +48,7 @@
 
 ### Shared
 - `/pne` command hub, pillar switches, a shared 2.5 ms per-tick budget (constants set from Rhino benchmarks), the module
-  contract `docs/IMPLEMENTATION.md`, and `python tools/run_tests.py` with 69 suites, including a pack-level smoke test
+  contract `docs/IMPLEMENTATION.md`, and `python tools/run_tests.py` with 77 suites, including a pack-level smoke test
   that runs every script together in the instance's own Rhino jar over two in-game days, with each module removed,
   switched off or broken, and again with only the method names KubeJS leaves visible in game (the test mocks now have
   that shape and the lint rejects hidden Minecraft names such as `getGameTime`).

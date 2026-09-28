@@ -28,7 +28,7 @@ We are building three coupled systems for a horror-first Minecraft modpack whose
 
 | Field | Value |
 | --- | --- |
-| Version | 1.1 (final design baseline; replaces 1.0 after the science/safety and engineering reviews) |
+| Version | 1.1 (final design baseline; replaces 1.0 after the science/safety and engineering reviews), with 1.2 notes (2026-09-28) at 2.5.5 and 3.6: the numbers in this document are the **Hard** difficulty profile; Peaceful, Easy and Normal follow the profile table of docs/IMPLEMENTATION.md 3.8 |
 | Status | Research and design complete. Milestones M0-M5 are built on the branch feat/hive-remembers and tested offline (not yet run in game); where the build had to differ from this document, Appendix E records it. The binding module contract is docs/IMPLEMENTATION.md. |
 | Target | *Parasites New Dawn - Enhanced*: Minecraft 1.20.1, Forge 47.4.10, KubeJS 2001.6.5 (Rhino fork `rhino-forge-2001.2.3`), EPCA 0.147i (`epca`, GeckoLib), Fungal Infection: Spore 2.2.0j (`spore`, vanilla EntityModels), Dynamic Surroundings 1.3.1, AmbientSounds 6.3.8, ETF 7.2.4, EMF 3.3.9 |
 | Transfer target | A standalone engine with a real-time audio graph, skeletal animation and native IPC. Each section puts the general-engine design next to the Minecraft build. |
@@ -451,6 +451,14 @@ This table matches the measured prototype (`director.py`) exactly. The v1.0 row 
 2. PANIC audio: the player-model FSM put {drone, pulse, heartbeat} in PANIC; the audio track cleared ambience. The masking evidence is strong, so PANIC clears ambience (by scheduling) and keeps only the heartbeat class.
 
 #### 2.5.5 Pacing outputs and the sound ledger
+
+> **1.2 note (difficulty profiles, IMPLEMENTATION.md 3.8).** The table below is the **Hard** profile, which is also
+> release 1.4's behaviour. Since contract 1.5 the pack follows the vanilla difficulty: the spawn multipliers per state,
+> the aggression, beckon and GA columns, the hourly governor (floor, slope, free deaths), the night buffs, Mobs Inside
+> and the reinforcement beckons come from the active row of `PNE_CORE_DIFF` (Peaceful: spawn 0 in every state; Easy:
+> 1.00 / 0.95 / 0.65 / 0 / 0.10 with DREAD aggression 0.9; Normal: 1.10 / 1.00 / 0.75 / 0 / 0.15). Mercy and grace are
+> the same in every profile. The natural-spawn gate is implemented as a startup `PositionCheck` listener, not
+> `checkSpawn` (IMPLEMENTATION.md F17-F18), and reads the profile through `pne_m`.
 
 | FSM state | Spawn mult. | Aggression mult. | Beckons | GA weight |
 | --- | --- | --- | --- | --- |
@@ -900,6 +908,14 @@ TEL is carried in the genome but not expressed.
 **Licensing.** EPCA and Spore art is all rights reserved. Recoloured copies must not ship in the public repo. Overlays are authored from scratch, or variants are generated locally at install time from the user's own jar.
 
 ### 3.6 Survivability governor
+
+> **1.2 note (difficulty profiles, IMPLEMENTATION.md 3.8).** The guards below are the **Hard** profile (release 1.4).
+> Since contract 1.5 the hive scales them by the active row of `PNE_CORE_DIFF`: the budget is
+> `B x budget factor` (Peaceful 0, Easy 0.65, Normal 0.85, Hard 1.0) with the governor capped at use (1.0 / 1.0 / 1.10 /
+> 1.15), the dawn death target x0.5 / 0.5 / 0.75 / 1.0, the intra-day step after 1 / 1 / 2 / 2 hive deaths, the DMG and
+> HPX phenotype amounts x0 / 0.6 / 1 / 1 and the light-aversion threshold 11 / 10 / 11 / 11. The director's hourly
+> governor per profile is in the same table. Mercy, grace, the combination caps and the counterplay floors are unchanged
+> in every profile.
 
 | Guard | Rule | Evidence |
 | --- | --- | --- |

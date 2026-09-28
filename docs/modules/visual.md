@@ -10,7 +10,7 @@ Nothing here moves a camera or applies an effect, and nothing pulses or blinks.
 
 | Piece | Behaviour |
 | --- | --- |
-| Clade teams | `pne_clade_0`..`pne_clade_3`: `nametagVisibility never`, `collisionRule always`, created on server load (and re-checked after `/reload`; the modify commands also repair teams made with another rule). The hive's `pneCoreVisApply` puts each genome mob on the team of its clade (one entry per mob, as its UUID string). A mob that another mod or an operator put on a team of their own keeps it. |
+| Clade teams | `pne_clade_0`..`pne_clade_3`: `nametagVisibility never`, `collisionRule always`. **Since contract 1.5** they are made through the ServerScoreboard Java API only (IMPLEMENTATION.md F42; no console command names a team, rule 15 (b), because Recruits takes such commands over), on VISUAL's first tick after the start (`pneCoreStarted`), never on server load: `getPlayerTeam(n)`, else `addPlayerTeam(n)`; only the options that differ are written (`setNameTagVisibility`, `setCollisionRule` ALWAYS, `setAllowFriendlyFire(true)`, `setSeeFriendlyInvisibles(true)`: Recruits resets the last two at every start, so they are re-applied after every start; an old rule is repaired the same way), and every option is read back through `String()`. The teams count as ready only when all 8 pass; a failed setup retries after 20, 40, 80, 160, 320, 640, then every 1200 ticks, with one warning (`'visual', 'teams'`) at the third failure in a row; switching the pillar on resets the backoff. Membership: `addPlayerToTeam` / `removePlayerFromTeam(entry)` (they also reach unloaded stale entries); a join, leave or empty counts only when the read-back shows it, the record's team is the one read back, a join to a missing team clears the ready flag so the next tick recreates the teams. The hive's `pneCoreVisApply` puts each genome mob on the team of its clade (one entry per mob, as its UUID string); before the start applies and removals only queue. A mob that another mod or an operator put on a team of their own keeps it (the record's `foreign` flag; VISUAL never touches it). |
 | Why `collisionRule always` | The TDD and contract 3.6 ask for `pushOtherTeams`, but in 1.20.1 that rule means "push only my own team" (vanilla bug MC-87984): `EntitySelector.pushableBy` (`m_20426_`, offsets 114-135) returns "allied" when either side has `PUSH_OTHER_TEAMS`, and a team-less player is never allied. With it, players and team members would stop pushing each other, and so would members of different clades and untracked mobs; entity cramming would stop counting across teams. `always` takes the same path as a mob with no team. |
 | Named hosts | A team with `nametagVisibility never` also hides a CustomName (`LivingEntityRenderer.shouldShowName` returns false for NEVER; GeckoLib's `GeoEntityRenderer` does the same). Hosts that carry a name (an apex name, a name they already had such as EPCA's "What was once ...", or a name tag used later) therefore join the sibling team `pne_clade_<c>_named` (`nametagVisibility always`, same collision rule). The scan moves a host between the two teams when its name appears or goes. ETF rules list both names. Team names have no length limit in 1.20.1 (`TeamCommand` has no length check; `ClientboundSetPlayerTeamPacket` reads the name with the unbounded `readUtf()`). |
 | Grafts | One `minecraft:item_display` passenger per host (a display, never a Mob, so no goal selector hands MOVE/LOOK to it), tagged `pne_graft` and `pne_gv<k>` (its variant), `persistentData.pne_host` = host UUID, deterministic UUID derived from the host UUID (a rejoining host finds its graft again without stored state). **Only while the host is engaged** (its target is a live player, the hive's meaning of "engaged"): summoned by the scan when the host targets a player, removed `PNE_VIS_LINGER` (40) ticks after it stops. Also: doom stage 4 or higher, never on the species in `PNE_VIS_NO_GRAFT`, never on a host that carries another passenger, and at most `floor(15% of the engaged hosts)` (TDD 3.5.2), so a fight needs 7 engaged genome mobs before one of them carries a graft. Four variants (`PNE_VIS_GRAFTS`: item, quaternion, translation, scale; scaled by the host's bounding-box width). A changed occupancy index removes the display at the apply and the scan summons the new variant; after a dimension change the graft left behind in the old dimension is removed before the new one is summoned (a UUID selector takes the first level that has the UUID). |
@@ -25,7 +25,10 @@ Nothing here moves a camera or applies an effect, and nothing pulses or blinks.
 | After `/reload` | Module state starts fresh; one incremental pass over a snapshot of `server.getEntities()` (256 per even tick) re-adopts grafts that ride their hosts (variant from the `pne_gv<k>` tag), so yaw sync, the scan and the cap see them; an idle host's rediscovered graft goes after the linger. |
 
 Commands: `/pne visual` (pillar switch, core), `/pne visual status` (anyone), `/pne visual sweep` (admin). `/pne status` carries a
-`visual:` line: team entries, grafts / cap on engaged of hosts, queues, swept.
+`visual:` line: `teams N/8` (1.5: the teams passing the read-back right now; `?` when the scoreboard is unreadable,
+`(setting up)` while not ready), team entries, grafts / cap on engaged of hosts, queues, swept. Reply texts say "clade"
+where they used to say "team", and no reply pairs `team` with add/remove/join/leave; the core's `pneCoreTellraw` also
+escapes `team` in the tellraw JSON (1.5, VIS-1), because Recruits scans the whole command text, a player's UUID included.
 
 ## What a passenger changes (and how VISUAL keeps it out of the hive's behaviour)
 
@@ -123,18 +126,21 @@ or textures.
 
 | Suite | Covers |
 | --- | --- |
-| `visual-node` / `visual-rhino` | `tools/visual/test_visual.js` on `tools/visual/vis_prelude.js` (a command interpreter, scoreboard, passengers, targets, levels and dimension changes on top of `kjs_mocks.js`), in Node and in the instance's Rhino jar: 190 assertions (teams incl. `collisionRule always` and repair of an old rule; grafts only on engaged hosts, the linger, re-engagement, non-player targets; the cap over the live engaged hive, after deaths and after a mass unload; fair retries behind hosts with other riders; failed-summon backoff; summon tokens; yaw cadence and the `getYaw` fallback; sweep phases on even ticks only; apex names and the `pne_vis_apex` tag, name removal after the pillar switch for a host unloaded at the time; name tags moving hosts to the `_named` team; particles; queues; rejoin engaged and idle; rediscovery; dimensions; no-graft species; variant swaps; `vis_grafts`; exact counters; no camera, effect or collision command) |
+| `visual-node` / `visual-rhino` | `tools/visual/test_visual.js` on `tools/visual/vis_prelude.js` (a command interpreter, scoreboard, passengers, targets, levels and dimension changes on top of `kjs_mocks.js`), in Node and in the instance's Rhino jar: 242 assertions (1.5: no command and no scoreboard write before the start; applies and removals only queued before it; all team writes on the first tick; the options Recruits resets repaired after a restart; the backoff 20, 40 ... 1200 with one warning on the third failure; options that do not stick not trusted; a setup with 7 of 8 teams not accepted; a team deleted while ready recreated; joins and leaves counted only when read back, the stale sweep counting only read-back removals, an off sweep whose leaves do not stick not counted clean; an unreadable scoreboard never throwing; no console command containing `team`; no reply pairing `team` with add/remove/join/leave; `teams N/8`; the status replies for a UUID containing `add`. Before: teams incl. `collisionRule always` and repair of an old rule; grafts only on engaged hosts, the linger, re-engagement, non-player targets; the cap over the live engaged hive, after deaths and after a mass unload; fair retries behind hosts with other riders; failed-summon backoff; summon tokens; yaw cadence and the `getYaw` fallback; sweep phases on even ticks only; apex names and the `pne_vis_apex` tag, name removal after the pillar switch for a host unloaded at the time; name tags moving hosts to the `_named` team; particles; queues; rejoin engaged and idle; rediscovery; dimensions; no-graft species; variant swaps; `vis_grafts`; exact counters; no camera, effect or collision command) |
 | `visual-json` | `iron_axe.json` = the vanilla model from the client jar plus one override `custom_model_data` = `PNE_CORE_AXE_CMD` (read from the core) -> `pne:item/empty`; the empty model renders nothing; the graft items have item models in their jars; repo ETF properties have no broken references |
 | `visual-art-check` | no PNG under `overrides/` is EPCA or Spore art or derived from it (policy list `tools/visual/original_art.json`; comparison with the user's jars: alpha mask plus luminance or HSV-value correlation; self-test flags a generated EPCA variant) |
 | `visual-etf-local` | the generator on synthetic EPCA and Spore jars, output only under `PNE_TMP` (346 checks, incl. Spore naming, Spore skips, `--namespace all` and `--clean` of both) |
 | `visual-emf-tools` | the EMF extractor on classes compiled with JDK 17 and on the real Spore jar |
 | `visual-passenger-scan` | the passenger scanner on classes compiled with JDK 17; on the real jars, `PNE_VIS_NO_GRAFT` covers every combat-sensitive id and lists only registered ids; on the client jar, the vanilla goal lists and that `Entity.push(Entity)` tests `isVehicle` |
 | `visual-kjs-renames` | the KubeJS jar's `@RemapForJS` renames equal the table; the Rhino probe; `pne_visual.js` calls no hidden name |
-| `visual-rhino-bench` | script-side costs in Rhino (command execution excluded); fails if one scan token covers more than `graftSync` |
+| `visual-rhino-bench` | script-side costs in Rhino (command execution excluded); fails if one scan token covers more than `graftSync`, and (1.5) if a full apply exceeds `visApply` |
+| `visual-scoreboard-api` | (1.5) `tools/visual/scoreboard_api.py`: the ServerScoreboard descriptors in the SRG client jar (18/18), their names through the Rhino fork's MinecraftRemapper by declaring class (19/19), no KubeJS mixin or rename on them, and `pne_visual.js` run in the real Rhino jar against the real `Scoreboard`, `PlayerTeam` and `Team` enum classes (`ScoreboardApiProbe.java`, `scoreboard_real_prelude.js`, `scoreboard_real.js`), including the missing-team recreation path |
 
 ## Measured script-side costs (Rhino, mock world, 200 engaged hosts, 30 grafts, 250 entries; min of 5 trials)
 
-apply no-op 6-12 us; full apply (name, team, graft checks) 45-46 us; yaw sync 4.0 us per graft; scan 5.4-5.8 us per record (8
+apply no-op 6-12 us; full apply (name, team, graft checks) 45-46 us in 1.4, **17-19 us since 1.5** (one scoreboard fetch and
+at most two reads per apply; the graft UUID, an FNV-1a hash of about 33 us, is computed once per record and only when needed,
+kept as the record's `gu`); yaw sync 4.0 us per graft; scan 5.4-5.8 us per record (8
 records per tick: 43-46 us per tick, charged 4 x `graftSync` = 0.08 ms); sweep phase 1 under 1 us with commands stubbed; phase 2
 (trim check of 64 engaged records, recount of 200) 170-175 us; phase 3 60-65 us; apex particle pass 52.5 us; full
 `/pne visual sweep` 1.85-1.95 ms (admin command only; it re-checks every record). Command execution (Brigadier parse and run,
@@ -144,7 +150,8 @@ selector scans) comes on top and needs spark in game; mock objects are plain JS,
 
 1. ETF on GeckoLib EPCA: after the install step, `/team join pne_clade_1 <uuid of an EPCA mob>` changes its texture to the rust
    variant within a few seconds; `/team leave` restores it. If it does not, the fallback is names, particles and grafts only. Same
-   check on a Spore mob (vanilla renderer; expected to work).
+   check on a Spore mob (vanilla renderer; expected to work). Recruits lets a player's `team join`/`team leave` run but takes over
+   any command holding `team` and `add`: pick a mob whose UUID does not contain `add`.
 2. Spore hosts with PRC hold the axe with `CustomModelData:7301` and no axe is visible; EPCA hosts show nothing either.
 3. A fight with 7 or more engaged genome mobs at doom stage 4+: grafts appear on at most 15% of them within about a second of
    them targeting you, sit on the host's back, and turn with the host's body in 3-tick steps (expected; the graft does not turn as
@@ -164,10 +171,15 @@ selector scans) comes on top and needs spark in game; mock objects are plain JS,
     loaded later; `/pne visual on` restores them as mobs rejoin.
 11. spark: the visual work stays in the noise (target: the scan, sweep phases and yaw sync together well under 0.3 ms per tick,
     including command execution).
+12. (1.5) The clade teams with Recruits installed: docs/TESTING.md M4 "Clade teams" (`teams 8/8` right after joining, the 8
+    teams in `/team list`, no `pne_` Recruits faction, friendly fire restored after a restart, plain chat text, `/pne visual
+    sweep` and the help lines not swallowed).
 
 ## Uninstall
 
 `/pne visual off` (the next sweep removes grafts, team entries and apex names), then for chunks loaded later:
 `kill @e[type=minecraft:item_display,tag=pne_graft]`, `execute as @e[tag=pne_vis_apex] run data remove entity @s CustomName`,
-`tag @e[tag=pne_vis_apex] remove pne_vis_apex`; `team remove pne_clade_0` ... `pne_clade_3` and the `_named` siblings; and
-`python tools/visual/etf_variants_local.py --instance "<instance>" --clean` (both namespaces).
+`tag @e[tag=pne_vis_apex] remove pne_vis_apex`; and `python tools/visual/etf_variants_local.py --instance "<instance>" --clean`
+(both namespaces). The teams: `/pne visual off` empties them. With Recruits installed `team remove ...` does not work (Recruits
+takes over any command holding `team` and `remove`, from a player or the console), so the 8 empty teams stay, harmlessly;
+without Recruits, `team remove pne_clade_0` ... `pne_clade_3` and the `_named` siblings.

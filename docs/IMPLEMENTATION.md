@@ -1,10 +1,11 @@
 # The Hive Remembers: implementation contract (M0-M5)
 
-Version 1.4 · 2026-09-28 · companion to [TDD.md](TDD.md) v1.1 (1.1: review round 1 applied; 1.2: integration round,
+Version 1.5 · 2026-09-28 · companion to [TDD.md](TDD.md) v1.1 (1.1: review round 1 applied; 1.2: integration round,
 verified corrections and the registry of what the modules added; 1.3: lead decisions of integration round 2 and the
 test infrastructure that sees F37; 1.4: the polish round (beds out of the pack, the dream gate, the incremental save and
-load epoch, tells for every nearby player, FLK placement of reinforcements); all are summarised at the end, with the
-decisions still open)
+load epoch, tells for every nearby player, FLK placement of reinforcements); 1.5: difficulty profiles keyed to the
+vanilla difficulty (3.8) and the Recruits-safe start (no command before the first tick, clade teams through the Java
+scoreboard, Appendix A rule 15); all are summarised at the end, with the decisions still open)
 
 Six builders work in parallel on this branch and never talk to each other. This document is the only thing
 they share. **Names, file paths, keys, tags, priorities, return shapes and tick slots in this document are
@@ -16,10 +17,10 @@ The shared core already exists and passes its tests:
 `overrides/kubejs/server_scripts/pne_00_core.js`, `tools/run_tests.py`, `tools/rhino/*`, `tools/tests/*`,
 `tools/ci/kjs_lint.py`, `tools/ci/no_kill.py`. Run `python tools/run_tests.py` before and after every change.
 
-Contents: 1 verified platform facts · 2 module map and file ownership · 3 global API contract · 4 shared state
-registry · 5 generated sound catalog · 6 config, kill switches and the `/pne` tree · 7 tick schedule and token
-budget · 8 degradation matrix · 9 test conventions · 10 milestone exit criteria · Appendix A coding rules and the
-handler template.
+Contents: 1 verified platform facts · 2 module map and file ownership · 3 global API contract (3.8: the difficulty
+profiles) · 4 shared state registry · 5 generated sound catalog · 6 config, kill switches and the `/pne` tree · 7 tick
+schedule and token budget · 8 degradation matrix · 9 test conventions · 10 milestone exit criteria · Appendix A coding
+rules and the handler template.
 
 ---
 
@@ -70,6 +71,12 @@ Class names are KubeJS 2001.6.5 (`dev.latvian.mods.kubejs.*`), Architectury 9.2.
 | F35 | Forge `EntityJoinLevelEvent` has `loadedFromDisk()` (true when a chunk loads a saved entity). KubeJS's `EntityEvents.spawned` does not expose it; a startup `ForgeEvents` listener can. | verified | Forge 47.4.10 universal jar, `EntityJoinLevelEvent` (field and accessor `loadedFromDisk`). |
 | F36 | Death causes by the damage source's msgId: void `outOfWorld`, `/kill` `genericKill`, fall `fall`; the causing entity is a projectile's owner, the direct entity the projectile. In scripts these are **`source.getType()`, `source.getActual()` and `source.getImmediate()`** (KubeJS renames `getMsgId`, `getEntity` and `getDirectEntity`, F37). | inferred (1.20.1 damage types) · in-game | vanilla `DamageTypes`; used by `pneCoreDeathCause` / `pneCoreSourceEntity`. |
 | F37 | **KubeJS hides some Mojang method names.** Its mixins put `@RemapForJS("newName")` on `@Shadow` methods and Mixin merges that annotation (the F8 mechanism), so scripts see the method **only under the new name**. The ones this pack touches: `Level.getGameTime()` → **`getTime()`**, `Level.dimension()` → `getDimensionKey()`, `DamageSource.getMsgId()` → `getType()`, `getEntity()` → `getActual()`, `getDirectEntity()` → `getImmediate()`, `Entity.getYRot()/getXRot()` → `getYaw()/getPitch()`, `hurt()` → `attack()`, `getUUID()/getStringUUID()` → `getUuid()/getStringUuid()`, `getType()` → `getEntityType()` (F28), `MinecraftServer.isDedicatedServer()` → `isDedicated()`, `ItemStack.getTag()` → `getNbt()`. Call the KubeJS name; a Mojang name may stay only as a fallback for mocks. | verified | `tools/visual/kjs_renames.py` (suite visual-kjs-renames) reads all 35 renames from the KubeJS jar and probes the instance's Rhino jar (`getGameTime` undefined, `getTime()` works). Guarded by: `kjs-lint` (a hidden name in a new script only as a fallback inside `try` after the same receiver's KubeJS name; `pack-lint-hidden-names`), the shared mocks (KubeJS names only, 9.3), and `pack-smoke-strict` / `pack-degradation-strict` (the whole pack with only these names). |
+| F38 | **Event timing at a world start (1.5).** KubeJS's `ServerEvents.loaded` is posted from Architectury's server-starting hook, i.e. **inside Forge's `ServerStartingEvent`**, and a mod listening to `ServerStartingEvent` itself can run after it (Recruits does, F39). The order of a start: the level loads (spawn-chunk entities join: `EntityEvents.spawned`), `ServerStartingEvent` (KubeJS `loaded`, then Recruits), `ServerStartedEvent`, then the first `tickServer` (`ServerEvents.tick` at its end, F15). A `/reload` re-runs the server scripts inside a tick; the new scope's first `ServerEvents.tick` comes after it. Hence `pneCoreStarted` (3.1) and Appendix A rule 15. | verified | Architectury and KubeJS bytecode (spec D timeline); the user's first-test `latest.log`: one `NullPointerException ... because "this.server" is null` at `FactionEvents.onTypeCommandEvent` (FactionEvents.java:608) for each command the 1.4 scripts issued in `loaded` (25 per start) |
+| F39 | **Villager Recruits 1.15.2 and commands.** `FactionEvents.onTypeCommandEvent` (Forge `CommandEvent`) uses a server field that Recruits sets only in its own `ServerStartingEvent` listener, so every command issued before that throws a NullPointerException; Forge logs it, the command never runs and `runCommandSilent` returns 0. After the start it takes over every command whose **full text** contains `team` (case-sensitive `String.contains`) together with `add`, `remove`, `join` or `leave` **anywhere** (target, player UUID and tellraw JSON included). From the console (and any non-player source) it cancels the command (the caller sees 1): `add` turns the third word into a Recruits faction when it has 13 characters or fewer (`team add pne_clade_2` became a faction; the 17-character `_named` teams were never created at all), `remove` runs its faction-leave logic. From a player, `add` and `remove` are cancelled the same way, while `join` and `leave` run and only schedule a Recruits update. At every start Recruits resets friendlyFire and seeFriendlyInvisibles of every scoreboard team to false. | verified | javap of recruits-1.20.1-1.15.2.jar (`FactionEvents.onTypeCommandEvent`, `onServerStarting`); the test world's scoreboard (two empty `pne_clade_*` Recruits factions, no clade team) |
+| F40 | **Vanilla difficulty from scripts.** `level.getDifficulty().getId()` (0 Peaceful .. 3 Hard), `server.getWorldData().getDifficulty().getId()` and `server.isHardcore()`: Mojang names, none of them hidden by KubeJS (F37), all present in `mm.jsmappings`. A pause-menu change goes through `MinecraftServer.setDifficulty`, which writes the world data at once (refused while the difficulty is locked; hardcore forces Hard). Never read it with `runCommandSilent('difficulty')`: its failure value 0 reads as Peaceful, and it fires a `CommandEvent` (F39). | verified (names, mappings) · in-game (runtime resolution) | SRG client jar; the Rhino fork's `mm.jsmappings`; the 35 renames of `tools/visual/kjs_renames.py` |
+| F41 | **EPCA's tier (E-PCA 0.147i).** `org.tdddd.epca.impl.overworld.data.WorldDifficultyData.get(ServerLevel)` is a per-level SavedData (`epca_world_difficulty`; a new one starts at NORMAL) with `getDifficulty()` / `setDifficulty(DifficultyLevel)` (the setter calls `setDirty`; EPCA caches nothing); `DifficultyLevel` ids EASY 0, NORMAL 1, EXPERT 2, MASTER 3, CUSTOM 4, LEGENDARY 5, and `fromId(int)` gives NORMAL for an unknown id. EPCA's own names (not remapped), allowed by the KubeJS class filter. `defaultExtraDifficulty` is applied only by the client's Create World screen to the first level loaded (`WorldLoadHandler`, only when `FMLEnvironment.dist` is CLIENT), so every level of a dedicated server starts at NORMAL. **Apply-once**: a parasite gets the tier's multipliers at its first join (`DifficultyApplied`, persistent) and never again, and EPCA mobs never despawn, so a tier change reaches only parasites that spawn afterwards. EASY also wipes 25% of loot, removes attraction and halves bleeding; MASTER comes with x1.5 always-duplicated loot. `ParasiteNbtEffectHandler` multiplies `Parasite=true` entities that are not IParasite by the tier's factor at every rejoin, uncapped (a no-op at NORMAL; Open decisions). | verified (bytecode) · in-game | javap of the installed E-PCA jar (the spec's reading, re-checked by CORE for the dedicated-server baseline) |
+| F42 | **ServerScoreboard from scripts.** `server.getScoreboard()`, `getPlayerTeam(name)`, `addPlayerTeam(name)`, `addPlayerToTeam(entry, team)`, `removePlayerFromTeam(entry)`, `getPlayersTeam(entry)` and, on a `PlayerTeam`, `setNameTagVisibility(Team$Visibility)`, `setCollisionRule(Team$CollisionRule)`, `setAllowFriendlyFire`, `setSeeFriendlyInvisibles` and their getters: every name is in `mm.jsmappings` and none is renamed by KubeJS. `Team$Visibility` and `Team$CollisionRule` load through `Java.loadClass`; their constants are compared only through `String(constant)`. ServerScoreboard broadcasts each change and marks the scoreboard dirty exactly as `/team` does, and it reaches entries whose entity is not loaded (which `execute as` cannot). | verified | `tools/visual/scoreboard_api.py` (suite `visual-scoreboard-api`): 18/18 descriptors in the SRG jar, 19/19 names through the Rhino fork's MinecraftRemapper by declaring class, no KubeJS mixin or rename on them, and `pne_visual.js` run in the real Rhino jar against the real Scoreboard, PlayerTeam and Team enums |
+| F43 | **The Hordes 1.6.3i.** `HordeBuildSpawnDataEvent` is `@Cancelable` and posted once per horde by `HordeEvent.tryStartEvent` while the horde's spawn data is null; `getSpawnData()` gives `HordeSpawnData` with `getSpawnAmount()` / `setSpawnAmount(int)`, and the result is kept in The Hordes' saved data (never scaled twice, not even across a restart). A **cancelled** build event returns before `setNextDay`, so the start is retried on every tick of the start buffer; `isHordeDay` is `active` or `now >= (nextDay + 1) x dayLength`, and `canSleepDuringHorde = false` refuses every bed on a horde day. The wave size is `(int)(hordeSpawnAmount x (1 + (day / hordeSpawnDays) x (hordeSpawnMultiplier - 1)))` with integer division: 15 on day 7 with the pack's 12 / 7 / 1.31 (the config comment said 12 until 1.5). | verified | javap of The-Hordes-1.20.1-1.6.3i-all.jar (`HordeEvent`, `HordeSpawnData`, `HordeBuildSpawnDataEvent`, `HordeSavedData.getNextDay`) |
 
 **What these facts force** (already reflected in the rest of this document): KubeJS's names wherever it renames a
 Minecraft method (F37); one command hub (F12-F14); a
@@ -77,7 +84,9 @@ Minecraft method (F37); one command hub (F12-F14); a
 victim's health at impact (F7, F21); the natural-spawn gate as a startup `PositionCheck` listener, not
 `checkSpawn` (F17-F18); join events queued, never cancelled (F19); every value read from `global` converted
 with `Number()` or `String()` before any comparison (F6); Mojang names only, no SRG fallbacks (F34); fixed cost
-constants instead of a clock (F25).
+constants instead of a clock (F25). Since 1.5: no command before the first tick and none whose text names a team (F38,
+F39: Appendix A rule 15); the vanilla difficulty read through Java getters, never a command (F40); EPCA's tier written
+only by the core's sync (F41: an Appendix A rule 8 exception); clade teams only through ServerScoreboard (F42).
 
 ---
 
@@ -87,7 +96,7 @@ constants instead of a clock (F25).
 
 | Module | Milestone | Owns | Prefix (top-level names) |
 | --- | --- | --- | --- |
-| CORE (lead) | M0 | shared core script, test runner, Rhino harness, mocks, lint, this document | `pneCore`, `PNE_CORE_`, `$PneCore` |
+| CORE (lead) | M0 | shared core script, test runner, Rhino harness, mocks, lint, this document; since 1.5 the difficulty profiles and their startup listeners | `pneCore`, `PNE_CORE_`, `$PneCore`; startup (1.5) `pneDiff`, `PNE_DIFF_`, `$PneDiff` |
 | GA-CORE | M0 | pure ES5 GA core + its Node/Rhino tests | `PNE_HIVE_GA` (single object) |
 | HIVE-RUNTIME | M3 | hive runtime, startup ForgeEvents, persistence, light aversion, governor, NBT size test | `pneHive`, `PNE_HIVE_`, `$PneHive`; startup `pneHiveEv`, `PNE_HIVE_EV_` |
 | RESONANCE-PIPELINE | M1 | offline audio pipeline, verified OGGs, `sounds.json`, subtitles, generated catalog | `PNE_RES_CATALOG` (single object) |
@@ -113,8 +122,9 @@ Each new server script's **line 1** is exactly `// priority: N`. The lint fails 
 | 50 | `pne_visual.js` | cosmetic, lowest priority work |
 | 0 | existing scripts (`pne_horror.js` and the rest) | unchanged headers; they call new code only at run time |
 
-Startup scripts need no ordering among themselves (default 0). There is **no startup core**: the two new
-startup files each implement the small formulas in section 3.4 themselves.
+Startup scripts need no ordering among themselves (default 0). There is **no startup core**: each new startup file
+(`pne_res_gate.js`, `pne_hive_events.js` and, since 1.5, `pne_diff_events.js`) implements its small formulas itself and
+reads only the `global` keys of 4.5.
 
 ### 2.3 File ownership (disjoint)
 
@@ -128,6 +138,10 @@ another module's file; they report what they need.
 - `tools/tests/kjs_mocks.js`, `tools/tests/kjs_node.js`, `tools/tests/core/core_smoke.js`, `tools/tests/core/hub_brigadier.js`
 - `tools/ci/kjs_lint.py`, `tools/ci/no_kill.py`
 - `docs/IMPLEMENTATION.md`
+- 1.5: `overrides/kubejs/startup_scripts/pne_diff_events.js` (Spore damage and Hordes wave size per profile, 3.8),
+  `tools/suites/core.json` (the core's registered suites; the older ones stay built into `tools/run_tests.py`),
+  `tools/tests/core/core_diff.js`, `tools/tests/core/diff_events.js`, `tools/tests/core/diff_events_env.js`,
+  `tools/tests/pack/test_lint_recruits.py`
 
 **Lead / integration (builders report additions, never edit)**: `tools/validate.py`, `tools/apply.py`,
 `tools/fix_instance.py`, `tools/gen_loot_overrides.py`, `.gitignore`, `README.md`, `CHANGELOG.md`, `LICENSE`,
@@ -230,10 +244,16 @@ Constants: `PNE_CORE_API` (1), `PNE_CORE_VERSION`, `PNE_CORE_PILLARS` (`['resona
 `PNE_CORE_SLOT_WRITE` (0), `PNE_CORE_SLOT_READ` (10), `PNE_CORE_SLOT_HOUSE` (5), `PNE_CORE_TEL_SLOTS`,
 `PNE_CORE_MERCY_HP` (0.30), `PNE_CORE_GRACE_TICKS` (2400), `PNE_CORE_GATE_RADIUS` (48), `PNE_CORE_AXE_CMD` (7301),
 `PNE_CORE_GATE_FRESH` (100), `PNE_CORE_PACE_STALE` (40), `PNE_CORE_HIT_WINDOW` (200), `PNE_CORE_LF_COMFORT` (1400),
-`PNE_CORE_TAG_MERCY`, `PNE_CORE_TAG_GRACE`, `PNE_CORE_TAG_COMFORT_OFF`, `PNE_CORE_TAG_GATE`, `PNE_CORE_TAG_PACE_SOFT`.
+`PNE_CORE_TAG_MERCY`, `PNE_CORE_TAG_GRACE`, `PNE_CORE_TAG_COMFORT_OFF`, `PNE_CORE_TAG_GATE`, `PNE_CORE_TAG_PACE_SOFT`;
+since 1.5 `PNE_CORE_DIFF` (the profile table, 3.8; binding like `PNE_CORE_COST`, read-only), `PNE_CORE_DIFF_NAMES`
+(`['Peaceful', 'Easy', 'Normal', 'Hard']`), `PNE_CORE_EPCA_BASE` (2 = EXPERT, equal to `defaultExtraDifficulty` in
+`overrides/config/E-PCA/epca_main_config.toml`; `tools/validate.py` pins the two) and `PNE_CORE_EPCA_NAMES`.
 
 State (read-only for modules): `pneCoreTick` (server tick count; same value for every handler in a tick),
-`pneCoreSlot` (`pneCoreTick % 20`), `pneCoreServer` (last seen server, may be null before the first tick).
+`pneCoreSlot` (`pneCoreTick % 20`), `pneCoreServer` (last seen server, may be null before the first tick),
+`pneCoreStarted` (1.5, rule 15: false from the core's load, and again in every `ServerEvents.loaded`, until the core's
+tick handler runs; it sets it right after `pneCoreServer = event.server`, before its own breaker check, so every module
+sees it true from the first tick of a start or a `/reload` on).
 
 | Function | Returns | Notes |
 | --- | --- | --- |
@@ -255,7 +275,7 @@ State (read-only for modules): `pneCoreTick` (server tick count; same value for 
 | `pneCorePlayersAtSlot(server)` | JS array | Players whose slot is this tick's slot (empty on 0 and 10). |
 | `pneCorePid(player)` | 32 lowercase hex | Creates `player.persistentData.pne_pid` on first use. |
 | `pneCorePidRotate(player)` | new pid | For `/pne oracle purge`. |
-| `pneCoreSeed32(server)` | uint32 | `(int)/seed >>> 0`, cached per server run. |
+| `pneCoreSeed32(server)` | uint32 | `(int)/seed >>> 0`, cached per server run. 1.5: before `pneCoreStarted` it returns 0, caches nothing and warns once (`seed read before start`); after the start any finite result is cached, a 0 too (warned once); a result that is not a number is not cached. |
 | `pneCoreFnv1a(str)` | uint32 | FNV-1a over `ASCII.indexOf(ch) + 32` (TDD 3.3.1). |
 | `pneCoreImul(a, b)` | uint32 | 16-bit split multiply. |
 | `pneCoreHasTag(entity, tag)` / `pneCoreSetTag(entity, tag, on)` | bool / - | `getTags()` / `addTag` / `removeTag` (Mojang names; no SRG fallback, F34). |
@@ -276,7 +296,7 @@ State (read-only for modules): `pneCoreTick` (server tick count; same value for 
 | `pneCoreStrain(entity)` | `'epca'`, `'spore'` or `''` | |
 | `pneCoreTypeId(entity)` | string | Registry id or `''`: `entity.type` if it contains `:`, else `getEncodeId()`, else the Forge registry key, else parsed from `'entity.<ns>.<path>'`. |
 | `pneCoreEntityType(entity, id)` | EntityType or null | `entity.getEntityType()`, else `ForgeRegistries.ENTITY_TYPES.getValue(new ResourceLocation(id))`. |
-| `pneCorePace(player)` | Pace (3.2) | The director's cached Pace while `pneCoreTick - pace.tick <= 40` and `resonance` is on; otherwise the fallback `{state:'CALM', spawn: vuln?0:1, aggro: vuln?0.8:1, beckon:!vuln, ga: vuln?0:1, tier:'QUIET', e:0, theta:0, mercy, grace, tick, fallback:true}`. **Whatever the source**, when `pneCoreVuln(player)` says mercy or grace, the returned copy has spawn 0, beckon false, ga 0, aggro ≤ 0.8 and mercy/grace set (vuln = mercy or grace). |
+| `pneCorePace(player)` | Pace (3.2) | The director's cached Pace while `pneCoreTick - pace.tick <= 40` and `resonance` is on; otherwise the fallback `{state:'CALM', spawn: vuln?0:1, aggro: vuln?0.8:1, beckon:!vuln, ga: vuln?0:1, tier:'QUIET', e:0, theta:0, mercy, grace, tick, fallback:true}`. **Whatever the source**, when `pneCoreVuln(player)` says mercy or grace, the returned copy has spawn 0, beckon false, ga 0, aggro ≤ 0.8 and mercy/grace set (vuln = mercy or grace). 1.5: the fallback is Peaceful-aware: on the Peaceful profile it is always spawn 0, beckon false, ga 0, aggro 0.8 (like every state of that row); on the other profiles it is unchanged. |
 | `pneCoreSpawnMult(player)` / `pneCoreGaWeight(player)` | number | `pneCorePace(player).spawn` / `.ga`. Scripted spawns only (may be 1.25). |
 | `pneCoreSpawnMultAt(level, x, y, z, radius)` | number | Lowest `pneCoreSpawnMult` among survival players within `radius` (default 48); 1 if none. The multiplier for positional scripted spawns (beckons, reinforcements, bursts). |
 | `pneCoreBeckonAt(level, x, y, z, radius)` | bool | true only if every survival player within `radius` (default 48) has `beckon` true (true if none). |
@@ -291,16 +311,23 @@ State (read-only for modules): `pneCoreTick` (server tick count; same value for 
 | `pneCoreHiveNear(player)` | `{clade, apex, silent}` | Fallback `{clade:-1, apex:false, silent:0}`. |
 | `pneCoreTell(mob, player)` | bool | L8 tell via the director; **false means nobody heard it** (the hive must then drop that mob's `Silent`). Cadence rules in 3.3. |
 | `pneCoreVisApply(mob, info)` / `pneCoreVisRemove(mob)` | - | No-op when visual is off/absent (remove still runs when off, for cleanup). |
-| `pneCoreEmit(player, event, category, pos, vol, meta)` | bool | Every horror sound for one player goes here (3.2). Fallback without the director (absent, or its API breaker tripped): plain `playsound` as before M2, except that for a comfort player `meta.stinger` is skipped and `meta.lf` sounds play at most once per 70 s (core-held map per player). |
-| `pneCoreEmitAt(server, dim, x, y, z, radius, event, category, vol, meta)` | int | Positional sound for every player within `radius`; fallback is the old `@a[distance=..r]` command, treating everyone as comfort: 0 for `meta.stinger`, `meta.lf` at most once per 70 s per event. When the director's API breaker trips, the core logs one warning that the ledger is off until `/reload`. |
+| `pneCoreEmit(player, event, category, pos, vol, meta)` | bool | Every horror sound for one player goes here (3.2). Fallback without the director (absent, or its API breaker tripped): plain `playsound` as before M2, except that for a comfort player `meta.stinger` is skipped and `meta.lf` sounds play at most once per 70 s (core-held map per player). 1.5: false before `pneCoreStarted` (rule 15). |
+| `pneCoreEmitAt(server, dim, x, y, z, radius, event, category, vol, meta)` | int | Positional sound for every player within `radius`; fallback is the old `@a[distance=..r]` command, treating everyone as comfort: 0 for `meta.stinger`, `meta.lf` at most once per 70 s per event. When the director's API breaker trips, the core logs one warning that the ledger is off until `/reload`. 1.5: 0 before `pneCoreStarted`. |
 | `pneCoreCommand(word, spec)` | bool | Registers a `/pne <word>` handler (section 6.3). |
+| `pneCoreTellraw(server, target, text, color)` | bool | 1.5: one chat line (`color`, default gray) to `'@a'` or a UUID; true when the command was issued, false before `pneCoreStarted` or when it threw. Its result count is never trusted (rule 15 (c)). Every `team` in the JSON is written as the JSON escape `\u0074eam` (rule 15 (b), F39: a reply such as `teams 8/8` sent to a UUID containing `add` would otherwise be swallowed); the chat shows the same text. `ctx.reply` uses it for players and the log for the console. |
+| `pneCoreDiff()` | row of `PNE_CORE_DIFF` | 1.5: the active profile's row (3.8), shared and read-only (never modify it, never keep a copy that outlives the call). |
+| `pneCoreDiffId()` | 0..3 | 1.5: the `diff_profile` pin (1..4 give 0..3) when set, else the last good vanilla read (hardcore counts as 3), else 3 before the first read. |
+| `pneCoreDiffRead(server)` | 0..3 or -1 | 1.5: the vanilla read of F40 (overworld `getDifficulty().getId()`, else the world data's, hardcore 3), each step in its own `try`; no command, no write; -1 when unreadable (the caller keeps its last good value). |
+| `pneCoreLevels(server)` | JS array | 1.5: every loaded `ServerLevel` (`getAllLevels()`), the overworld alone when that cannot be read. |
+| `pneCoreEpcaTier(level)` / `pneCoreEpcaSet(level, id)` | 0..5 or -1 / bool | 1.5: EPCA's tier of one level (F41; -1 when the classes or the data cannot be read) / writes tier 0..3 and returns true only when a read afterwards shows it. The test seam over the top-level `$PneCoreEpcaWDD` / `$PneCoreEpcaDL`; only the core's sync and `/pne difficulty epca` write (rule 8 exception). |
 | `pneCoreStatus(name, fn)` | - | `fn(player or null)` returns one line for `/pne status`. |
 | `pneCoreClamp(x, lo, hi)`, `pneCoreFmt(n)` | | `pneCoreFmt` = 2 decimals, NaN → `0.00` (command-safe numbers). |
 
 **Core event handlers** (registered first, O(1), never cancel): `PlayerEvents.respawned` (grace), `PlayerEvents.loggedIn`
-(pid; the F8 check behind `pd=` in `/pne status`), `EntityEvents.hurt('minecraft:player')` (a parasite hit sets
-`pne_lph`), `EntityEvents.death('minecraft:player')` (hive-death rings), `EntityEvents.spawned` (saved silent mobs,
-below).
+(pid; the F8 check behind `pd=` in `/pne status`; 1.5: queues the one-time difficulty login line, at most 64),
+`EntityEvents.hurt('minecraft:player')` (a parasite hit sets `pne_lph`), `EntityEvents.death('minecraft:player')`
+(hive-death rings), `EntityEvents.spawned` (saved silent mobs, below). 1.5: `ServerEvents.loaded` resets
+`pneCoreStarted`, reads the vanilla difficulty and mirrors `global.pneDiffProfile` (a pure read: **no command**, rule 15).
 
 **Hive-caused death (binding, the only source)**: a player death is hive-caused when the killer
 (`source.getActual()`, which is the owner for projectiles; `getEntity()` in mocks only, F37) passes `pneCoreIsParasite`, or when a parasite hit that
@@ -328,7 +355,8 @@ pneResPace(player) -> Pace | null
            ga:     number   // GA weight 0..1 (PANIC 0.5; RELEASE, mercy, grace 0)
            tier:   'QUIET'|'UNEASE'|'DREAD'   // audio tier after ceilings and overrides
            e: number, theta: number,          // fused arousal estimate, threat context (0..1)
-           mercy: boolean, grace: boolean, tick: int }   // tick = pneCoreTick of the last 1 Hz step
+           mercy: boolean, grace: boolean, tick: int,    // tick = pneCoreTick of the last 1 Hz step
+           diff: int }                                   // 1.5: the profile id 0..3 the step used (3.8)
   Cached from the player's last 1 Hz step (never recomputed on call). null for an unknown player.
 
 pneResEmit(player, event, category, pos, vol, meta) -> boolean   // true if a /playsound was issued
@@ -366,6 +394,16 @@ always set; for aggro 0.9 set iff `floor(pneCoreTick / 100)` is odd; for aggro 1
 On the resonance toggle OFF it removes `pne_gate` and `pne_pace_soft` from every online player; core upkeep also
 removes both while the director is absent, off or cut off.
 
+**Difficulty profiles (1.5, 3.8)**: the pacing table and the hourly governor come from the active row.
+`pneResPaceOut(state, mercy, grace, deaths1h, P)` uses `P.pace[state]` and `P.gov1h`
+(`gov = max(floor, min(1, 1 - slope x max(0, deaths1h - free)))`); without `P` (no core table) it uses `PNE_RES_PACING`
+and `PNE_RES_GOV1H`, which are the Hard row, i.e. release 1.4's numbers. The pure step takes `inp.diff` (absent or
+invalid = 3) and looks the row up in `PNE_CORE_DIFF`; the live step passes `pneCoreDiffId()` and puts it on the Pace as
+`diff`. So `pne_m`, and with it the natural-spawn gate (3.4, which reads `pne_m` and is unchanged), follows the profile:
+on Peaceful `pne_m` is 0 and `pne_gate` is set. Rule 15: the ledger refuses with `not_started` before `pneCoreStarted`
+(recording nothing); `pneResTellraw` returns a boolean and refuses before the start, so `pne_notice_v` is written only
+when all 5 notice lines were issued; sensing probes return -1 and the PANIC stopsound is skipped before the start.
+
 #### 3.2.1 `pne_horror.js` routing (DIRECTOR edits; nothing else changes behaviour)
 
 - Every `playsound` becomes `pneCoreEmit` (one player) or `pneCoreEmitAt` (positional, many players) with
@@ -394,6 +432,24 @@ removes both while the director is absent, off or cut off.
   (`pneCoreBeckonAt`, `pneCoreSpawnMultAt` > 0), then the unchanged chain run at the spot; the first summon wins,
   otherwise today's placement. FLK therefore changes where a beckon stands, never whether one appears. The bell and the
   stage-1 call sound where the beckon stands. Natural and ambient spawns are not placed (Open decisions, "FLK").
+- **Difficulty profiles (1.5, rows 2-6 of 3.8)** come from `pneHDiff()`: `pneCoreDiff()`, or `PNE_H_DIFF_HARD` (a local
+  copy of the Hard row's night, burst, beckon and doomK fields, asserted equal to `PNE_CORE_DIFF[3]`) when the core is
+  absent. Night buffs: the radius and the Speed / Strength / Spore flags of the row; Normal's Strength reads the overworld
+  doom stage only when `strStage > 0` (never on Hard); on Peaceful the daytime query is skipped. Mobs Inside:
+  `if (roll >= B.p) return`, `n = roll < B.flesh ? B.fmin + floor(rand x B.fspan) : 1`, area cap `B.cap`, with the
+  `Math.random` calls in the same order. Reinforcement beckons: from stage `B.stage`, chance
+  `min(B.cap, B.c0 + B.c1 x (stage - B.stage))`, cooldown `B.cd`. Doom clock: the floor of day `d` is raised on day
+  `round(d x doomK)`; doomK is 1 on Easy, Normal and Hard (lead decision L1: the 100-day arc is the pack's premise) and
+  0 on Peaceful (no raises and no command). Both `EntityEvents.death` handlers return while `pneCoreStarted` is false
+  (rule 15; with no core they run as in 1.4). Hard is byte-identical to release 1.4 (suite `director-diff` against
+  `tools/director/fixtures/horror_hard_baseline.json`, recorded from the 1.4 scripts before any edit).
+- **`pneHDoomNext()` (1.5, read-only; line 4 of `/pne difficulty`, 6.3)**: a top-level function with exactly this name.
+  It returns the first doom day `round(PNE_H_DOOM[i][0] x doomK)` above the world day `pneHDoomClock` last read, or -1
+  when every floor is reached or doomK is 0, or -2 before the clock's first read in this script run. The day is kept in
+  `pneHDoomDay` (-1 at load), set on every finite `/time query day` read of 0 or more; it is display-only, so a 0 from a
+  failed read (rule 15 (c)) lasts until the next 1200-tick run at most. No command, no random draw, no persistent write:
+  the Hard command stream stays byte-identical (L5). The core prints a day only for an answer of 1 or more and
+  `all floors reached` only for -1; any other answer, a throw or an absent function prints the doom part without a day.
 
 ### 3.3 HIVE-RUNTIME (`pne_hive.js`, `pne_hive_events.js`)
 
@@ -465,6 +521,24 @@ does not exist in game, F37), at most 2400 ahead (the same rule as `pneCoreGrace
 **Projectile scaling** (`LivingHurtEvent`, before armour): when the victim's `persistentData.pne_prj` (int,
 round(1000·e_PRJ)) is > 0 and the source is a projectile, `amount *= 1 - 0.45 * pne_prj / 1000`.
 
+**Difficulty profiles (1.5, rows 10-15 of 3.8)**: one budget helper at every budget site (newborn and rejoin expression,
+dream slices, HiveInfo of an untracked genome mob): `pneHiveB(stage, graceNear) = PNE_HIVE_GA.budget(stage,
+min(GA.gov(st), P.hive.govCap), graceNear) x P.hive.budget`, with the row read through `pneCoreDiff()` at each use and
+never copied (a drain call reads it once for all the rejoins and newborns it expresses: the profile changes only in the
+core's earlier tick handler or through a command). The dawn target is multiplied by `targetK`; the intra-day governor
+steps at `govDeaths` hive deaths of one player per 24000 ticks; `phen` scales only the HPX (gene 10) and DMG (gene 11)
+modifier amounts (the record's `e`, `HiveInfo.e` and the GA's I events keep the expressed values); `luxMin` replaces
+`PNE_HIVE_LIGHT_MIN` in the light-aversion pass and the T_est light rule. `HiveInfo.e` and `.flk` are profile-scaled:
+on Peaceful B is 0, so a newborn gets a genome but no modifier, no Silent, no axe and no FLK, and a rejoin loses its
+transient modifiers while a saved permanent HPX modifier stays (health is never clipped). Without a core that has the
+table every factor is release 1.4's. `/pne hive status` ends with `diff x<budget factor>`. Hard is bit-identical to 1.4
+(`tools/hive/test_hard.js` against `tools/hive/fixtures/hive_hard_baseline.json`, in Node and Rhino).
+
+**Start gating (1.5, rule 15)**: HIVE registers no `ServerEvents.loaded` handler; `pneHiveEnsureLoaded` returns before
+recording a load attempt while `pneCoreStarted` is false, and `pneHiveCmd` returns 0 before the start (this covers the
+Silent command fallback during the level load). The first hive tick after the start loads the state, reads the seed
+(after the start, so never the pre-start 0) and declares the epoch in the same tick (3.7).
+
 ### 3.4 Startup natural-spawn gate (DIRECTOR, `pne_res_gate.js`)
 
 `ForgeEvents.onEvent('net.minecraftforge.event.entity.living.MobSpawnEvent$PositionCheck', fn)`:
@@ -528,8 +602,20 @@ pneVisSweep(server) -> int          // orphan grafts and stale team entries remo
 ```
 
 Teams `pne_clade_0`..`pne_clade_3` (nametag never) and their siblings `pne_clade_0_named`..`pne_clade_3_named` (nametag
-always, for hosts with a CustomName) are created by VISUAL on server load, all with **collision `always`**
+always, for hosts with a CustomName) are created by VISUAL, all with **collision `always`**
 (`pushOtherTeams` would stop players and parasites pushing each other: 1.20.1 bug MC-87984, `EntitySelector.m_20426_`).
+**Since 1.5 (rule 15, F39, F42)** they are made on VISUAL's first tick after the start (`pneCoreStarted`), never on
+server load, and only through the ServerScoreboard Java API (no console command names a team): `getPlayerTeam(n)`,
+else `addPlayerTeam(n)`; VISUAL writes only the options that differ (`setNameTagVisibility` NEVER, ALWAYS for `_named`;
+`setCollisionRule` ALWAYS; `setAllowFriendlyFire(true)` and `setSeeFriendlyInvisibles(true)`, the vanilla defaults
+Recruits resets at every start) and reads every option back through `String()`. The teams count as ready only when
+all 8 pass; a failed setup retries after 20, 40, 80, 160, 320, 640 and then every 1200 ticks, with one warning
+(`'visual', 'teams'`) at the third failure in a row. Membership goes through `addPlayerToTeam` /
+`removePlayerFromTeam(entry)` (which also reach unloaded stale entries); a join, leave or team empty counts only when
+the read-back shows it, the record's team is the one read back, and a host on a foreign team is never touched. Before
+the start `pneVisApply` and `pneVisRemove` only queue (drained after the team setup). `/pne visual status` starts with
+`teams N/8` (teams passing the read-back now; `?` when the scoreboard is unreadable; `(setting up)` while not ready),
+and no reply text pairs `team` with add/remove/join/leave.
 Grafts are `item_display` passengers tagged `pne_graft` (and `pne_gv<k>`, the graft variant) with
 `persistentData.pne_host` = host UUID. A graft exists **only while its host targets a player** (40-tick linger), on at
 most 15% of the live engaged genome hosts; only VISUAL's own scan summons them, `pneVisApply` sets team, name and removal
@@ -611,11 +697,89 @@ breaker) or a save for a state that is no longer live starts over at the next fr
 `save(st)` runs only at `ServerEvents.unloaded` (server stop, outside the budget) and abandons a running incremental save.
 The **load epoch** is `max(hv ep, GA ep) + 1 + salt`, the salt 0..1023 from 10 random bits of a `java.util.UUID`
 (`Math.random` as the fallback; no salt within 1024 of 2^31 - 1); it is written into the stored `hv` at the load and
-declared with `epoch(st, ep)` on the **first hive tick after every load** (not inside `ServerEvents.loaded`, so a
-load-then-save round trip with no tick between is unchanged), before any drain or GA work. `pne_gi` is the GA id as it is
-when it carries the current epoch; an older-epoch queued id gets the run epoch appended (`b17.2.3`). Ids never repeat after
-a `/reload` or a clean restart once the epoch is stored; after a crash before the next overworld save they can repeat
-only by chance (about 1 in 1000; Open decisions).
+declared with `epoch(st, ep)` on the **first hive tick after every load**, before any drain or GA work. Since 1.5 the
+load itself runs there too: the load and the epoch run on the first hive tick after `pneCoreStarted`, never inside
+`ServerEvents.loaded`; a stop before that tick saves nothing and leaves the stored `pne_hive` untouched. `pne_gi` is
+the GA id as it is when it carries the current epoch; an older-epoch queued id gets the run epoch appended (`b17.2.3`).
+Ids never repeat after a `/reload` or a clean restart once the epoch is stored; after a crash before the next overworld
+save they can repeat only by chance (about 1 in 1000; Open decisions).
+
+### 3.8 Difficulty profiles (1.5; CORE table, binding)
+
+The profile id is 0 Peaceful, 1 Easy, 2 Normal, 3 Hard. It follows the vanilla difficulty (F40; hardcore counts as 3)
+unless `/pne config diff_profile` pins it (6.1). Every value lives in one core table, `PNE_CORE_DIFF[id]`, binding like
+`PNE_CORE_COST`; modules read it through `pneCoreDiff()` at use and never keep their own copy, except the documented
+no-core fallbacks of the Hard row (`PNE_RES_PACING` / `PNE_RES_GOV1H`, `PNE_H_DIFF_HARD`, `tools/director/director.py`
+`PROFILES`, and the startup file's factor arrays `PNE_DIFF_SPORE_K` / `PNE_DIFF_HORDE_K`, which cannot see the core and
+are asserted equal to the table by `diff-events-rhino`). **The Hard row is release 1.4 bit for bit** (lead decision L5):
+the same random-number order, and every Hard factor an exact identity (x1.0, or `min(gov, 1.15)` where 1.15 is already
+the GA's bound); `director-diff` and `hive-node`/`hive-rhino` compare Hard with fixtures recorded from the 1.4 scripts.
+
+| # | Knob (owner, site) | Peaceful | Easy | Normal | Hard (release 1.4) |
+| --- | --- | --- | --- | --- | --- |
+| 1 | EPCA tier in pack-managed dimensions (CORE, below) | NORMAL | NORMAL | baseline | baseline (overworld EXPERT, other dimensions NORMAL; every level NORMAL on a dedicated server) |
+| 2 | Night buff on EPCA (DIRECTOR, `pne_horror.js`) | none | Speed I within 32 blocks | Speed I within 48; Strength I from overworld stage ≥ 1 | Speed I + Strength I within 48 |
+| 3 | Night buff on `#pne:spore_basic` | none | none | Speed I within 48 | Speed I within 48 |
+| 4 | Mobs Inside: burst chance / flesh share / flesh count / area cap | 0 | 0.35 / 0.27 / 1-2 / 4 | 0.50 / 0.38 / 2-3 / 6 | 0.65 / 0.50 / 2-3 / 8 |
+| 4a | Expected products per host kill at CALM | 0 | 0.49 | 1.18 | 1.75 |
+| 5 | Reinforcement beckon: lowest stage; chance; cap; cooldown | off | 4; 1% + 0.5% x (s - 4); 4%; 400 ticks | 3; 1.5% + 0.75% x (s - 3); 6%; 200 ticks | 3; 2% + 1% x (s - 3); 9%; 100 ticks |
+| 6 | Doom clock days, `round(day x doomK)` (**L1**) | no raises (doomK 0) | as Hard (doomK 1) | as Hard (doomK 1) | 6, 12, 20, 32, 48, 62, 76, 88, 96, 100 |
+| 7 | Director spawn multiplier CALM / UNEASE / DREAD / PANIC / RELEASE (`pne_resonance.js`) | 0 in every state | 1.00 / 0.95 / 0.65 / 0 / 0.10 | 1.10 / 1.00 / 0.75 / 0 / 0.15 | 1.25 / 1.10 / 0.80 / 0 / 0.20 |
+| 8 | Director aggro / beckon / ga | 0.8 / off / 0 in every state | as Hard, except DREAD aggro 0.9 | as Hard | aggro 1, 1, 1, 0.9, 0.8; beckon on, on, off, off, off; ga 1, 1, 1, 0.5, 0 |
+| 9 | Hourly governor `max(floor, 1 - slope x max(0, d - free))` | identity (spawn is 0) | 0.40, 0.25, free 0 | 0.45, 0.20, free 1 | 0.50, 0.15, free 1 |
+| 10 | GA budget factor (HIVE, `pneHiveB`) | 0 | 0.65 | 0.85 | 1.0 |
+| 11 | Governor cap at use, `min(GA.gov, cap)` | 1.0 | 1.00 | 1.10 | 1.15 (the GA's own bound: a no-op) |
+| 12 | Governor death-target factor at dawn (`targetK`) | 0.5 | 0.5 | 0.75 | 1.0 |
+| 13 | Intra-day governor step trigger (`govDeaths` hive deaths / 24000 ticks) | 1 | 1 | 2 | 2 |
+| 14 | DMG and HPX phenotype amount scale (`phen`, those two genes only) | 0 | 0.6 | 1.0 | 1.0 |
+| 15 | Light-aversion block-light threshold (`luxMin`) | 11 | 10 | 11 | 11 |
+| 16 | Spore-to-player damage (`pne_diff_events.js`) | x0.5 | x0.70 | x1.0 | x1.0 |
+| 17 | Hordes wave size (`pne_diff_events.js`); waves on days 7 / 14 / 21 / 28 | skipped (below) | x0.6: 9, 11, 13, 15 | x0.8: 12, 15, 18, 20 | x1.0: 15, 19, 23, 26 |
+| 18 | Day-7 bed refusal (`pne_horde_rules.js`) | off | on | on | on |
+| 19 | Mercy 0.30 and grace 2400 ticks | unchanged in every profile (3.3/3.4) | | | |
+
+Binding shape (excerpt): `PNE_CORE_DIFF[i] = { id, name, epca: 'normal'|'base', night: { r, spd, str, strStage, spore },
+burst: { p, flesh, fmin, fspan, cap }, beckon: { stage, c0, c1, cap, cd }, doomK, pace: { CALM: { spawn, aggro, beckon,
+ga }, ... }, gov1h: { floor, slope, free }, hive: { budget, govCap, targetK, govDeaths, phen, luxMin }, spore, horde, bed }`.
+
+**Reading and applying it (CORE).** `ServerEvents.loaded` reads (no side effect beyond the cache and
+`global.pneDiffProfile`); the first core tick after a start reads again and runs the EPCA sync; then the core polls
+once per second at `PNE_CORE_SLOT_HOUSE` (a `/pne config diff_profile` change is seen by the same poll). A pause-menu
+change therefore reaches every module within 1 s: one log line, `global.pneDiffProfile`, the sync and one gray chat
+line to `@a` (`[PNE] Difficulty is now Easy: calmer nights, fewer bursts and reinforcements; parasites that spawn from
+now on use EPCA tier Normal (was Expert).`; the EPCA clause only when the overworld tier changed). At login each player
+gets a one-time line at the next slot 5 after the first-tick sync, when `pne_diff_seen` differs from
+`"<profile>/<overworld tier>"`: `[PNE] Difficulty Easy (pack profile Easy, EPCA tier Normal). /pne difficulty shows the
+details.` The director uses the new row at its next 1 Hz step, horror on every call (the doom clock at its next
+1200-tick run), the hive at each expression, the startup files on their next event.
+
+**EPCA tier sync (CORE, F41).** For each `ServerLevel` of `getAllLevels()`, on the first tick and on every profile or
+`epca_follow` change (charged `diffSync` per level; a refused take retries on the next tick): skip a level whose
+`x.<dim>` is set (deliberate); if its tier differs from `w.<dim>` (or, before any write, the baseline), set `x.<dim>` = 1
+and warn once (a Create World button choice other than the default, an admin or another tool); otherwise write the
+target (NORMAL for Easy and Peaceful, the baseline for Normal and Hard) when it differs, verify it by reading back and
+record it in `w.<dim>`. The baseline is `PNE_CORE_EPCA_BASE` in the overworld of an integrated server and NORMAL
+everywhere else, including every level of a dedicated server (F41). EASY and MASTER are never written by the sync.
+`epca_follow 0` stops all writes; `/pne difficulty epca <tier>` (admin) writes every loaded level and marks each
+deliberate; `/pne difficulty epca auto` clears every `x.*`, records each current tier as `w` and queues a sync.
+Without EPCA's classes (or with unreadable data) the profiles still apply, tiers stay as they are, one warning is
+logged and `/pne difficulty` shows `EPCA tier unavailable` (section 8). Parasites that already exist keep their EPCA
+stats (apply-once, F41); hive transient genes re-express with the new budget at their next rejoin; night buffs lapse
+within 7 s.
+
+**Startup listeners (CORE, `pne_diff_events.js`).** They read `global.pneDiffProfile` (F6: `var v =
+global.pneDiffProfile; var p = (v === undefined || v === null) ? 3 : Number(v)`; absent means Hard). `LivingHurtEvent`:
+a player hurt by a source whose `getActual()` is a `spore:` mob takes `amount x PNE_DIFF_SPORE_K[p]` (Spore builds its
+damage sources with the attacking mob as the causing entity; damage without a causing entity is not scaled).
+`HordeBuildSpawnDataEvent` (F43), registered with `MinecraftForge.EVENT_BUS.addListener(LOWEST, false, ...)`: the wave
+becomes `max(1, floor(n x PNE_DIFF_HORDE_K[p]))`. **Peaceful** (ratified in 1.5, the CORE-1 amendment of row 17): a
+plain cancel would leave the horde overdue (F43: retried on every tick of the start window and, from the next day on,
+The Hordes' own bed refusal every night), so the listener first moves the player's schedule on the way a horde that ran
+would have (`nextDay = HordeSavedData.getNextDay(nextDay)`, repeated until it is past today; The Hordes' saved data
+marked dirty; the value read back) and only then cancels; the horde's own size count is not advanced. If the schedule
+cannot be moved (an API change) the horde runs with a spawn amount of 0 instead, with one warning. Hard (and, for
+Spore damage, Normal) returns before touching the event. Each listener has its own breaker (20 errors).
+`pne_horde_rules.js` skips the day-7 bed refusal when `Number(global.pneDiffProfile) === 0`.
 
 ---
 
@@ -629,6 +793,7 @@ Every key, tag and name below starts with `pne`. Only the listed owner writes it
 | --- | --- | --- | --- |
 | `pne_cfg_<key>` | int | CORE | config value (section 6); absent = default |
 | `pne_core_hd` | string | CORE | game times of the last 64 hive-caused player deaths (3.1) |
+| `pne_diff` | CompoundTag | CORE (1.5) | the EPCA tier sync (3.8): `w.<dim>` int, the tier the pack last wrote in that dimension (absent = the baseline); `x.<dim>` byte 1, a deliberate choice the pack leaves alone |
 | `pne_doom_floor` | int | existing `pne_horror.js` | doom clock floor (unchanged) |
 | `pne_hive` | CompoundTag | HIVE | `pool`, `queue`, `state` (strings), `base` (CompoundTag ctxKey → IntArray), `samples.0..n` (strings ≤ 48 KB), `wid` (world id), `log` (replay tail), `v`, `hv` (runtime string; its `ep` is the salted load epoch written at every load, 3.7) and `prev` (1.2). Every string < 60,000 bytes (CI NbtIo test). Keep the whole thing under ~64 tags. |
 | `pne_res` | CompoundTag | DIRECTOR | reserved (director state that must survive restarts, if any) |
@@ -663,6 +828,7 @@ tag was never set, or whose first-join handler failed, still gets comfort mode.
 | `pne_m_t` | long (game time) | DIRECTOR | when `pne_m` was written (freshness for `pne_gate`) |
 | `pne_notice_v` | int | DIRECTOR | version of the first-run notice already shown |
 | `pne_log` | byte | ORACLE | this player's own logging opt-in (default 0) |
+| `pne_diff_seen` | string | CORE (1.5) | `"<profile>/<overworld tier>"` the one-time difficulty login line last showed (3.8) |
 
 ### 4.4 Mob `persistentData` (KubeJS compound, F8)
 
@@ -686,6 +852,7 @@ Mob tags: existing `pne_burst`, `pne_called`, `pne_horde_mob`, `pne_horde_keep` 
 | `pneOnHive` | number 1/0 | CORE: `on_hive` AND the hive runtime loaded (`pneCoreLoaded('hive')` and `PNE_HIVE_GA`); written once every server script has loaded (`ServerEvents.loaded`, or the first tick after a load or `/reload`), then on toggle; never at the core's own load time (a `/reload` keeps the old value until then) | `pne_hive_events.js` (enqueue only while 1) |
 | `pneCfgSpawnGate` | number 1/0 | CORE | `pne_res_gate.js` |
 | `pneHiveQDamage`, `pneHiveQLeave` | `java.util.ArrayList<String>` | `pne_hive_events.js` | `pne_hive.js` |
+| `pneDiffProfile` | number 0-3 | CORE (1.5: in `ServerEvents.loaded`, on the first tick and whenever the id changes) | `pne_diff_events.js`, `pne_horde_rules.js` (absent = 3, Hard: release 1.4's behaviour) |
 
 Nothing else goes into `global`. Never store functions there (they would survive `/reload` pointing at a dead scope).
 **Every read converts first** (F6): numbers with `Number(v)` after an `undefined`/`null` check, strings with
@@ -694,7 +861,8 @@ Nothing else goes into `global`. Never store functions there (they would survive
 
 ### 4.6 Files, teams, sounds, commands
 
-- Scoreboard teams: `pne_clade_0`..`pne_clade_3` (VISUAL). Objective `pne_horde_age` (existing).
+- Scoreboard teams: `pne_clade_0`..`pne_clade_3` and `pne_clade_0_named`..`pne_clade_3_named` (VISUAL; since 1.5 only
+  through the ServerScoreboard Java API, never a console command: rule 15 (b), F39). Objective `pne_horde_age` (existing).
 - Bridge folder `<instance>/local/pne_oracle/` (ORACLE): `telemetry.json`, `verdict.json`, `status.json`,
   `stop.flag`, `sidecar.lock`, `logs/`, `worlds/<wid>/`. Only `.keep` ships. **Lead action**: `.gitignore`
   currently ignores `local/` at any depth, which would also hide `overrides/local/pne_oracle/.keep`; change it
@@ -803,6 +971,8 @@ through `/pne config` or `/pne <pillar> on|off`. Modules never keep their own co
 | `spawn_backstop` | 1 | 0-1 | spawned-discard backstop - HIVE |
 | `vis_grafts` | 1 | 0-1 | display grafts (0: no grafts; teams, names and particles stay) - VISUAL |
 | `debug` | 0 | 0-1 | extra logging, any module |
+| `diff_profile` | 0 | 0-4 | 1.5: 0 follows the vanilla difficulty; 1-4 pin the pack profile Peaceful, Easy, Normal, Hard (3.8) - CORE |
+| `epca_follow` | 1 | 0-1 | 1.5: 1 lets the core manage EPCA's tier in pack-default dimensions, 0 never writes a tier (3.8) - CORE |
 
 A module that needs a new key reports it to the lead; the core adds it (with bounds) in one place.
 There is deliberately **no logging key**: telemetry logging is off unless a player opts in for themselves (3.5,
@@ -835,8 +1005,10 @@ ctx  = { word, args: [strings], argStr, server, player (null for console), sourc
 | Command | Owner | Who | Effect |
 | --- | --- | --- | --- |
 | `/pne` | CORE | anyone | help (lists every spec's help line the caller may use) |
-| `/pne status` | CORE | anyone | pillar switches, loaded modules, tick-budget peak, then every `pneCoreStatus` line |
+| `/pne status` | CORE | anyone | pillar switches, loaded modules, tick-budget peak, then every `pneCoreStatus` line (1.5: `difficulty: Easy (vanilla Easy, auto); EPCA overworld Normal (managed)`, or `EPCA tier unavailable`) |
 | `/pne config [key value]` | CORE | admin | list or set config (6.1) |
+| `/pne difficulty` | CORE | anyone | 1.5: four lines: vanilla value and profile (pinned or following), EPCA tier per loaded dimension with its state (`pack-managed`, `deliberate`) and `epca_follow`, the night/burst/beckon numbers, then the doom clock, spawn multipliers, gene factor, governor cap, Spore damage and hordes (3.8). The doom part says when the next floor comes: `doom clock as Hard (next floor day 9)`, `doom clock as Hard (all floors reached)` after day 100, plain `doom clock as Hard` while horror cannot tell (no `pneHDoomNext`, its clock has not read the day since the start or `/reload`, or it threw), and `doom clock: no raises` on Peaceful. The core asks DIRECTOR's read-only `pneHDoomNext()` (3.2.1) inside a `try`, never on Peaceful; a row whose doomK differed from Hard's would read `doom clock days x<k>` instead of `as Hard` (none does, L1) |
+| `/pne difficulty epca <easy\|normal\|expert\|master\|auto>` | CORE | admin | 1.5: a tier word writes every loaded level and marks each deliberate; `auto` hands every dimension back to the sync (3.8) |
 | `/pne resonance [on\|off]`, `/pne hive [on\|off]`, `/pne oracle [on\|off]`, `/pne visual [on\|off]` | CORE | anyone to read, admin to switch | pillar switch for this world |
 | `/pne comfort [on\|off]` | DIRECTOR | anyone | own comfort mode (tag `pne_comfort_off` when off) |
 | `/pne audio` | DIRECTOR | anyone | shows the first-run notice again |
@@ -847,7 +1019,7 @@ ctx  = { word, args: [strings], argStr, server, player (null for console), sourc
 | `/pne oracle status` | ORACLE | anyone | bridge state, whether a sidecar answers, caller's logging flag |
 | `/pne oracle log on\|off` | ORACLE | anyone | **the caller's own** logging opt-in; never for others |
 | `/pne oracle purge` | ORACLE | anyone | deletes the caller's logs (request to the sidecar) and rotates the caller's pid |
-| `/pne visual status` | VISUAL | anyone | team entries, grafts |
+| `/pne visual status` | VISUAL | anyone | `teams N/8` (1.5), team entries, grafts |
 | `/pne visual sweep` | VISUAL | admin | runs the sweep now |
 
 Words are `[a-z][a-z0-9_]{0,23}`. Registration happens at load time (`pneCoreCommand`); the tree is built once
@@ -872,10 +1044,11 @@ and ≤ 112 tag reads, at most once per 100 ticks server-wide (the beckon cooldo
 | When | CORE | ORACLE | DIRECTOR | HIVE | VISUAL |
 | --- | --- | --- | --- | --- | --- |
 | every tick | reset budget to 2.5 ms | - | cheap ledger bookkeeping | drains: ≤ 12 rejoins, ≤ 4 newborns (joined in an earlier tick), ≤ 20 mob telemetry samples, damage/leave queues | graft yaw sync every 3 ticks (`t % 3 === 0`) |
+| the first tick after a start or a `/reload` (1.5) | `pneCoreStarted` = true; difficulty read, then the EPCA sync (`diffSync` per level; refused: the next tick) | - | - | the load (when not loaded) and the epoch, before anything else | clade team setup (`sweep`), then the queued applies; retried after 20, 40 ... 1200 ticks until all 8 teams pass |
 | `s === 0` | - | **bridge write** (`telemetry.json`) | - | no breed, no dream slice | - |
 | `s === 10` | - | **bridge read** (`verdict.json`) | - | no breed, no dream slice | - |
 | `s` in `PNE_CORE_TEL_SLOTS` | - | telemetry for `pneCorePlayersAtSlot(server)` | 1 Hz step for the same players (reads this tick's snapshot) | - | - |
-| `s === 5` | housekeeping (mercy/grace tags) | - | global 1 Hz work (`pne_horror.js` jobs) | - | - |
+| `s === 5` | housekeeping (mercy/grace tags); 1.5: the difficulty poll (read, mirror; on a change the sync and one notice), then the queued login lines | - | global 1 Hz work (`pne_horror.js` jobs) | - | - |
 | `t % 4 === 3` | - | - | - | **breed** (≤ 1) if no drain is pending and `pneCoreTake(COST.breed)` | - |
 | `t % 4 === 1` | - | - | - | dream slice if no breed, no drain, dream pending | - |
 | `t % 100 === 42` | - | - | - | light aversion pass (if `light_aversion`) | - |
@@ -929,6 +1102,7 @@ queue, drained in `pne_visual.js`'s tick. HIVE does not charge `visApply`.
 | `nearBase` / `nearRec` | 0.015 / 0.0007 | the per-player `pneHiveNear` table: fixed part / each tracked mob in the grid cells | hive-rhino-bench |
 | `outcome` | 0.6 | one GA outcome insert (`PNE_HIVE_GA.outcome`) | ga-core-breed-bench p95 0.28-0.29 on one timing level and 0.45 on the other, reproduced on an idle machine; lead decision 1.5 charges the slower level with margin (the bench recommends 0.6). Stays below `breed`, which `hive-node` asserts |
 | `steer` | 1.0 | one `Mob#getNavigation().moveTo` for SCT steering (config `debug` 1 only) | **placeholder**, never measured offline; replaced by the spark measurement of TESTING.md M3 |
+| `diffSync` | 0.05 | 1.5: the EPCA tier sync, per loaded level, on the first tick and on a profile or `epca_follow` change only | estimate (one SavedData lookup and at most one write per level) |
 
 HIVE charges `PNE_CORE_COST.outcome` and `PNE_CORE_COST.steer` (it may keep charging the higher of the core key and its
 own measured value, as for every key).
@@ -945,7 +1119,7 @@ their breakers. The core wrappers make absent, off and broken look the same to c
 
 | Missing or broken | Director | Hive | Oracle | Visual | Existing horror |
 | --- | --- | --- | --- | --- | --- |
-| **CORE** | no module can run (each module checks `typeof PNE_CORE_API === 'number'` at load, logs one error and registers nothing) | same | same | same | horror sounds skipped (they need the core's emit or the ledger); gore particles, bursts, beckons, doom clock and messages unchanged, bursts and beckons without pacing multipliers |
+| **CORE** | no module can run (each module checks `typeof PNE_CORE_API === 'number'` at load, logs one error and registers nothing) | same | same | same | horror sounds skipped (they need the core's emit or the ledger); gore particles, bursts, beckons, doom clock and messages unchanged, bursts and beckons without pacing multipliers; 1.5: horror uses its local copy of the Hard row (`PNE_H_DIFF_HARD`, release 1.4's numbers) and its death handlers are not start-gated (no `pneCoreStarted`) |
 | **GA-CORE** | unaffected | HIVE logs one error and stays off (no expression, no telemetry, no backstop) | unaffected | no calls (hive off) | unaffected |
 | **HIVE** | no tells needed: saved silent mobs are unsilenced by the core when they rejoin (3.1); whispers use the `amb`/`near` pools (clade -1); no apex novelty | - | style buckets are not consumed; bridge unaffected | no calls | unaffected, except that reinforcement beckons stay at the dying mob (no `HiveInfo.flk`, 3.2.1) |
 | **DIRECTOR** | - | `pneCorePace` falls back (mercy/grace only: spawn 0, GA weight 0); `pneCoreTell` false → hive keeps SIL mobs audible by dropping `Silent`; backstop still works (core tags) | unaffected | unaffected | sounds play as before M2 through the `pneCoreEmit` fallback (comfort skips stingers); no natural-spawn gate beyond what the startup gate does |
@@ -955,6 +1129,20 @@ their breakers. The core wrappers make absent, off and broken look the same to c
 | **RESONANCE assets / catalog** | ledger still runs for existing sounds; no layers; `pneResTell` false | SIL falls back to dropping `Silent` | - | - | through the ledger |
 | **VISUAL** | - | expression unaffected (`pneCoreVisApply` no-op) | - | - | - |
 | **`pne_hive_events.js`** (startup) | - | no damage/leave queues: fitness gets no dmg/killShare samples, removals are not scored, PRJ scaling off; **no backstop** (nothing sets `pne_fresh`, so no newborn qualifies); hive keeps breeding from mutantClone | - | - | - |
+
+**1.5 rows** (each asserted by the pack suites: the matrix rows `no-epca` and `no-diff-events`, and the Recruits model
+that every pack run enforces):
+- **EPCA's tier classes absent, or its data unreadable**: the profiles still apply everywhere (global, director, hive,
+  horror, startup listeners, notices); EPCA tiers stay as they are, which is release 1.4's behaviour; one warning
+  (`epca.api` or `epca.read`); `/pne difficulty` and `/pne status` show `EPCA tier unavailable`. Never a silently softer
+  Hard: Hard writes nothing in any case.
+- **`pne_diff_events.js` (startup) absent**: Spore damage and Hordes waves keep release 1.4's size on every profile (on
+  Peaceful the hordes run); everything else follows the profile.
+- **Recruits installed** (the pack as shipped, F39): nothing issues a command before the start or a console command naming
+  a team (rule 15), so nothing is intercepted; VISUAL re-applies friendlyFire and seeFriendlyInvisibles after every start.
+  **Recruits absent**: the same code runs unchanged (the Java team API and the start gating do not depend on it).
+- **VISUAL's scoreboard unreadable**: `/pne visual status` shows `teams ?/8`, the setup retries on its backoff and warns
+  once; team entries wait; nothing else depends on the teams.
 
 VISUAL absent or broken: `item_display` grafts never despawn, so existing grafts stay as orphans until VISUAL runs
 again. The uninstall commands (`kill @e[type=minecraft:item_display,tag=pne_graft]` and the rest) are in
@@ -970,6 +1158,19 @@ players get no stinger through the no-director emit fallback, the one "ledger of
 spawn 0 / GA 0 under mercy, no tell so HIVE drops Silent; `pneCoreHiveNear` clade -1 and `pneCoreHiveInfo` null). The
 `pne_hive_events.js` row is asserted as written (no backstop discard, no projectile scaling, which the full run shows
 working), and without the hive runtime (`no-hive`, `no-ga-core`) `pneOnHive` stays 0 and the startup queues stay empty.
+Since 1.5 every variant also runs under the Recruits model of `tools/tests/pack/pack_world.js` and enforces spec D's
+invariants: (a) no command before the start's loaded dispatch has finished nor before the core's first tick, (b) the 8
+clade teams right at tick 200 after the start and the restart, (c) no console team command and no `pne_` Recruits
+faction, (d) every live clade host VISUAL tracks on the team its clade and name want (`pneVisTeamName`), whether or not
+VISUAL recorded a join, with at least one host checked while the teams are ready and genome mobs are alive, (e) the hive
+seed read after the start; and the difficulty expectations of 3.8 (profile and global within 2 s of a change, exactly the
+EPCA writes the schedule needs, one notice per change and one login line per player, Spore hits scaled by the profile's
+factor and no other hit, the Hordes build event per profile, the status lines, and no pack-managed dimension ever marked
+deliberate). `pack-difficulty` /
+`pack-difficulty-strict` run the whole pack at vanilla Peaceful, Easy, Normal and Hard, through a mid-run Easy -> Hard ->
+Easy switch and, on Easy, across a `/reload` and a world restart (`diff-1-restart`: `pne_diff.w.<dim>` survives, so no
+second EPCA write, no "chosen outside the pack" warning, no notice and no second login line; the GA state survives the
+restart as in `pack-smoke`).
 
 Invariants that must survive every row: I1 (arousal never raises pressure), I3 (no credit during mercy/grace),
 I5 (every horror sound through the ledger whenever the director is loaded), I6, I8 (no camera or screen
@@ -1035,13 +1236,14 @@ Suite **names are binding** (they are what `tools/suites/milestones.json` requir
 
 | Module | Required suite names and what each covers |
 | --- | --- |
+| CORE (1.5; registered in `tools/suites/core.json`) | `core-diff-node` / `core-diff-rhino` (the read mapping, hardcore 3, an unreadable read keeps the last good value, the pin and the config bounds, `global.pneDiffProfile` as a wrapped value, the EPCA state machine: managed, deliberate, an outside change, `epca_follow` 0 and back, missing classes, unreadable data, the admin command and `auto`, EASY and MASTER never written, the dedicated-server baseline; notices only on a change; the login queue; start gating: no command before the first tick, emit/emitAt/tellraw and the unsilence drain refuse and the queue is kept; the seed cache; the Peaceful-aware fallback Pace; the table's shape and Hard row; no tellraw text holding `team`), `diff-events-rhino` (in real Rhino with a wrapped `global`: Spore scaling for players only, a missing global changes nothing, the Hordes floor, x k, max 1 and the Peaceful schedule move and cancel, Hard never touching the event, the constants equal `PNE_CORE_DIFF`, and the Peaceful bed skip of `pne_horde_rules.js`), `pack-lint-recruits` (the lint's `recruits-team` rule fires on planted console team commands in new, legacy and core files, not on look-alikes; `RECRUITS_PENDING` is empty) |
 | GA-CORE | `ga-core-node` (Node unit + determinism + goldens), `ga-core-golden-rhino` (Rhino golden parity, same hashes), `ga-core-replay` (interleaved replay golden B, P, J, I, D, G, R, using the log grammar of 3.7), `ga-core-mercy` (mercy test (a), and `dawn` with target 0 leaves gov finite and unchanged), `ga-core-guard` (guard test (c)), `ga-core-adaptation` (adaptation and diversity, TDD 6.3), `ga-core-governor` (governor tracks its target within ±0.01), `ga-core-dream-align` (live-mode dream alignment ≥ 0.5 within the first 6000-spawn phase, lead decision 1.3; the TDD's 3000-spawn point and the post-shift phase are printed; the dream adds ≥ 0.05 over the same runs without it at 3000 and 6000 spawns and at the end of the post-shift phase; the live run is deterministic), `ga-core-breed-bench` (Rhino: breed incl. the sharing-denominator cache, prints ms per breed; the lead updates `PNE_CORE_COST.breed`, and HIVE raises the breed rate only when the lead changes the 7.2 row: the M3 entry criterion; 1.4: every timed call gated against the `PNE_CORE_COST` key HIVE charges for it, the incremental save steps and the last piece + `saveEnd` against `gaSavePart`, the gate wiring self-checked first; each timing gate judged on the best of up to 3 fresh-JVM trials, while every trial must pass the state check), `ga-core-save-parts` (1.4: every incremental save equals `save()` at its `saveBegin` while the state changes between pieces; the load epoch) |
-| HIVE | `hive-node` (Node runtime tests on the mocks: queues, next-tick newborn rule, backstop before RNG, **backstop skips mobs without `pne_fresh` (loaded from disk)**, idempotent re-expression, permanent-HP check-then-add, outcome and dawn inputs carry only buckets (no arousal, no hp: I2); 1.4: the incremental save's slots and byte-identity with the one-call save, superseded and failed saves never writing, the load epoch incl. the crash and fresh-world cases, tells for every survival player within 12 blocks, `HiveInfo.flk`), `hive-rhino-bench` (Rhino mock-world benchmark within section 7 costs; 1.4: at the maximum state the save start against `gaSavePart` + `save` and every piece against `gaSavePart`), `hive-kmercy-rhino` (the startup k_mercy formula in Rhino: pre-damage hp ≤ 30%, live grace or the mercy tag give k = 0; a stale grace tag gives k = 1), `hive-nbt-size` (`NbtSizeTest.java`: max state, every string ≤ 60,000 bytes, uses `mcjar`), `hive-conversion-replay` (join-before-leave conversion replay) |
+| HIVE | `hive-node` (Node runtime tests on the mocks: queues, next-tick newborn rule, backstop before RNG, **backstop skips mobs without `pne_fresh` (loaded from disk)**, idempotent re-expression, permanent-HP check-then-add, outcome and dawn inputs carry only buckets (no arousal, no hp: I2); 1.4: the incremental save's slots and byte-identity with the one-call save, superseded and failed saves never writing, the load epoch incl. the crash and fresh-world cases, tells for every survival player within 12 blocks, `HiveInfo.flk`), `hive-rhino-bench` (Rhino mock-world benchmark within section 7 costs; 1.4: at the maximum state the save start against `gaSavePart` + `save` and every piece against `gaSavePart`), `hive-kmercy-rhino` (the startup k_mercy formula in Rhino: pre-damage hp ≤ 30%, live grace or the mercy tag give k = 0; a stale grace tag gives k = 1), `hive-nbt-size` (`NbtSizeTest.java`: max state, every string ≤ 60,000 bytes, uses `mcjar`), `hive-conversion-replay` (join-before-leave conversion replay). 1.5, inside `hive-node` / `hive-rhino`: Hard B bit-identical to `GA.budget` over a grid of stages, governors and grace; the Easy, Normal and Peaceful formulas; `phen` only on DMG and HPX; `luxMin`; the governor trigger; the dawn target; dream slices at `pneHiveB`; Peaceful gives no modifier; the row read once per drain call (`pneHTDiffReads`); no load, no load attempt and no command before the start; the load and the epoch on the first tick; the restart invariant (a stop before the first tick leaves the stored `pne_hive` byte for byte); and the Hard baseline digest (`tools/hive/test_hard.js` against `tools/hive/fixtures/hive_hard_baseline.json`, recorded from the 1.4 `pne_hive.js`; `run_hive.py hard-record` refuses to overwrite it) |
 | RESONANCE-PIPELINE | `resonance-meter-selftest`, `resonance-verify` (V1-V16 on every decoded asset; manifest diff), `resonance-consistency` (`sounds.json` / catalog / lang: every catalog event has a `sounds.json` entry and an OGG; catalog parses as JSON; no `amb` / `bed_*` event, pool, `sounds.json` entry or OGG ships, and no text under `overrides/` names one, lead decision 1.3), `resonance-determinism` (re-renders the shipped classes bit for bit; 1.4: the re-render changes nothing under `overrides/` or `tools/resonance/`, a size and mtime guard proven on a probe tree), `resonance-tdd-pins` (1.4: the spec's `ship: false` set equals `tdd_pins.NOT_SHIPPED`) |
-| DIRECTOR | `director-node` (FSM invariants, audio ceiling never raises the tier; the ported prototype tests at M0), `director-parity` (JS/Python parity), `director-ledger-sim` (1 h per mode: 0 immediate repeats, bus ≤ -18 LU, A8, level-jump for every source incl. the existing-sound table, comfort envelope rule, no early stopsound), `director-closed-loop`, `director-routing` (no `playsound` string left in `pne_horror.js`), `director-gate` (the `pne_res_gate.js` formula in **Rhino**, including `spawn_gate` 0 in `global` switching it off and stale `pne_gate`/`pne_grace` tags not gating), `director-rhino` (Rhino smoke of `pne_resonance.js` with an empty catalog), `director-flank` (1.4: the FLK placement of 3.2.1 on the mocks with a terrain model: rear arc from the facing, 24-40 blocks, the light and FLK boundaries, identical command streams and beckon counts without FLK, every chain rule, bounded probes), `director-horror-rhino` (1.4: also one flank placement in real Rhino) |
+| DIRECTOR | `director-node` (FSM invariants, audio ceiling never raises the tier; the ported prototype tests at M0), `director-parity` (JS/Python parity), `director-ledger-sim` (1 h per mode: 0 immediate repeats, bus ≤ -18 LU, A8, level-jump for every source incl. the existing-sound table, comfort envelope rule, no early stopsound), `director-closed-loop`, `director-routing` (no `playsound` string left in `pne_horror.js`), `director-gate` (the `pne_res_gate.js` formula in **Rhino**, including `spawn_gate` 0 in `global` switching it off and stale `pne_gate`/`pne_grace` tags not gating), `director-rhino` (Rhino smoke of `pne_resonance.js` with an empty catalog), `director-flank` (1.4: the FLK placement of 3.2.1 on the mocks with a terrain model: rear arc from the facing, 24-40 blocks, the light and FLK boundaries, identical command streams and beckon counts without FLK, every chain rule, bounded probes), `director-horror-rhino` (1.4: also one flank placement in real Rhino; 1.5: the profile and start-gating checks), `director-diff` (1.5: the Hard horror command stream, Pace per 1 Hz step and pure-step outputs byte-identical to `tools/director/fixtures/horror_hard_baseline.json`, recorded from the 1.4 scripts before editing; profiles 0-2: Mobs Inside rates over 4e5 kills, beckon chance at every stage boundary and the cooldowns, night command strings, doom floors per day with L1; pacing and governor per profile; start gating incl. `/reload`; and `docs/modules/director.md` in step with `PNE_CORE_DIFF` and the suite list), `director-parity` (1.5: all 4 profiles and a trace that switches profile) |
 | ORACLE | `oracle-features-node` (feature extractor), `oracle-bridge` (parse/staleness, tolerant of `1.0` integers and torn files; `purge` hand-shake), `oracle-sidecar` (`cpu_np` inference parity, stop.flag shutdown), `oracle-stale-lock` (a lock naming a live non-sidecar PID is stale; nothing is killed), `oracle-check-overrides` (`check_overrides.py`), `oracle-telemetry-bench` (MockWorld per-player telemetry benchmark, 150 entities, reports the value for `PNE_CORE_COST.playerTel`) |
-| VISUAL | `visual-node` (team/graft bookkeeping on the mocks, deferred `visApply` queue), `visual-json` (model overrides), `visual-art-check` (no PNG under `overrides/` derived from EPCA/Spore art) |
-| Lead / integration | `pack-smoke` (every server script in one scope in KubeJS load order, the startup scripts in their own scope, one shared global, 2+ in-game days with deaths, respawns, a Hive Night, dawns, /reload and a restart; fails on any uncaught error, module breaker failure, NaN, budget overrun, comfort or mercy violation), `pack-degradation` (each new file removed in turn, section 8; each pillar off and on again, 6.2; the broken variants), `pack-smoke-strict` and `pack-degradation-strict` (the same with only the names KubeJS leaves visible in game, F37), `pack-lint-duplicates` (the lint catches duplicate top-level names across one script pack), `pack-lint-hidden-names` (the lint catches unguarded hidden Mojang names, F37), `pack-apply` (tools/apply.py install steps on a throw-away instance) |
+| VISUAL | `visual-node` (team/graft bookkeeping on the mocks, deferred `visApply` queue; 1.5 with `visual-rhino`: no command and no scoreboard write before the start, applies and removals only queued, all team writes on the first tick, the options Recruits resets repaired, the backoff 20 ... 1200 with one warning, options that do not stick not trusted, joins and leaves counted only when read back, a team deleted while ready recreated, no console command naming a team, no reply pairing `team` with add/remove/join/leave, `teams N/8`), `visual-json` (model overrides), `visual-art-check` (no PNG under `overrides/` derived from EPCA/Spore art), `visual-scoreboard-api` (1.5: F42 in the SRG jar and under the KubeJS remapper, and `pne_visual.js` against the real Scoreboard classes in real Rhino) |
+| Lead / integration | `pack-smoke` (every server script in one scope in KubeJS load order, the startup scripts in their own scope, one shared global, 2+ in-game days with deaths, respawns, a Hive Night, dawns, /reload and a restart; fails on any uncaught error, module breaker failure, NaN, budget overrun, comfort or mercy violation), `pack-degradation` (each new file removed in turn, section 8; each pillar off and on again, 6.2; the broken variants), `pack-smoke-strict` and `pack-degradation-strict` (the same with only the names KubeJS leaves visible in game, F37), `pack-lint-duplicates` (the lint catches duplicate top-level names across one script pack), `pack-lint-hidden-names` (the lint catches unguarded hidden Mojang names, F37), `pack-apply` (tools/apply.py install steps on a throw-away instance); 1.5: every pack run enforces the Recruits invariants (a)-(e) and the difficulty expectations (section 8), the matrix adds `no-epca` and `no-diff-events`, and `pack-difficulty` / `pack-difficulty-strict` run the pack at vanilla Peaceful, Easy, Normal and Hard, through a mid-run Easy -> Hard -> Easy switch and on Easy across a `/reload` and a restart (`diff-1-restart`) |
 
 The core's `no-process-kill` suite covers I10 for ORACLE's code, and `kjs-lint` covers I8 (comfort) for every new
 script.
@@ -1055,15 +1257,19 @@ passing; a SKIP does not count). Items no suite can decide (a user decision, def
 under `pending` in `tools/suites/milestones.json`; while any is open the runner prints them and reports "MET for the
 automated criteria", never plain MET. In-game = needs the user's hands; each module lists its in-game checks in its final
 report so the lead can add them to `docs/TESTING.md`. M0 needs suites from builders of later milestones
-(`director-node`, `oracle-*`, `hive-nbt-size`); those builders deliver them at M0.
+(`director-node`, `oracle-*`, `hive-nbt-size`); those builders deliver them at M0. Since 1.5 the pack suites are required
+by every milestone (spec F): the new `pack-difficulty`, `pack-difficulty-strict` and `pack-lint-recruits`, and the strict
+runs `pack-smoke-strict` (the Hard restart, so invariants (b) and (e) after a restart) and `pack-degradation-strict` (the
+matrix, with the EPCA-absent `no-epca` and the `no-diff-events` rows), which M2, M3 and M5 already required and M0, M1 and
+M4 now do too (about 140 s more per milestone run). M5 keeps the plain `pack-smoke` and `pack-degradation` as well.
 
 | M | Automated | In-game |
 | --- | --- | --- |
-| M0 | core suites green; GA goldens identical in Node and Rhino; interleaved replay, mercy and NaN-guard tests pass; director/ledger and feature cores ported with their prototype tests passing; MockWorld per-player telemetry cost measured (150 entities) and `playerTel` updated or the cadence changed; NbtIo size test passes | `/pne status` shows `pd=kjs` after a login (F8/F9); a player keeps the same pid after dying |
+| M0 | core suites green; GA goldens identical in Node and Rhino; interleaved replay, mercy and NaN-guard tests pass; director/ledger and feature cores ported with their prototype tests passing; MockWorld per-player telemetry cost measured (150 entities) and `playerTel` updated or the cadence changed; NbtIo size test passes; 1.5: `core-diff-node`, `core-diff-rhino`, `diff-events-rhino`, `pack-lint-recruits`, `pack-difficulty(-strict)`, `pack-smoke-strict`, `pack-degradation-strict` | `/pne status` shows `pd=kjs` after a login (F8/F9); a player keeps the same pid after dying; 1.5: no Recruits NullPointerException at world start, the difficulty log and login lines, `/pne difficulty`, the pause-menu switch and the EPCA tier, the Hordes on Peaceful, Spore damage on Easy (docs/TESTING.md "Difficulty profiles and the Recruits-safe start") |
 | M1 | 100% of assets pass V1-V16; ≥ 6 variants per layer, 12 + 12 whispers, L8 tells; `sounds.json` with `attenuation_distance`; catalog and lang generated and consistent; no stereo bed ships (1.4) | a stereo bed event is unknown in game and the mono L1 segments play (docs/TESTING.md M1; loudness in game is checked at M2) |
-| M2 | director suites green (FSM, ceiling, ledger simulation incl. existing sounds, parity, closed loop); a DIRECTOR suite confirms no `playsound` command string is left in `pne_horror.js` (every sound goes through `pneCoreEmit`/`pneCoreEmitAt`); the strict pack runs pass (F37); the FLK placement suite passes (`director-flank`, 1.4). Pending: the comfort-envelope assets await the user's sign-off | spark ≤ 0.2 ms/tick for the director; one L_eff capture within ±3 dB (a whisper and a director layer); hive spawns near a player in mercy over 10 min ≈ 0 (startup gate); `/pne config spawn_gate 0` really lets natural spawns through; comfort listening sign-off by the user; bell and beckon levels measured; `/pne` tree works for a non-op single-player owner; first-run notice appears once (no AmbientSounds regions ship: section 5) |
+| M2 | director suites green (FSM, ceiling, ledger simulation incl. existing sounds, parity, closed loop); a DIRECTOR suite confirms no `playsound` command string is left in `pne_horror.js` (every sound goes through `pneCoreEmit`/`pneCoreEmitAt`); the strict pack runs pass (F37); the FLK placement suite passes (`director-flank`, 1.4); 1.5: `director-diff` (Hard byte-identical to 1.4), the difficulty pack runs. Pending: the comfort-envelope assets await the user's sign-off | spark ≤ 0.2 ms/tick for the director; one L_eff capture within ±3 dB (a whisper and a director layer); hive spawns near a player in mercy over 10 min ≈ 0 (startup gate); `/pne config spawn_gate 0` really lets natural spawns through; comfort listening sign-off by the user; bell and beckon levels measured; `/pne` tree works for a non-op single-player owner; first-run notice appears once (no AmbientSounds regions ship: section 5) |
 | M3 | Node/Rhino golden parity; runtime tests; mock-world benchmarks within the token table; sharing cache implemented and benchmarked (`ga-core-breed-bench`, the M3 entry); live dream alignment ≥ 0.5 within the 6000-spawn phase; the incremental save equals the one-call save (`ga-core-save-parts`, `hive-node`, `hive-nbt-size`) and every save step fits its charge (1.4); FLK placement (`director-flank`); the strict pack runs pass (F37) | L8 tells heard by every survival player within 12 blocks; the incremental save completes (saves counter rises, no spike on the save tick) and the load epoch rises across `/reload` and a restart; FLK places reinforcement beckons behind the player at low light (docs/TESTING.md M3); modifiers survive a chunk reload (HP not clipped); saved parasites near a respawned player are **not** discarded on chunk load (backstop `pne_fresh` rule); horde spawns near a player in grace or mercy are discarded by the backstop and nothing else breaks; `pne_gp` set after infecting a villager; effect immunity (light aversion) checked; spark budget met during Hive Night; backstop does not break EPCA phase spawns (else set `spawn_backstop` 0); `global` queues drain (no growth); `Mob#getNavigation` callable from Rhino (F33), else SCT expresses as tag-only (FLK never steers; it places reinforcement beckons, 3.2.1); hive-caused death classification matches a parasite kill, an arrow from a parasite, a fall after a hit, void and `/kill` (F36) |
-| M4 | visual tests; JSON/model validity; no closed-source art in the repo. MET for these automated criteria only: Spore EMF is deferred (pending, Open decisions) | ETF on GeckoLib EPCA confirmed or a fallback chosen (the variants come from the local install-time generator); no orphan displays after 2 h; no visible axe on Spore hosts; 2-3 Spore models exported with EMF and compared with `emf_spore_parts.py` before any `.jem` is authored |
+| M4 | visual tests; JSON/model validity; no closed-source art in the repo; 1.5: `visual-scoreboard-api`, the difficulty pack runs and the strict smoke and degradation runs. MET for these automated criteria only: Spore EMF is deferred (pending, Open decisions) | ETF on GeckoLib EPCA confirmed or a fallback chosen (the variants come from the local install-time generator); no orphan displays after 2 h; no visible axe on Spore hosts; 2-3 Spore models exported with EMF and compared with `emf_spore_parts.py` before any `.jem` is authored |
 | M5 | sidecar and bridge tests; `check_overrides.py` passes; `no-process-kill` passes; stale-lock test (a lock naming a live non-sidecar PID is stale and nothing is killed); the pack smoke and degradation runs, plain and strict | 20/20 verdicts within 1 s; staleness fallback verified by stopping the sidecar with `stop.flag` or `--exit-after 120` (never by PID); logging opt-in affects only the caller; spark p99 on bridge-write ticks < 50 ms over 30 min (else set the bridge cadence to 40 ticks); per-player telemetry within `playerTel` in spark |
 
 ---
@@ -1085,7 +1291,11 @@ Rules (the lint enforces the mechanical ones):
    (`entity['m_...']()`) are invisible in game (F34); do not write SRG fallbacks. The `EntityType` is
    `entity.getEntityType()` (F28); the UUID is `pneCoreUuid(entity)`.
 7. `Java.loadClass` only at the top level, each in its own `try`, result `null` on failure, every use guarded.
-8. Only commands through `server.runCommandSilent(...)` change the world from scripts (existing pack rule).
+8. Only commands through `server.runCommandSilent(...)` change the world from scripts (existing pack rule). Exceptions,
+   each a Java write the contract names: the hive's attribute modifiers (F24); since 1.5 the core's EPCA tier write
+   (`pneCoreEpcaSet`, F41: only the sync and `/pne difficulty epca`), VISUAL's scoreboard team writes (ServerScoreboard,
+   F42: Recruits intercepts console team commands, F39) and `pne_diff_events.js`'s Hordes event and schedule
+   (`setSpawnAmount`, `setCanceled`, `setNextDay`, F43).
 9. Never cancel `EntityEvents.spawned` for parasites (F19); never use `EntityEvents.checkSpawn` to deny (F17).
 10. Comfort: nothing moves the camera or applies nausea, blindness, darkness, or any screen effect. Comfort mode
     is on unless the player opted out. `pne_radiation_comfort.js` and `pne_comfort_guard.js` stay authoritative.
@@ -1104,6 +1314,17 @@ Rules (the lint enforces the mechanical ones):
 14. Startup scripts run once per game launch and cannot see server-script names; they read only tags,
     persistent data and the `global` keys of section 4.5 (converted with `Number()`/`String()`, rule 5), and apply
     the freshness rules of 3.4 to `pne_grace` and `pne_gate`.
+15. **The Recruits-safe start (1.5; F38, F39)**. (a) No command before `pneCoreStarted`: the core's tick handler sets it
+    on the first tick after every start and `/reload`; `ServerEvents.loaded` handlers only read Java state; anything a
+    module must do at the start it does on its first tick (the hive's load and epoch, VISUAL's teams, the core's EPCA
+    sync). (b) No console command text may contain `team`: Recruits takes over any command holding `team` plus add,
+    remove, join or leave anywhere in its text. Scoreboard teams change only through the ServerScoreboard Java API, in
+    VISUAL; chat goes through `pneCoreTellraw`, which escapes `team` in its JSON; the `kjs-lint` rule `recruits-team`
+    fails any string literal holding a console team command (`team add|remove|join|leave|empty|modify`), in every file,
+    legacy included. (c) A command's return value never proves that the state changed: required setup is verified by
+    reading the state back and retried with backoff (VISUAL's teams), and a value that could come from a failed command
+    is not trusted for the session (the core's seed is never read, let alone cached, before the start). The pack suites
+    enforce (a)-(c) through their Recruits model (section 8).
 
 Module skeleton (server script):
 
@@ -1203,7 +1424,7 @@ Registry additions the modules made inside their prefixes, now binding (names an
   give HIVE the event strings; `replay` accepts a `java.lang.String`, an array or a Java List (`rbad` 1 on an unparseable
   line, `rskip` counts events already applied, `rn` counts a P and its J as one step); the queue is FIFO; a full-pool
   dream is 107 slices; `load()` (15-27 ms once; it also rebuilds the sharing cache and the mid-dream data) runs in
-  `ServerEvents.loaded` or on the first tick, outside the budget.
+  `ServerEvents.loaded` or on the first tick, outside the budget (since 1.5 on the first tick after the start only, 3.7).
 - **5**: pools are keyed `'<slug>.<cls>'` (for example `'tell.a'`, `'whisper.amb'`); attenuation 128 for L6 and L7;
   whisper files sit near -38.5 (amb) and -32.2 (near) LUFS, so the director uses the catalog's `lufs`, never -28; for
   files too short for an in-file rise the catalog's `mmax` is the onset step; reserve = the last 2 variants of each
@@ -1292,8 +1513,112 @@ Registry additions the modules made inside their prefixes, now binding (names an
   `saveFinish` case (the swap, charged 2 x `save` = 0.24) has twice measured about 0.27 under load while passing at
   0.10-0.14 when the machine is quiet.
 
+## Changes in 1.5 (difficulty profiles and the Recruits-safe start)
+
+Why: the user's first in-game test found parasites "still aggressively hard" on what they took for Easy (the world's
+`level.dat` said Normal; the pack ignored the vanilla difficulty entirely: EPCA EXPERT, full hive budget at stage 0, Mobs
+Inside at CALM x1.25), and the log showed every command the 1.4 scripts issued in `ServerEvents.loaded` failing on a
+Recruits NullPointerException (25 per start: the seed read as 0 for the whole session, the clade teams never created,
+two of them turned into Recruits factions). Lead decisions: **L1** the doom clock keeps the 100-day arc on Easy and
+Normal (doomK 1; only Peaceful has no raises); **L2** every other row, the EPCA sync (managed/deliberate, EASY and MASTER
+never written, `defaultExtraDifficulty` stays "expert"), the vanilla read, the Recruits-safe start and the tests are
+approved as specified; **L3** no cleanup code for the two Recruits factions of the discarded test world; **L4**
+`ParasiteNbtEffectHandler` compounding stays out of scope (Open decisions); **L5** Hard stays bit for bit release 1.4.
+
+- **Facts** F38-F43 (section 1). **Profiles**: 3.8 (the table, the sync, the notices, the startup listeners); 3.1 (the
+  core API, `pneCoreStarted`, the seed cache, the Peaceful-aware fallback Pace, `pneCoreTellraw`), 3.2 / 3.2.1 (the
+  director and horror rows), 3.3 (`pneHiveB` and the hive factors), 4.1 / 4.3 / 4.5 (`pne_diff`, `pne_diff_seen`,
+  `global.pneDiffProfile`), 6.1 / 6.3 (`diff_profile`, `epca_follow`, `/pne difficulty`), 7.2 / 7.3 (the first-tick sync,
+  the slot-5 poll, `diffSync`), 8 (the 1.5 rows), 9.4 and 10 (the new suites). New startup file
+  `pne_diff_events.js` (CORE). `overrides/config/hordes-common.toml`: the wave-size comment corrected to the real
+  formula (15 on day 7 at Hard; 12 on Normal, 9 on Easy).
+- **Recruits-safe start** (rule 15): the core issues nothing before its first tick and gates emit, tellraw, the unsilence
+  drain and the seed read; HIVE loads on its first tick (3.3, 3.7); VISUAL's teams moved to the ServerScoreboard Java API
+  with read-back and backoff (3.6, F42); horror's death handlers and the director's ledger and chat are start-gated;
+  `kjs-lint` rule `recruits-team`, with `RECRUITS_PENDING` now empty. `pneCoreTellraw` escapes `team` in its JSON
+  (VISUAL's review finding VIS-1: a `teams 8/8` reply to a player whose UUID holds `add`, about 0.7% of UUIDs, was
+  swallowed by Recruits); `core-diff` pins it.
+- **Ratified amendments**: (1) row 17 on Peaceful moves the player's Hordes schedule before cancelling (CORE-1; a plain
+  cancel keeps the horde overdue and makes The Hordes refuse every bed from the next day, F43), with an empty wave as the
+  fallback; (2) the EPCA baseline is NORMAL everywhere on a dedicated server (F41; CORE-2), so Hard writes nothing there
+  either, even after `/pne difficulty epca auto`; (3) the seed cache follows spec D: any finite value read after the
+  start is cached, 0 included, warned once (CORE-4).
+- **Tests**: new suites `core-diff-node`, `core-diff-rhino`, `diff-events-rhino`, `pack-lint-recruits` (M0),
+  `director-diff` (M2), `visual-scoreboard-api` (M4), `pack-difficulty` and `pack-difficulty-strict` (every milestone,
+  with `pack-lint-recruits`); the existing pack suites enforce the Recruits invariants (a)-(e) and the difficulty
+  expectations, and the matrix gained `no-epca` and `no-diff-events`. Hard fixtures (horror, hive) were recorded from the
+  1.4 scripts before any edit and are never regenerated; only new profile cases are added. The restart check of
+  `pack-smoke` now snapshots the GA state as the hive loads it (right before its epoch on the first tick) and fails if
+  the hive loaded inside `ServerEvents.loaded`. Mutation checks run for the integration: the 1.4 scripts fail (a)-(e)
+  and the new load check under the enforced model; planted defects in the startup factors, the global mirror, the EPCA
+  target, the Peaceful schedule move, the hive budget factor and Peaceful's director multipliers each fail
+  `pack-difficulty`.
+- **Pack harness gaps closed (lead)**: invariant (d) now checks every live clade host VISUAL tracks (clade >= 0, not on a
+  foreign team) against the team its clade and name want (`pneVisTeamName`), not only hosts with a recorded team, and
+  fails when the teams are ready and genome mobs are alive but no host was checked; a mutant whose
+  `sb.addPlayerToTeam` never runs, which passed (d) before, fails it now. New variant `diff-1-restart` (group
+  `difficulty`): Easy across a `/reload` at t 6000 and a restart at t 9000; with it every variant asserts that no
+  dimension is marked deliberate (`x.<dim>`, the "chosen outside the pack" warning), and every variant with a restart
+  gets the restart checks `full` had (no hive load inside `ServerEvents.loaded`, GA state equal across the restart).
+  Mutants that drop the `w.<dim>` record or ignore `pne_diff_seen` pass `diff-1` and fail `diff-1-restart`.
+  `pack-smoke-strict` and `pack-degradation-strict` join M0, M1 and M4 (section 10).
+- **Next doom floor in `/pne difficulty` (core gap)**: after L1 the old `doom clock days x1` said nothing useful; line 4
+  now reads `doom clock as Hard (next floor day N)` (or `all floors reached`; `no raises` on Peaceful) from DIRECTOR's
+  new read-only `pneHDoomNext()` (3.2.1, 6.3), and plain `doom clock as Hard` until horror provides it. `core-diff`
+  pins every answer through a planted stand-in (a day, -1, -2, a throw, junk, none; not asked on Peaceful); the pack
+  suites check line 4 in every variant against the Hard days (3.8 row 6) once `pneHDoomNext` exists, and the plain
+  form before.
+- **Process note (recorded at the lead's request)**: during the DIRECTOR build the engineer ran
+  `git checkout -- docs/modules/director.md` in the shared worktree, which discarded that file's uncommitted edits. The
+  DIRECTOR fixer showed that only the engineer's own edits were lost (the saved patch's postimage equals the prepared
+  edit applied to HEAD) and restored and corrected the file. Builders must never run `git checkout`, `reset`, `stash` or
+  `clean` in the shared worktree; a module's own `docs/modules/<module>.md` (2.3) belongs in its task's file list.
+
+## Changes in 1.6 (lead, after the difficulty round)
+
+- **`pneHDoomNext()` landed** in `pne_horror.js` (3.2.1) with `pneHDoomDay`, exactly as documented: read-only, no command, no
+  random draw. `/pne difficulty` line 4 now names the next floor day. director-diff still matches the 1.4 Hard baseline.
+- **Player-step shortcut (lead decision 1.6, HIVE)**: `pne_hive.js` skips the per-second profile-row read in the player step when
+  the player's light is below `PNE_HIVE_LUX_FLOOR`, the lowest `luxMin` of any `PNE_CORE_DIFF` row (10). Such a light fails every
+  row's comparison, so the outcome is identical on every profile (Hard unchanged, L5), and the step keeps its `upkeep` charge with
+  headroom. No charge changed. This resolves the `hive-rhino-bench` player-step margin item.
+- **Peaceful horde skip ratified** (1.5, CORE): moving the schedule with The Hordes' own next-day step instead of cancelling the build
+  event (a cancel alone leaves the horde day overdue, retries every tick and refuses beds from day 8). Still an in-game check.
+
 ## Open decisions (lead or user)
 
+- **Normal's EPCA target (1.5, 3.8 row 1)**: Normal keeps the baseline (EXPERT in a single-player overworld) because
+  vanilla Normal already cuts EPCA hits by a third against Hard; moving Normal to NORMAL as well would cut EPCA threat by
+  about 56%. One table value (`PNE_CORE_DIFF[2].epca = 'normal'`) flips it if playtesting says Normal is still too hard.
+- **Rescaling parasites that already exist (1.5)**: not done. EPCA applies its tier once at a mob's first join and bakes
+  it into base values without a record of the factor (F41), so a profile change reaches only parasites that spawn
+  afterwards (hive transient genes re-express at the next rejoin; night buffs lapse within 7 s). Test a profile in a
+  fresh world.
+- **EPCA `ParasiteNbtEffectHandler` compounding (1.5, lead decision L4)**: on EXPERT it multiplies `Parasite=true`
+  entities that are not IParasite (possibly nest-leader players) by x1.5 at every rejoin, uncapped, on Hard and Normal
+  today. Out of scope for 1.5; a follow-up (the NORMAL tier makes that path a no-op, which is why Easy and Peaceful never
+  use EASY).
+- **The Peaceful Hordes skip (1.5, ratified, needs the game)**: the schedule move relies on `HordeEvent.getNextDay` /
+  `setNextDay` / `getCurrentDay` and `HordeSavedData.getNextDay` / `setDirty` resolving at run time; the in-game checks of
+  docs/TESTING.md (no start attempt every tick, beds usable on and after day 7, the move saved) decide it. The empty-wave
+  fallback still sends The Hordes' start and end messages and, with a 6000-tick duration, keeps its own bed refusal
+  for that night.
+- **The seed from Java (1.5, HIVE's suggestion)**: `pneCoreSeed32` still trusts `/seed` after the start; a `/seed` that
+  fails after the start seeds the GA with 0 for that run (warned once). A Java read (for example `ServerLevel.getSeed()`,
+  after checking KubeJS does not hide it and it is in `mm.jsmappings`) would remove the command. Follow-up.
+- **Legacy scripts and the `/reload` window (1.5)**: after a `/reload`, `pneCoreStarted` is false until the next tick
+  and the new modules wait; the legacy scripts (which do not know it) may still issue their commands in that window, as
+  in 1.4 (the pack records two, `scoreboard players set <player> pne_horde_age 0`). Recruits has its server then and none
+  names a team, so this is harmless; rule 15 (a) binds the new modules.
+- **Peaceful dream at B 0 (1.5, HIVE)**: on Peaceful the dawn dream's slices run at `pneHiveB` = 0, as spec F requires
+  (`pneHiveDreamB` in `pne_hive.js`). Every dreamed genome then expresses to zeros, so the surrogate scores them all
+  alike: the dream learns nothing and selects blindly, and its insert phase can still replace pool entries (each child
+  scored at the surrogate's value for an empty expression, inserted where that beats its nearest dreamed or
+  single-sample entry). Those children stay in the pool after the player switches back to a harder profile, until
+  breeding and outcomes replace them. Current behaviour: spec-conformant, the GA state stays finite, tested
+  (`hive-node` / `hive-rhino`, `pneHTDiffDream`: "a Peaceful dream slice (B 0) leaves the GA state finite"). Option:
+  HIVE skips dream slices while `pneCoreDiffId() === 0`; Hard is unaffected, so this is outside L5. Not taken in 1.5;
+  the lead or the user decides.
 - **Comfort envelope rule for L5 bursts and L8 click trains (RESONANCE, TDD 2.3.2) - needs the user**: the whisper burst
   rhythm (0.65-1.44 at 2.0-3.5 Hz) and the tell click trains (1.62-1.81 at 8.5-10.9 Hz) break the rule as written; 30
   comfort assets (whisper.amb x12, whisper.near x12, tell.a x6) are measured and reported PENDING, and they play by

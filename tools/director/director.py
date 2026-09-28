@@ -7,7 +7,12 @@ blend became the heuristic S_H (TDD 2.5.1), the audio tier comes from theta with
 respawn grace also caps aggression at 0.8 and zeroes the GA weight (2.5.5 table, contract 3.2), and the hourly
 governor takes the hive-death count as an input. The EMA constants are the same literals as in the JS, so Node,
 Rhino and Python agree bit for bit (suite director-parity).
+
+Contract 1.5: the pacing table and the hourly governor depend on the difficulty profile (0 Peaceful, 1 Easy, 2 Normal,
+3 Hard), an input of the pure step (inp['diff'], default 3). PROFILES holds the pace and gov1h of the core's binding
+table PNE_CORE_DIFF (pne_00_core.js); parity.py checks the two tables are equal. Hard is PACING / GOV1H, release 1.4.
 """
+import math
 
 STATES = ['CALM', 'UNEASE', 'DREAD', 'PANIC', 'RELEASE']
 TIERS = ['QUIET', 'UNEASE', 'DREAD']
@@ -21,6 +26,21 @@ PACING = {
     'PANIC': dict(spawn=0.00, aggro=0.9, beckon=False, ga=0.5),
     'RELEASE': dict(spawn=0.20, aggro=0.8, beckon=False, ga=0.0),
 }
+GOV1H = dict(floor=0.50, slope=0.15, free=1)
+
+
+def _pace(spawn, aggro, beckon, ga):
+    return {s: dict(spawn=spawn[i], aggro=aggro[i], beckon=beckon[i], ga=ga[i]) for i, s in enumerate(STATES)}
+
+
+PROFILES = [
+    dict(pace=_pace([0, 0, 0, 0, 0], [0.8] * 5, [False] * 5, [0, 0, 0, 0, 0]), gov1h=dict(floor=1, slope=0, free=0)),
+    dict(pace=_pace([1.00, 0.95, 0.65, 0.00, 0.10], [1.0, 1.0, 0.9, 0.9, 0.8], [True, True, False, False, False],
+                    [1.0, 1.0, 1.0, 0.5, 0.0]), gov1h=dict(floor=0.40, slope=0.25, free=0)),
+    dict(pace=_pace([1.10, 1.00, 0.75, 0.00, 0.15], [1.0, 1.0, 1.0, 0.9, 0.8], [True, True, False, False, False],
+                    [1.0, 1.0, 1.0, 0.5, 0.0]), gov1h=dict(floor=0.45, slope=0.20, free=1)),
+    dict(pace=PACING, gov1h=GOV1H),
+]
 TIER_UP = [0.25, 0.50]
 TIER_DOWN = [0.15, 0.38]
 TIER_UP_HOLD = 3
@@ -111,15 +131,28 @@ def tier_cap(raw, e, state, mercy, grace):
     return t
 
 
-def pace_out(state, mercy, grace, deaths1h):
-    p = PACING[state]
+def diff_in(v):
+    """pneResDiffIn: the profile id of an input, 3 when absent, invalid or outside 0..3."""
+    if v is None:
+        return 3
+    try:
+        n = float(v)
+    except (TypeError, ValueError):
+        return 3
+    return int(math.floor(n)) if 0 <= n <= 3 else 3
+
+
+def pace_out(state, mercy, grace, deaths1h, P=None):
+    """pneResPaceOut: P is a profile row (PROFILES[id]); without one the Hard values of release 1.4 apply."""
+    p = P['pace'][state] if P and P.get('pace') else PACING[state]
+    g = P['gov1h'] if P and P.get('gov1h') else GOV1H
     spawn, aggro, beckon, ga = p['spawn'], p['aggro'], p['beckon'], p['ga']
     if mercy or grace:
         spawn = 0
         aggro = min(aggro, 0.8)
         beckon = False
         ga = 0
-    gov = max(0.5, min(1, 1 - 0.15 * max(0, deaths1h - 1)))
+    gov = max(g['floor'], min(1, 1 - g['slope'] * max(0, deaths1h - g['free'])))
     spawn = spawn * gov
     return dict(spawn=spawn, aggro=aggro, beckon=beckon, ga=ga, gov=gov)
 
@@ -132,6 +165,6 @@ def pure_step(st, inp):
     hard = fsm_step(st['fsm'], inp)
     raw = tier_step(st['tier'], inp['theta'])
     tier = tier_cap(raw, st['fsm']['e'], st['fsm']['state'], inp['mercy'], inp['grace'])
-    p = pace_out(st['fsm']['state'], inp['mercy'], inp['grace'], inp['deaths1h'])
+    p = pace_out(st['fsm']['state'], inp['mercy'], inp['grace'], inp['deaths1h'], PROFILES[diff_in(inp.get('diff'))])
     return dict(state=st['fsm']['state'], e=st['fsm']['e'], hard=hard, raw=raw, tier=tier, spawn=p['spawn'],
                 aggro=p['aggro'], beckon=p['beckon'], ga=p['ga'], gov=p['gov'])

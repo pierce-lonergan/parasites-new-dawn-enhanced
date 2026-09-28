@@ -33,6 +33,14 @@ Every script folder (server_scripts, startup_scripts, client_scripts) is one scr
 top-level var or function defined in two files of the same folder silently replaces the earlier one: the lint
 fails on such duplicates when at least one of the files is new.
 
+Every file (legacy included), rule recruits-team (contract 1.5, Appendix A rule 15 (b)): no string literal may hold a
+console team command, i.e. match (^|[\\s'"])team\\s+(add|remove|join|leave|empty|modify)\\b. Recruits (the Villager
+Recruits mod) takes over every server command whose text contains "team" plus add, remove, join or leave after the
+start (cancels it, answers 1, and turns "team add <name of 13 characters or fewer>" into a faction), and any command
+before the start fails. Scoreboard teams change only through the ServerScoreboard Java API. A file listed in
+RECRUITS_PENDING is reported as a note instead of an error until its owner's rewrite lands (the integrator removes the
+entry); the lint notes when such a file is already clean.
+
 Usage: python tools/ci/kjs_lint.py [FILE...]      (default: every script under overrides/kubejs)
 Exit 1 on any error.
 """
@@ -75,6 +83,7 @@ PREFIX = {
     "server_scripts/pne_visual.js": ("pneVis", "PNE_VIS_", "$PneVis"),
     "startup_scripts/pne_hive_events.js": ("pneHiveEv", "PNE_HIVE_EV_", "$PneHiveEv"),
     "startup_scripts/pne_res_gate.js": ("pneResGate", "PNE_RES_GATE_", "$PneResGate"),
+    "startup_scripts/pne_diff_events.js": ("pneDiff", "PNE_DIFF_", "$PneDiff"),
     "startup_scripts/pne_resonance_client_events.js": ("pneResCe", "PNE_RES_CE_", "$PneResCe"),
     "client_scripts/pne_resonance_client.js": ("pneResCl", "PNE_RES_CL_", "$PneResCl"),
 }
@@ -128,6 +137,15 @@ DAMAGE_SOURCE_RECEIVER = re.compile(r"(^|\.)(source|damageSource|dmgSource|dmgSr
 # hasTag is hidden only on ItemStack (-> hasNBT); BlockContainerJS.hasTag(ResourceLocation) is KubeJS's own method
 # (contract 3.2.1, the FLK ground test), so a call on level.getBlock(...) is not a hidden name.
 BLOCK_RECEIVER = re.compile(r"(^|\.)getBlock\(.*\)$")
+# Rule recruits-team (contract 1.5, Appendix A rule 15 (b)).
+RECRUITS = re.compile(r"""(^|[\s'"])team\s+(add|remove|join|leave|empty|modify)\b""")
+STRING_LIT = re.compile(r"""'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*\"""")
+# Files whose console team commands are still being rewritten by their owner: reported as notes, not errors. The
+# integrator removes an entry once the rewrite has landed (the lint notes when the file is already clean). Empty since
+# the 1.5 integration: VISUAL's clade teams use the ServerScoreboard Java API (server_scripts/pne_visual.js was the only
+# entry; suite pack-lint-recruits keeps the mechanism tested with a synthetic entry).
+RECRUITS_PENDING = {}
+NOTES = []
 RENAMES_FILE = os.path.join(ROOT, "tools", "visual", "kjs_renames.py")
 RENAMES_ROW = re.compile(r'\(\s*\w+\s*,\s*"[^"]+"\s*,\s*"(\w+)"\s*,\s*"(\w+)"\s*,\s*(True|False)\s*\)')
 
@@ -410,6 +428,27 @@ def hidden_name_checks(rel, src, errors):
         last = w
 
 
+def recruits_checks(rel, src, errors):
+    """Rule recruits-team: no string literal holding a console team command (comments and regex literals ignored)."""
+    code, _ = strip(src, keep_strings=True)
+    hits = []
+    for ln, text in enumerate(code.split("\n"), 1):
+        for m in STRING_LIT.finditer(text):
+            if RECRUITS.search(m.group(0)):
+                hits.append((ln, m.group(0)))
+    if rel in RECRUITS_PENDING:
+        if hits:
+            NOTES.append(f"{rel}: recruits-team pending ({RECRUITS_PENDING[rel]}): {len(hits)} console team command literal(s), "
+                         f"first at line {hits[0][0]}; not an error until the entry is removed from RECRUITS_PENDING")
+        else:
+            NOTES.append(f"{rel}: no console team command left; remove it from RECRUITS_PENDING in tools/ci/kjs_lint.py")
+        return
+    for ln, lit in hits:
+        errors.append(f"{rel}:{ln}: recruits-team: {lit} is a console team command; Recruits cancels every server command with 'team' "
+                      f"plus add/remove/join/leave after the start (and turns 'team add' into a faction), and every command before "
+                      f"the start fails: change scoreboard teams through the ServerScoreboard Java API (contract 1.5, Appendix A rule 15)")
+
+
 def renames_table_check(errors):
     """HIDDEN must equal the fully hidden names of tools/visual/kjs_renames.py (checked against the KubeJS jar there)."""
     if not os.path.isfile(RENAMES_FILE):
@@ -468,10 +507,12 @@ def rel_of(p):
 
 def lint(paths, all_paths=None):
     errors = []
+    del NOTES[:]
     for p in paths:
         rel = rel_of(p)
         src = open(p, encoding="utf-8").read()
         header_checks(rel, src, errors)
+        recruits_checks(rel, src, errors)
         if rel not in LEGACY:
             es5_checks(rel, src, errors)
             hidden_name_checks(rel, src, errors)
@@ -489,6 +530,8 @@ def main(argv):
     every = sorted(glob.glob(os.path.join(KJS, "**", "*.js"), recursive=True))
     paths = argv[1:] or every
     errors = lint(paths, every)
+    for n in NOTES:
+        print("  note  " + n)
     for e in errors:
         print("  FAIL  " + e)
     print(f"kjs_lint: {len(paths)} file(s), {len(errors)} problem(s)")

@@ -44,6 +44,30 @@
 //     trip the core's API breaker and the core fallbacks take over (comfort players get no stinger, the ledger-off
 //     warning, pacing spawn 0 / GA 0 under mercy, no tell so Silent is dropped; the hive fallbacks clade -1 and no
 //     HiveInfo).
+//   * contract 1.5, the Recruits-safe start (spec D, pack_world.js): (a) no command before the start's loaded dispatch
+//     has finished nor before the core's first tick, (b) the 8 clade teams right at tick 200 after the start and the
+//     restart, (c) no console team command and no pne_ Recruits faction, (d) every live clade host VISUAL tracks on the
+//     team its clade and name want (not only the one VISUAL recorded), (e) the hive seed read after the start; in every
+//     variant with a restart ('full', 'diff-1-restart') the hive loads on its first tick after the restart, never inside
+//     ServerEvents.loaded (3.7), and the GA state it loads equals the one saved;
+//   * contract 1.5, the difficulty profiles, checked in every variant: global.pneDiffProfile and pneCoreDiffId() follow
+//     the vanilla difficulty within 2 s of a change; EPCA tier writes are exactly the ones the profile schedule needs
+//     (overworld Expert -> Normal on Easy/Peaceful and back on Normal/Hard; nothing on Hard; nothing without EPCA's
+//     classes); one gray notice per change and one login line per player; every Spore hit on a player is scaled by the
+//     profile's factor (0.5 / 0.70 / 1 / 1) and every other hit is not; The Hordes' HordeBuildSpawnDataEvent (fired
+//     at the Hive Night start) keeps 15 on Hard untouched, gives 12 on Normal and 9 on Easy, and on Peaceful is
+//     cancelled with the player's schedule moved past today (then no horde runs); /pne status, /pne hive status and
+//     /pne difficulty show the profile (line 4: 'doom clock: no raises' on Peaceful, else 'doom clock as Hard' with the
+//     next floor day once pne_horror.js has pneHDoomNext); on Peaceful no hive gene modifier is expressed and no natural spawn gets
+//     through within 48 blocks of a survival player once the director has written pne_m; nothing in the scenario picks
+//     an EPCA tier outside the pack, so no dimension is ever marked deliberate (no x.<dim> in pne_diff, no "chosen
+//     outside the pack" warning).
+// Difficulty runs ('difficulty', suites pack-difficulty and pack-difficulty-strict): vanilla Peaceful, Easy, Normal and
+// Hard (diff-0 .. diff-3), a mid-run Easy -> Hard -> Easy switch (diff-switch) and Easy across a /reload at t 6000 and a
+// world restart at t 9000 (diff-1-restart: pne_diff.w.<dim> and pne_diff_seen survive, so exactly one EPCA write, no
+// notice and one login line per player in the whole run). The matrix adds two rows of 1.5:
+// no-epca (EPCA's tier classes absent, on Easy) and no-diff-events (startup_scripts/pne_diff_events.js removed, on Easy:
+// Spore damage and waves unscaled, everything else follows the profile).
 // The dev variant 'quick' (3500 ticks, run only when named) also prints the /pne status lines and every live mob.
 
 var PS_SERVER_DIR = 'overrides/kubejs/server_scripts'
@@ -58,6 +82,15 @@ var PS_BAD_EFFECT = /(nausea|blindness|darkness|confusion)/
 // Deliberate NaN sentinels (read only through isFinite): VISUAL's host record yaw means "graft not synced yet"
 // (pne_visual.js pneVisYawSync: if (isFinite(r.yaw) && ...)).
 var PS_NAN_SENTINEL = /^pneVisHosts\.[0-9a-f-]+\.yaw$/
+// Contract 1.5 table A, typed from the spec (not read from the scripts): row 16 Spore-to-player damage, row 17 the wave
+// size of a 15-mob Hordes wave (Peaceful: cancelled), the hive's budget factor (row 10) and the profile names.
+var PS_SPORE_K = [0.5, 0.70, 1.0, 1.0]
+var PS_HORDE_15 = [-1, 9, 12, 15]
+var PS_GENES = ['0.00', '0.65', '0.85', '1.00']
+var PS_DIFF_NAMES = ['Peaceful', 'Easy', 'Normal', 'Hard']
+var PS_DIFF_DIMS = ['minecraft:overworld', 'minecraft:the_nether', 'minecraft:the_end']
+var PS_HORDE_BUILD = 'ForgeEvents.onEvent:net.smileycorp.hordes.common.event.HordeBuildSpawnDataEvent'
+var PS_GENE_UUID = /^706e6500-4869-7665-/
 
 var PS = null
 var PS_CTL = this
@@ -70,7 +103,9 @@ function psNew(v) {
     restart: false, cmds: {}, probeCmds: 0, effectsOnPlayers: 0, dispatcher: null, offAt: -1, onAt: -1, seenTeams: 0,
     oraWritesAfterOff: -1, logN: 0, conv: 0, resAfterOff: 0, watched: 0, graftsMax: 0, graftsBeforeOff: 0,
     prjHits: 0, prjScaled: 0, brokenCalls: 0, brokenFails: 0, tripAt: -1, tellsAtTrip: 0, packSoundsAtTrip: 0,
-    packSounds: 0, paceChecks: 0, hiveFallbackChecks: 0
+    packSounds: 0, paceChecks: 0, hiveFallbackChecks: 0,
+    gaAtLoaded: null, gaAfter: null, diffNotices: 0, diffLogins: {}, sporeHits: 0, sporeScaled: 0, otherHits: 0,
+    hordeBuilds: 0, hordeCancelled: 0, hordeAmounts: [], natNearAllowed: 0, diffChecks: 0
   }
 }
 
@@ -242,6 +277,23 @@ function psVulnNear(level, x, y, z) {
   return null
 }
 
+function psSurvivorNear(level, x, y, z, r) {
+  var i
+  var p
+  var dx
+  var dy
+  var dz
+  for (i = 0; i < PW.srv.players.length; i++) {
+    p = PW.srv.players[i]
+    if (p.removed || p.dead || p.creative || p.spectator || p.level !== level) continue
+    dx = p.x - x
+    dy = p.y - y
+    dz = p.z - z
+    if (dx * dx + dy * dy + dz * dz <= r * r) return true
+  }
+  return false
+}
+
 function psCoreLoaded() {
   return PW.server && typeof PW.server.PNE_CORE_API === 'number'
 }
@@ -252,8 +304,19 @@ function psOn(pillar) {
 
 function psInstallHooks() {
   PW.onCommand = function (c, r) {
+    var m
     if (/NaN|undefined|Infinity/.test(c)) psFail('command carries NaN/undefined/Infinity: ' + c.substring(0, 160))
     if (/^execute as \S+ at @s if entity @e\[type=#pne:/.test(c)) PS.probeCmds++
+    // the core's difficulty chat (contract 1.5): the mid-game notice goes to @a, the login line to one player
+    if (c.indexOf('tellraw ') === 0 && c.indexOf('[PNE] Difficulty') > 0) {
+      m = /^tellraw (\S+) /.exec(c)
+      if (c.indexOf('[PNE] Difficulty is now ') > 0) {
+        PS.diffNotices++
+        if (!m || m[1] !== '@a') psFail('the difficulty notice is not sent to @a: ' + c.substring(0, 120))
+      } else if (m) {
+        PS.diffLogins[m[1]] = (PS.diffLogins[m[1]] || 0) + 1
+      }
+    }
   }
   PW.onEffect = function (kind, targets, effect, c) {
     var i
@@ -419,8 +482,26 @@ function psMobStep(t) {
 
 function psHurtPlayer(p, dmg, m) {
   var done
+  var spore
+  var k
   if (p.dead || p.removed) return
+  // contract 1.5 row 16 (startup_scripts/pne_diff_events.js, LivingHurtEvent): a Spore mob's hit on a player lands at
+  // x0.5 / x0.70 / x1 / x1 for the profile the core mirrored into the shared global; every other hit is unscaled
+  spore = !!(m && String(m.typeId).indexOf('spore:') === 0)
+  k = (spore && PS.v.diffEv) ? PS_SPORE_K[psGlobalProfile()] : 1
   done = PW.hurt(p, dmg, PW.source('mob', m, m))
+  if (m && done > 0) {
+    if (Math.abs(done - dmg * k) > 1e-9) {
+      psFail((spore ? 'Spore' : 'non-Spore') + ' hit of ' + dmg + ' on ' + p.name + ' by ' + m.typeId + ' landed as ' + done + ' (want x' + k +
+        ', profile ' + psGlobalProfile() + (PS.v.diffEv ? '' : ', pne_diff_events.js absent') + ')')
+    }
+    if (spore) {
+      PS.sporeHits++
+      if (k < 1) PS.sporeScaled++
+    } else {
+      PS.otherHits++
+    }
+  }
   if (p.hp <= 0 && !p.dead) {
     PS.deathsPlayer++
     PW.killPlayer(p, PW.source('mob', m, m))
@@ -506,6 +587,9 @@ function psSpawnAround(p, idList, fresh, tags, gate, rmin, rmax) {
     return null
   }
   PS.natAllowed++
+  // Peaceful (contract 1.5): the director's spawn multiplier is 0 in every state, so pne_m 0 and the gate denies every
+  // natural parasite spawn within 48 blocks of a survival player once pne_m has been written (a 200-tick warm-up)
+  if (psDiffWant(PS.v, PS.t) === 0 && PS.t >= 200 && psSurvivorNear(p.level, x, 64, z, 48)) PS.natNearAllowed++
   if (vuln) {
     PS.natVulnAllowed++
     if (PS.v.gate && !(PW.srv.persistentData.contains('pne_cfg_spawn_gate') && PW.srv.persistentData.getInt('pne_cfg_spawn_gate') === 0)) {
@@ -568,17 +652,113 @@ function psHordeWave() {
   }
 }
 
+// Returns how many players' hordes started (start) or ended. At the start The Hordes first posts
+// HordeBuildSpawnDataEvent for the player (once per horde, HordeEvent.tryStartEvent); a cancelled one means no horde.
 function psHordeEvent(start) {
   var i
   var p
   var ev
+  var n = 0
   for (i = 0; i < PW.srv.players.length; i++) {
     p = PW.srv.players[i]
     if (p.removed || p.creative) continue
+    if (start && !psHordeBuild(p)) continue
     ev = { getPlayer: function () { return p }, isCanceled: function () { return false } }
     if (start) __pneMock.fire('ForgeEvents.onEvent:net.smileycorp.hordes.common.event.HordeStartWaveEvent', ev)
     else __pneMock.fire('ForgeEvents.onEvent:net.smileycorp.hordes.common.event.HordeEndEvent', ev)
+    n++
   }
+  return n
+}
+
+// The Hordes' HordeBuildSpawnDataEvent for one player (contract 1.5 row 17, startup_scripts/pne_diff_events.js at
+// LOWEST): a 15-mob wave on an overdue schedule (nextDay = today). Hard: untouched (setSpawnAmount never called, L5);
+// Normal 12, Easy 9 (max(1, floor(15 x k))); Peaceful: cancelled, and the player's nextDay moved past today first (a
+// cancel alone leaves the horde overdue: HordeEvent.tryStartEvent returns before setNextDay). Without the startup file
+// every profile keeps 15. HordeSavedData is not modelled, so the listener takes its fallback step (7 days). Returns
+// false when the horde is cancelled.
+function psHordeBuild(p) {
+  var day = Math.floor(PW.srv.dayTime / 24000)
+  var horde = { next: day }
+  var data = { amount: 15, sets: 0 }
+  var ev = { canceled: false }
+  var prof = psGlobalProfile()
+  var want
+  horde.getCurrentDay = function () { return day }
+  horde.getNextDay = function () { return horde.next }
+  horde.setNextDay = function (n) { horde.next = Number(n) }
+  data.getSpawnAmount = function () { return data.amount }
+  data.setSpawnAmount = function (n) {
+    data.sets++
+    data.amount = Number(n)
+  }
+  ev.getHorde = function () { return horde }
+  ev.getPlayer = function () { return p }
+  ev.getDay = function () { return day }
+  ev.getEntityWorld = function () { return p.level }
+  ev.getSpawnData = function () { return data }
+  ev.setCanceled = function (b) { ev.canceled = b === true }
+  ev.isCanceled = function () { return ev.canceled }
+  __pneMock.fire(PS_HORDE_BUILD, ev)
+  PS.hordeBuilds++
+  PS.hordeAmounts.push(ev.canceled ? 'cancelled' : data.amount)
+  if (!PS.v.diffEv || prof === 3) {
+    if (ev.canceled || data.amount !== 15 || data.sets !== 0) {
+      psFail('Hordes build event touched on ' + (PS.v.diffEv ? 'Hard' : 'a run without pne_diff_events.js') + ' (profile ' + prof + '): cancelled ' +
+        ev.canceled + ', amount ' + data.amount + ', setSpawnAmount calls ' + data.sets)
+    }
+  } else if (prof === 0) {
+    PS.hordeCancelled++
+    if (!ev.canceled || !(horde.next > day)) psFail('Peaceful: the Hordes build event was not cancelled with the schedule moved (cancelled ' + ev.canceled + ', nextDay ' + horde.next + ', today ' + day + ')')
+  } else {
+    want = PS_HORDE_15[prof]
+    if (ev.canceled || data.amount !== want) psFail('profile ' + prof + ': a 15-mob Hordes wave became ' + (ev.canceled ? 'cancelled' : data.amount) + ' (want ' + want + ')')
+  }
+  return !ev.canceled
+}
+
+// The profile id the startup scripts read (global.pneDiffProfile, a wrapped Double in game, F6); 3 when absent.
+function psGlobalProfile() {
+  var v = global.pneDiffProfile
+  var p = (v === undefined || v === null) ? 3 : Number(v)
+  return (p >= 0 && p <= 3) ? Math.floor(p) : 3
+}
+
+// The vanilla difficulty the variant sets at tick t (diff0 at the start, then the diffAt schedule), and the tick of
+// the last change at or before t (0: the start).
+function psDiffWant(v, t) {
+  var d = v.diff0 === undefined ? 3 : v.diff0
+  var i
+  for (i = 0; v.diffAt && i < v.diffAt.length; i++) {
+    if (t >= v.diffAt[i][0]) d = v.diffAt[i][1]
+  }
+  return d
+}
+
+function psDiffSince(v, t) {
+  var s = 0
+  var i
+  for (i = 0; v.diffAt && i < v.diffAt.length; i++) {
+    if (t >= v.diffAt[i][0]) s = v.diffAt[i][0]
+  }
+  return s
+}
+
+// Every 20 ticks: the core's profile and the shared global follow the vanilla difficulty within 2 s of a change.
+function psDiffCheck(v, t) {
+  var want
+  var got
+  if (!psCoreLoaded() || t < 2 || t - psDiffSince(v, t) < 40) return
+  if (typeof PW.server.pneCoreDiffId !== 'function') {
+    if (!PS.noDiffApi) psFail('the core has no difficulty profiles (pneCoreDiffId missing: a pre-1.5 core)')
+    PS.noDiffApi = true
+    return
+  }
+  want = psDiffWant(v, t)
+  got = global.pneDiffProfile
+  PS.diffChecks++
+  if (got === undefined || got === null || Number(got) !== want) psFail('global.pneDiffProfile is ' + got + ' (want ' + want + ', vanilla ' + PW.srv.difficulty + ')')
+  if (Number(PW.server.pneCoreDiffId()) !== want) psFail('pneCoreDiffId() is ' + PW.server.pneCoreDiffId() + ' (want ' + want + ')')
 }
 
 // The hive backstop (contract 3.3): a fresh genome-less mob near a player in mercy/grace is discarded in the newborn
@@ -813,6 +993,7 @@ function psStart(v) {
   var srv = PW.newServer()
   var i
   var pd
+  srv.difficulty = v.diff0 === undefined ? 3 : v.diff0
   srv.dayTime = v.day0
   srv.gameTime = v.day0 + 1000
   srv.persistentData.putInt('pne_doom_floor', 20000)
@@ -874,6 +1055,8 @@ function psRestart(v) {
   srv.tickCount = 0
   srv.gameTime = old.gameTime
   srv.dayTime = old.dayTime
+  srv.difficulty = old.difficulty
+  srv.hardcore = old.hardcore
   srv.persistentData = PW.copyNbt(old.persistentData)
   srv.getPersistentData = function () { return srv.persistentData }
   __pneVisMock.world = {}
@@ -893,7 +1076,11 @@ function psRestart(v) {
   }
   psLoadServer(v.drop)
   __pneMock.fire('ServerEvents.loaded', { server: srv })
-  PS.gaAfter = psGaSnap()
+  // contract 1.5 (3.7, Appendix A rule 15): the hive loads on its first tick after the start, never inside
+  // ServerEvents.loaded, so nothing may be loaded yet; the state it loads is taken right before it declares the epoch
+  // (before any drain or GA work of that tick) and must equal the state saved at the stop
+  PS.gaAtLoaded = psGaSnap()
+  psHookEpoch(PW.server)
   for (i = 0; i < srv.players.length; i++) psLogin(srv.players[i])
   for (i = 0; i < ents.length; i++) {
     e = ents[i]
@@ -915,6 +1102,22 @@ function psRestart(v) {
   PS.restart = true
 }
 
+// Wraps PNE_HIVE_GA.epoch once: the first call (the hive's first tick after the restart) snapshots the loaded GA state
+// into PS.gaAfter, then restores the real function.
+function psHookEpoch(sc) {
+  var GA
+  var real
+  if (!sc || typeof sc.PNE_HIVE_GA !== 'object' || !sc.PNE_HIVE_GA) return
+  GA = sc.PNE_HIVE_GA
+  real = GA.epoch
+  if (typeof real !== 'function') return
+  GA.epoch = function (st, ep) {
+    GA.epoch = real
+    PS.gaAfter = psGaSnap()
+    return real.call(GA, st, ep)
+  }
+}
+
 // ---------------------------------------------------------------------------------------------
 // One tick of the scenario
 
@@ -928,15 +1131,19 @@ function psTick(v, t) {
   srv.gameTime++
   srv.dayTime++
   PS.t = t
+  // the pause menu's difficulty switch (MinecraftServer.setDifficulty writes the world data at once)
+  for (i = 0; v.diffAt && i < v.diffAt.length; i++) {
+    if (t === v.diffAt[i][0]) srv.difficulty = v.diffAt[i][1]
+  }
   PW.runPending()
   dt = srv.dayTime % 24000
   psMobStep(t)
   psPlayerStep(t)
   if (t % 20 === 7) psNaturalSpawns(t)
-  // one Hive Night: the first night the variant sees (The Hordes' start event, then a wave every 2000 ticks)
+  // one Hive Night: the first night the variant sees (The Hordes' build and start events, then a wave every 2000 ticks;
+  // on Peaceful the build event is cancelled and no horde runs)
   if (!PS.horde && !PS.hordeDone && dt >= 13000 && dt < 22000) {
-    psHordeEvent(true)
-    PS.horde = true
+    PS.horde = psHordeEvent(true) > 0
     PS.hordeDone = true
   }
   if (PS.horde && dt % 2000 === 0 && dt >= 13000 && dt < 23000) psHordeWave()
@@ -1002,6 +1209,7 @@ function psTick(v, t) {
     PS.natWatch = psWatch(PS.natWatch, 'natural', t)
     psSilentCheck(t)
     psPillarChecks(v, t)
+    psDiffCheck(v, t)
   }
   if (t % 100 === 0) psLogScan()
   if (v.dev && t % 250 === 0) psTrace(t)
@@ -1053,12 +1261,13 @@ function psBrokenStep(t) {
 
 function psStatusCommands() {
   var lines = [PW.logs.length]
-  var words = ['pne status', 'pne hive status', 'pne resonance status', 'pne oracle status', 'pne visual status', 'pne', 'pne config']
+  var words = ['pne status', 'pne hive status', 'pne resonance status', 'pne oracle status', 'pne visual status', 'pne', 'pne config',
+    'pne difficulty']
   var i
   var r
   var tell0 = 0
   var need = {
-    'pne status': true, pne: true, 'pne config': true, 'pne hive status': PS.v.hive && PS.v.ga,
+    'pne status': true, pne: true, 'pne config': true, 'pne difficulty': true, 'pne hive status': PS.v.hive && PS.v.ga,
     'pne resonance status': PS.v.director, 'pne oracle status': PS.v.oracle, 'pne visual status': PS.v.visual
   }
   for (i = 0; i < words.length; i++) {
@@ -1166,12 +1375,17 @@ function psExpect(v) {
   var qd
   var ql
   var probes = PS.probeCmds
-  if (v.name === 'full') {
+  // every variant with a world restart ('full' on Hard, 'diff-1-restart' on Easy)
+  if (v.restartAt) {
+    if (!PS.restart) psFail('restart: the variant never restarted (restartAt ' + v.restartAt + ')')
+    if (PS.gaAtLoaded) psFail('restart: the hive loaded inside ServerEvents.loaded (contract 1.5: it loads on its first tick after the start)')
     if (!PS.gaBefore || !PS.gaAfter) psFail('restart: no GA state before or after (' + JSON.stringify(PS.gaBefore) + ' / ' + JSON.stringify(PS.gaAfter) + ')')
     else if (PS.gaBefore.hash !== PS.gaAfter.hash || PS.gaBefore.gen !== PS.gaAfter.gen || PS.gaBefore.pool !== PS.gaAfter.pool ||
       Math.abs(PS.gaBefore.gov - PS.gaAfter.gov) > 1e-9) {
       psFail('restart changed the GA state: ' + JSON.stringify(PS.gaBefore) + ' -> ' + JSON.stringify(PS.gaAfter))
     }
+  }
+  if (v.name === 'full') {
     if (g < 5) psFail('full: only ' + g + ' live genome mobs at the end')
     if (PS.backstopOk < 1) psFail('full: the backstop never discarded a fresh mob next to a player in mercy/grace')
     if (PS.resSounds < 1) psFail('full: no Resonance sound in two days')
@@ -1240,6 +1454,150 @@ function psExpect(v) {
     if (PS.oraWritesAfterOff > 1) psFail('oracle off: ' + PS.oraWritesAfterOff + ' telemetry.json writes after the switch (want 1)')
   }
   if (v.off === 'hive' && PS.newGenomeWhileOff > 0) psFail('hive off: ' + PS.newGenomeWhileOff + ' new genome mobs while the hive was off')
+  psDiffExpect(v)
+}
+
+// The chat lines one /pne command sends (the texts as the client shows them: the JSON decoded).
+function psReplies(input, player, level) {
+  var r
+  PW.tellraws = []
+  r = psCmd(input, player, level)
+  return { r: r, lines: PW.tellraws.slice(0), text: PW.tellraws.join(' | ') }
+}
+
+// The doom part of /pne difficulty line 4 (contract 6.3) that the core may print now, as a list of accepted texts.
+// Peaceful: 'doom clock: no raises'. Otherwise 'doom clock as Hard' (L1: Easy and Normal keep the Hard days), and, once
+// pne_horror.js has DIRECTOR's read-only pneHDoomNext (3.2.1), the next floor: the first Hard doom day (3.8 row 6, typed
+// from the spec) above the day the doom clock last read, which is today or, when the day turned after its last
+// 1200-tick run, yesterday; day 0 is never raised (1.4), so a clock that has only seen day 0 may still say nothing.
+function psDoomWant(fin) {
+  var days = [6, 12, 20, 32, 48, 62, 76, 88, 96, 100]
+  var day = Math.floor(PW.srv.dayTime / 24000)
+  var out = []
+  var d
+  var i
+  var n
+  var s
+  if (fin === 0) return ['doom clock: no raises']
+  if (typeof PW.server.pneHDoomNext !== 'function') return ['doom clock as Hard']
+  for (d = day; d >= day - 1 && d >= 0; d--) {
+    n = -1
+    for (i = 0; i < days.length && n < 0; i++) {
+      if (days[i] > d) n = days[i]
+    }
+    s = 'doom clock as Hard (' + (n > 0 ? 'next floor day ' + n : 'all floors reached') + ')'
+    if (!psHas(out, s)) out.push(s)
+    if (d === 0) out.push('doom clock as Hard')
+  }
+  return out
+}
+
+// Contract 1.5 expectations at the end of every variant (the difficulty profiles; see the header).
+function psDiffExpect(v) {
+  var sc = PW.server
+  var fin = psDiffWant(v, v.ticks)
+  var want = []
+  var cur = 2
+  var got = []
+  var other = []
+  var seq = [v.diff0 === undefined ? 3 : v.diff0]
+  var epca = v.epca !== false
+  var i
+  var k
+  var n
+  var tgt
+  var st
+  var hs
+  var dd
+  var mods = 0
+  var ms
+  var id
+  var want4
+  var ok4
+  if (!psCoreLoaded()) {
+    if (PW.epca && PW.epca.writes.length) psFail('EPCA tier written without the core: ' + JSON.stringify(PW.epca.writes))
+    return
+  }
+  for (i = 0; v.diffAt && i < v.diffAt.length; i++) seq.push(v.diffAt[i][1])
+  // EPCA (section B): the overworld of a single-player world starts at the pack default EXPERT (2); Easy and Peaceful
+  // want NORMAL (1), Normal and Hard the baseline; only changes are written, nothing else ever
+  for (i = 0; epca && i < seq.length; i++) {
+    tgt = seq[i] <= 1 ? 1 : 2
+    if (tgt !== cur) want.push(tgt)
+    cur = tgt
+  }
+  for (i = 0; PW.epca && i < PW.epca.writes.length; i++) {
+    if (PW.epca.writes[i].dim === 'minecraft:overworld') got.push(PW.epca.writes[i].id)
+    else other.push(PW.epca.writes[i].dim + '=' + PW.epca.writes[i].id)
+  }
+  if (got.join(',') !== want.join(',') || other.length) {
+    psFail('EPCA tier writes ' + JSON.stringify(got) + (other.length ? ' plus ' + other.join(', ') : '') + ' for the profiles ' + JSON.stringify(seq) +
+      ' (want overworld ' + JSON.stringify(want) + (epca ? '' : ', EPCA classes absent') + ')')
+  }
+  // nothing in the scenario picks an EPCA tier outside the pack, so no pack-managed dimension may ever be marked
+  // deliberate (x.<dim>, the 'epca.x' warning): after a /reload or a restart the pack must recognise its own earlier
+  // write through w.<dim> (diff-1-restart)
+  for (i = 0; i < PW.logs.length; i++) {
+    if (PW.logs[i].msg.indexOf('was chosen outside the pack') >= 0) {
+      psFail('EPCA: a pack-managed dimension was marked as chosen outside the pack at t=' + PW.logs[i].t + ': ' + PW.logs[i].msg.substring(0, 160))
+      break
+    }
+  }
+  dd = PW.srv.persistentData.contains('pne_diff') ? PW.srv.persistentData.getCompound('pne_diff') : null
+  for (i = 0; dd && i < PS_DIFF_DIMS.length; i++) {
+    if (dd.contains('x.' + PS_DIFF_DIMS[i])) psFail('EPCA: pne_diff marks ' + PS_DIFF_DIMS[i] + ' deliberate (x.' + PS_DIFF_DIMS[i] + ') although nothing outside the pack chose its tier')
+  }
+  dd = null
+  if (PS.diffNotices !== seq.length - 1) psFail(PS.diffNotices + ' difficulty notices for ' + (seq.length - 1) + ' change(s)')
+  for (i = 0; i < PW.srv.players.length; i++) {
+    n = PS.diffLogins[PW.srv.players[i].uuid] || 0
+    if (n !== 1) psFail(PW.srv.players[i].name + ' got ' + n + ' difficulty login lines (want exactly 1 in the whole run)')
+  }
+  // the status lines and /pne difficulty name the profile (and the EPCA state)
+  if (PS.dispatcher) {
+    st = psReplies('pne status', PS.bob, 0)
+    k = 'difficulty: ' + PS_DIFF_NAMES[fin] + ' (vanilla ' + PS_DIFF_NAMES[fin] + ', auto); ' +
+      (epca ? 'EPCA overworld ' + (fin <= 1 ? 'Normal' : 'Expert') + ' (managed)' : 'EPCA tier unavailable')
+    if (st.text.indexOf(k) < 0) psFail('/pne status lacks "' + k + '": ' + st.text.substring(0, 400))
+    dd = psReplies('pne difficulty', PS.bob, 0)
+    if (dd.r !== 1 || dd.lines.length !== 4 || dd.lines[0].indexOf('difficulty: vanilla ' + PS_DIFF_NAMES[fin] + ' -> profile ' + PS_DIFF_NAMES[fin] + ' (follows vanilla') !== 0 ||
+        dd.lines[1].indexOf(epca ? 'EPCA tier: overworld ' + (fin <= 1 ? 'Normal' : 'Expert') + ' (pack-managed)' : 'EPCA tier unavailable') !== 0) {
+      psFail('/pne difficulty (' + dd.r + '): ' + dd.text.substring(0, 400))
+    }
+    // line 4's doom part (6.3): no raises on Peaceful, else as Hard with the next floor day when horror can tell it
+    want4 = psDoomWant(fin)
+    ok4 = false
+    for (i = 0; i < want4.length && dd.lines.length === 4; i++) {
+      if (dd.lines[3].indexOf(want4[i] + '; spawns CALM ') === 0) ok4 = true
+    }
+    PS.doomLine = dd.lines.length === 4 ? String(dd.lines[3]).split(';')[0] : ''
+    if (!ok4) psFail('/pne difficulty line 4 (want "' + want4.join('" or "') + '; spawns CALM ..."): ' + (dd.lines.length === 4 ? dd.lines[3] : dd.text).substring(0, 300))
+    if (v.hive && v.ga && psOn('hive')) {
+      hs = psReplies('pne hive status', PS.bob, 0)
+      if (hs.text.indexOf('diff x' + PS_GENES[fin]) < 0) psFail('/pne hive status lacks "diff x' + PS_GENES[fin] + '": ' + hs.text.substring(0, 300))
+    }
+  }
+  // Peaceful: the hive gives genomes but no gene modifier; the gate lets no natural spawn through near a survival player
+  if (seq.join(',') === '0') {
+    ms = psMobs()
+    for (i = 0; i < ms.length; i++) {
+      for (id in ms[i].attrInst) {
+        if (!ms[i].attrInst.hasOwnProperty(id)) continue
+        for (k in ms[i].attrInst[id].perm) {
+          if (ms[i].attrInst[id].perm.hasOwnProperty(k) && PS_GENE_UUID.test(k)) mods++
+        }
+        for (k in ms[i].attrInst[id].trans) {
+          if (ms[i].attrInst[id].trans.hasOwnProperty(k) && PS_GENE_UUID.test(k)) mods++
+        }
+      }
+    }
+    if (mods) psFail('Peaceful: ' + mods + ' hive gene modifier(s) on live mobs (the budget factor is 0)')
+    if (v.hive && v.ga && psGenomeMobs() < 1) psFail('Peaceful: the hive gave no genome at all (it keeps breeding and tagging)')
+    if (v.director && v.gate && PS.natNearAllowed > 0) psFail('Peaceful: ' + PS.natNearAllowed + ' natural spawn(s) allowed within 48 blocks of a survival player')
+    if (PS.hordeBuilds > 0 && PS.hordeCancelled !== PS.hordeBuilds && v.diffEv) psFail('Peaceful: ' + (PS.hordeBuilds - PS.hordeCancelled) + ' horde(s) not cancelled')
+  }
+  if (PS.hordeBuilds < 1 && v.ticks >= 14500) psFail('the Hive Night never fired the Hordes build event')
+  if (v.diffEv && psHas(seq, 1) && PS.sporeHits > 0 && PS.sporeScaled < 1) psFail('Easy: none of ' + PS.sporeHits + ' Spore hits on players was scaled')
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1262,6 +1620,20 @@ var PS_VARIANTS = [
   { name: 'off-hive', off: 'hive' },
   { name: 'off-oracle', off: 'oracle' },
   { name: 'off-visual', off: 'visual' },
+  // contract 1.5 degradation rows: EPCA's tier classes absent, and the new startup file removed (both on Easy, where
+  // they matter; the rest of the matrix runs at the mock's default vanilla Hard)
+  { name: 'no-epca', epca: false, diff0: 1 },
+  { name: 'no-diff-events', drop: ['startup_scripts/pne_diff_events.js'], diff0: 1 },
+  // contract 1.5 difficulty runs (group 'difficulty': suites pack-difficulty and pack-difficulty-strict)
+  { name: 'diff-0', diff0: 0, group: 'difficulty' },
+  { name: 'diff-1', diff0: 1, group: 'difficulty' },
+  { name: 'diff-2', diff0: 2, group: 'difficulty' },
+  { name: 'diff-3', diff0: 3, group: 'difficulty' },
+  { name: 'diff-switch', diff0: 1, diffAt: [[4000, 3], [9000, 1]], group: 'difficulty' },
+  // Easy across a /reload and a world restart: pne_diff.w.<dim> must survive, so the managed overworld is neither
+  // written again nor marked deliberate, and no notice or second login line follows (the only restart runs otherwise
+  // are 'full', on Hard, where w is never written)
+  { name: 'diff-1-restart', diff0: 1, reloadAt: 6000, restartAt: 9000, group: 'difficulty' },
   { name: 'quick', ticks: 3500, day0: 13500, dev: true }
 ]
 
@@ -1279,6 +1651,7 @@ function psPrepare(v) {
   v.oracle = !psHas(d, 'server_scripts/pne_oracle_bridge.js')
   v.catalog = !psHas(d, 'server_scripts/pne_res_catalog.js')
   v.visual = !psHas(d, 'server_scripts/pne_visual.js')
+  v.diffEv = !psHas(d, 'startup_scripts/pne_diff_events.js')
   return v
 }
 
@@ -1322,6 +1695,9 @@ function psRunVariant(v) {
   var tell
   psPrepare(v)
   psResetWorld()
+  // EPCA's tier classes: present unless the variant is the EPCA-absent row (a fresh mock per variant, pack_world.js)
+  PW.opts.epca = v.epca !== false
+  PW.epcaInstall()
   PS = psNew(v)
   psInstallHooks()
   psStart(v)
@@ -1357,7 +1733,13 @@ function psRunVariant(v) {
     '; PRJ arrow hits scaled ' + PS.prjScaled + '/' + PS.prjHits +
     (v.broken ? '; API breaker tripped at t=' + PS.tripAt + ' after ' + PS.brokenCalls + ' failed calls (' + PS.brokenFails + ' expected module failures)' : '') +
     (v.off === 'visual' ? ' (before the switch ' + PS.graftsBeforeOff + ')' : '') + '; commands ' + PW.cmdN +
-    (PS.gaAfter ? '; GA after restart ' + JSON.stringify(PS.gaAfter) : '') + (PS.linked !== undefined ? '; linked conversions ' + PS.linked + '/' + PS.conv : '')
+    (PS.gaAfter ? '; GA after restart ' + JSON.stringify(PS.gaAfter) : '') + (PS.linked !== undefined ? '; linked conversions ' + PS.linked + '/' + PS.conv : '') +
+    '; vanilla ' + (v.diff0 === undefined ? 3 : v.diff0) + (v.diffAt ? v.diffAt.map(function (a) { return '->' + a[1] + '@' + a[0] }).join('') : '') +
+    ' (profile checks ' + PS.diffChecks + ')' + (v.epca === false ? ', EPCA absent' : '') + '; EPCA writes ' +
+    (PW.epca ? PW.epca.writes.map(function (w) { return w.dim.replace(/^minecraft:/, '') + '=' + w.id }).join(',') || 'none' : 'none') +
+    '; notices ' + PS.diffNotices + '; Spore hits scaled ' + PS.sporeScaled + '/' + PS.sporeHits + ' (other hits ' + PS.otherHits + ')' +
+    '; Hordes build ' + PS.hordeAmounts.join(',') + (PS.natNearAllowed ? '; Peaceful near-player natural spawns ' + PS.natNearAllowed : '') +
+    (PS.doomLine ? '; /pne difficulty "' + PS.doomLine + '"' : '')
   return line
 }
 
@@ -1426,7 +1808,10 @@ function pnePackMain(which, mode, root) {
   }
   for (i = 0; i < PS_VARIANTS.length; i++) {
     v = PS_VARIANTS[i]
-    if (!psHas(names, v.name) && (v.dev || (names[0] !== 'all' && !(names[0] === 'matrix' && v.name !== 'full')))) continue
+    // by name; 'all' (every variant but the dev one); 'matrix' (every one but 'full' and the groups); a group name
+    // ('difficulty')
+    if (!psHas(names, v.name) && (v.dev || (names[0] !== 'all' && !(names[0] === 'matrix' && v.name !== 'full' && !v.group) &&
+        !(v.group && names[0] === v.group)))) continue
     lines.push(psRunVariant(v))
     __pack.out('  ' + lines[lines.length - 1])
     fails = fails.concat(PS.fails)

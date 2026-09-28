@@ -1,10 +1,20 @@
 // Tests for overrides/kubejs/server_scripts/pne_visual.js on the mock world. ES5; the same file runs in Node
 // (suite visual-node) and in the real Rhino fork (suite visual-rhino). Files, in order: tools/tests/kjs_mocks.js,
 // tools/visual/vis_prelude.js, pne_00_core.js, pne_visual.js, this file. Result: pneVisTestResult ("PASS n ..." or
-// "FAIL ...").
+// "FAIL ..."). A check that waits on a change outside VISUAL's files is reported after the PASS line as
+// "; PENDING <what>" instead of failing the suite; today that is VIS-1 (the core's tellraw replies must escape "team"),
+// which turns into a normal assertion as soon as the core escapes.
 //
-// Covers: clade teams (options incl. collisionRule always, repair of an old rule, assignment, moves, removal, leak
-// sweep, name tags given later), grafts only on engaged hosts (a host that targets no player never carries one; the
+// Covers: the Recruits-safe start (contract 1.5, spec D, Appendix A rule 15: nothing before the core's pneCoreStarted,
+// applies and removals queued until then, pneVisCmd 0 before the start, the teams set up on the first tick through the
+// ServerScoreboard Java API only, the friendly-fire options Recruits resets repaired after every start, a failed setup
+// retried after 20, 40, 80 ... 1200 ticks with exactly one warning and never trusted while one team fails its
+// read-back, a team deleted while ready set up again on the next tick, joins and leaves (apply, scan and off sweep)
+// counted only when the scoreboard reads them back, the status count "teams N/8" read back team by team, never a
+// console command whose text holds "team" (rule 15 (b)), replies reaching a player whose UUID contains "add" with
+// Recruits installed, and the vis_prelude Recruits model answering 1 to a team command without running it), clade
+// teams (options incl. collisionRule always, repair of an old rule, assignment,
+// moves, removal, leak sweep, name tags given later), grafts only on engaged hosts (a host that targets no player never carries one; the
 // graft goes PNE_VIS_LINGER ticks after the target is lost and comes back when it returns), graft caps (<= 1 per
 // host, <= 15% of the live engaged hive, also after hosts unload or die; stage >= 4; the scan retries every host
 // fairly, including after a failed summon; summons draw their own tokens), graft bookkeeping (tag, pne_host,
@@ -13,10 +23,11 @@
 // tag and name removal after the pillar switch even for hosts unloaded at the time), trait particles (<= 0.5 Hz,
 // only near players), the deferred visApply / removal queues, the pillar switch, rejoin after a chunk reload,
 // rediscovery after a reload, multi-dimension hosts, the /pne visual commands, and that no command ever moves a
-// camera, applies an effect or changes team collision.
+// camera, applies an effect or names a team, and no scoreboard write sets a collision rule other than always.
 
 var pneVisTestFails = []
 var pneVisTestN = 0
+var pneVisTestPending = []   // checks that wait on a lead change outside VISUAL's files, reported after PASS
 var pneHiveInfo = null   // test double for the hive, installed later (typeof null !== 'function')
 
 function pneVisT(cond, msg) {
@@ -61,6 +72,39 @@ function pneVisTLogSince(k, rx) {
   var i
   for (i = k; i < __pneVisMock.log.length; i++) {
     if (rx.test(__pneVisMock.log[i].c)) out.push(__pneVisMock.log[i])
+  }
+  return out
+}
+
+// Scoreboard writes (vis_prelude's __pneVisMock.sbLog) since index k, of one op, whose entry matches rx (optional).
+function pneVisTSbSince(k, op, rx) {
+  var out = []
+  var i
+  var w
+  for (i = k; i < __pneVisMock.sbLog.length; i++) {
+    w = __pneVisMock.sbLog[i]
+    if (w.op === op && (!rx || rx.test(w.a))) out.push(w)
+  }
+  return out
+}
+
+// The texts of the tellraw replies to `target` among the commands cmds, as the client reads their JSON, and the
+// commands whose text holds "team" (Appendix A rule 15 (b)).
+function pneVisTReplies(cmds, target) {
+  var pre = 'tellraw ' + target + ' '
+  var out = { texts: [], team: [], n: 0 }
+  var i
+  var c
+  for (i = 0; i < cmds.length; i++) {
+    c = String(cmds[i])
+    if (c.indexOf(pre) !== 0) continue
+    out.n++
+    if (c.indexOf('team') >= 0) out.team.push(c)
+    try {
+      out.texts.push(String(JSON.parse(c.substring(pre.length)).text))
+    } catch (e) {
+      out.texts.push('?unreadable ' + c)
+    }
   }
   return out
 }
@@ -204,25 +248,193 @@ function pneVisTRun() {
   var origStep
   var cap
   var live
+  var early
+  var earlyRm
+  var attempts
+  var origEnsure
+  var sb0
+  var jh
+  var deltas
+  var guard
+  var tt
+  var orphanKills
+  var addy
+  var esc
+  var texts
+  var rp
+  var vis1Pending = false
 
-  // ---- load: teams are created on server load with the binding options. A team left by an older version with
-  // collisionRule pushOtherTeams (which in 1.20.1 stops members from pushing players and other mobs) is repaired.
-  srv.runCommandSilent('team add pne_clade_0')
-  srv.runCommandSilent('team modify pne_clade_0 collisionRule pushOtherTeams')
+  // ---- start gating (contract 1.5, Appendix A rule 15): ServerEvents.loaded runs before Recruits is ready, so nothing
+  // may issue a command or write the scoreboard until the core's first tick sets pneCoreStarted. The vis_prelude
+  // Recruits model is on for the whole test: a command before the start fails (0), a command naming a team is cancelled
+  // (1). A team left by an older version with collisionRule pushOtherTeams (which in 1.20.1 stops members from pushing
+  // players and other mobs), and with the friendly-fire options Recruits resets at every start, is repaired.
+  __pneVisMock.recruits = true
+  __pneVisMock.addTeam(srv, 'pne_clade_0', { collisionRule: 'pushOtherTeams', friendlyFire: false, seeFriendlyInvisibles: false })
   setupLog = __pneVisMock.log.length
+  sb0 = __pneVisMock.sbLog.length
   __pneMock.fire('ServerEvents.loaded', { server: srv })
+  pneVisT(pneCoreStarted === false, 'the core start flag is false after ServerEvents.loaded')
+  pneVisT(typeof pneVisOnLoaded === 'undefined', 'VISUAL registers no ServerEvents.loaded handler (pneVisOnLoaded is gone)')
+  early = __pneMock.mob(srv, 'epca:ripper', { uuid: pneVisTU(7), x: 5, z: 5 })
+  earlyRm = __pneMock.mob(srv, 'epca:ripper', { uuid: pneVisTU(8), x: 5, z: 6 })
+  __pneVisMock.join(srv, 'pne_clade_0', earlyRm.uuid)
+  pneVisTFresh()
+  pneVisApply(early, pneVisTI(2, false, 0, 2))
+  pneVisRemove(earlyRm)
+  pneVisT(pneVisApplyOrder.length === 1 && pneVisRemoveOrder.length === 1, 'before the start an apply and a removal only queue')
+  pneVisT(pneVisCmd(srv, 'kill ' + pneVisGraftUuid(early.uuid)) === 0, 'pneVisCmd returns 0 before the start')
+  pneVisT(pneVisEnsureTeams(srv) === 0 && !pneVisTeamsReady, 'no team setup before the start')
+  pneVisT(pneVisTeamJoin(srv, early.uuid, 'pne_clade_0') === false && pneVisTeamLeave(srv, earlyRm.uuid) === false,
+    'no join or leave before the start')
+  pneVisT(__pneVisMock.log.length === setupLog && __pneVisMock.early.length === 0, 'no command reached the server before the start')
+  pneVisT(__pneVisMock.sbLog.length === sb0 && !srv.sb.teams.hasOwnProperty('pne_clade_1'), 'no scoreboard write before the start')
   srv.tickCount = 999
   __pneMock.tick(srv, 1)
+  pneVisT(pneCoreStarted === true, 'the first tick starts the server')
   names = pneVisTeamNames()
   pneVisT(names.length === 8, 'eight teams: pne_clade_0..3 and their _named siblings')
   for (i = 0; i < 4; i++) {
-    pneVisT(srv.sb.teams.hasOwnProperty('pne_clade_' + i), 'team pne_clade_' + i + ' exists after server load')
+    pneVisT(srv.sb.teams.hasOwnProperty('pne_clade_' + i), 'team pne_clade_' + i + ' exists after the first tick')
     pneVisT(srv.sb.teams['pne_clade_' + i].nametagVisibility === 'never', 'pne_clade_' + i + ' nametagVisibility never')
     pneVisT(srv.sb.teams['pne_clade_' + i].collisionRule === 'always', 'pne_clade_' + i + ' collisionRule always (vanilla pushing)')
     pneVisT(srv.sb.teams['pne_clade_' + i + '_named'].nametagVisibility === 'always', 'pne_clade_' + i + '_named shows names')
     pneVisT(srv.sb.teams['pne_clade_' + i + '_named'].collisionRule === 'always', 'pne_clade_' + i + '_named collisionRule always')
   }
-  pneVisT(pneVisTeamsReady === true, 'teams marked ready')
+  ok = true
+  for (i = 0; i < names.length; i++) {
+    tt = srv.sb.teams[names[i]]
+    if (!tt || tt.friendlyFire === false || tt.seeFriendlyInvisibles === false) ok = false
+  }
+  pneVisT(ok, 'every clade team has friendly fire and seeing invisible team mates on (Recruits reset repaired)')
+  pneVisT(pneVisTeamsReady === true && pneVisTeamsOk === 8 && pneVisTeamsFails === 0, 'teams marked ready after all 8 read back')
+  ok = pneVisTSbSince(sb0, 'addTeam').length === 7
+  for (i = sb0; i < __pneVisMock.sbLog.length; i++) {
+    if (!__pneVisMock.sbLog[i].started || __pneVisMock.sbLog[i].t !== 1000) ok = false
+  }
+  pneVisT(ok, 'all team writes happen on the first tick after the start (7 teams added, the old one repaired)')
+  pneVisT(__pneVisMock.teamOf(srv, early.uuid) === 'pne_clade_2' && pneVisHosts[early.uuid].team === 'pne_clade_2',
+    'the apply queued before the start ran on the first tick, after the team setup')
+  pneVisT(__pneVisMock.teamOf(srv, earlyRm.uuid) === '', 'the removal queued before the start ran on the first tick')
+  pneVisRemove(early)
+  pneVisT(pneVisStatusLine(null).indexOf('teams 8/8, ') === 0, 'status line starts with "teams 8/8": ' + pneVisStatusLine(null).substring(0, 40))
+  // the count is what reads back right now, team by team (not the ready flag): an option reset by another mod drops
+  // that team out of it at once
+  srv.sb.teams.pne_clade_1.friendlyFire = false
+  pneVisT(pneVisStatusLine(null).indexOf('teams 7/8, ') === 0 && pneVisTeamsCount(srv) === 7,
+    'status line counts only the teams whose options read back: ' + pneVisStatusLine(null).substring(0, 16))
+  srv.sb.teams.pne_clade_1.friendlyFire = true
+  pneVisTeamsReady = false
+  pneVisT(pneVisStatusLine(null).indexOf('teams 8/8 (setting up), ') === 0, 'status line says "(setting up)" while the teams are not ready')
+  pneVisTeamsReady = true
+
+  // ---- a failed team setup is retried after 20, 40, 80, 160, 320, 640, 1200, 1200 ticks, with one warning on the third
+  pneVisTeamsReady = false
+  pneVisTeamsRetryAt = 0
+  pneVisTeamsFails = 0
+  srv.noScoreboard = true
+  attempts = []
+  origEnsure = pneVisEnsureTeams
+  pneVisEnsureTeams = function (s) {
+    var r = origEnsure(s)
+    attempts.push({ t: pneCoreTick, fails: pneVisTeamsFails, warned: pneCoreWarnSeen['visual:teams'] || 0 })
+    return r
+  }
+  for (guard = 0; guard < 5000 && attempts.length < 9; guard++) __pneMock.tick(srv, 1)
+  deltas = []
+  for (i = 1; i < attempts.length; i++) deltas.push(attempts[i].t - attempts[i - 1].t)
+  pneVisT(deltas.join(',') === '20,40,80,160,320,640,1200,1200', 'backoff 20, 40, 80 ... capped at 1200 ticks: ' + deltas.join(','))
+  pneVisT(attempts.length === 9 && attempts[1].warned === 0 && attempts[2].warned === 1 && attempts[8].warned === 1,
+    'exactly one warning, on the third failure (' + (attempts.length > 2 ? attempts[1].warned + '/' + attempts[2].warned + '/' + attempts[attempts.length - 1].warned : '-') + ')')
+  srv.noScoreboard = false
+  for (guard = 0; guard < 1300 && !pneVisTeamsReady; guard++) __pneMock.tick(srv, 1)
+  pneVisT(pneVisTeamsReady && pneVisTeamsFails === 0, 'the setup succeeds on the next try once the scoreboard is back')
+  // options that do not stick (a mod resetting them) fail the check: not ready, retried on the backoff
+  pneVisTeamsReady = false
+  pneVisTeamsRetryAt = 0
+  srv.sb.teams.pne_clade_2_named.nametagVisibility = 'never'
+  __pneVisMock.sbFault.set = true
+  n = attempts.length
+  __pneMock.tick(srv, 1)
+  pneVisT(attempts.length === n + 1 && !pneVisTeamsReady && pneVisTeamsOk === 7 && pneVisTeamsRetryAt === pneCoreTick + 20,
+    'one team whose writes do not read back keeps all of them not ready (' + pneVisTeamsOk + '/8 pass, next try in 20 ticks)')
+  srv.sb.teams.pne_clade_1.friendlyFire = false
+  __pneMock.tick(srv, 20)
+  pneVisT(attempts.length === n + 2 && !pneVisTeamsReady && pneVisTeamsOk === 6 && pneVisTeamsRetryAt === pneCoreTick + 40,
+    'a setup whose writes do not read back is not trusted (' + pneVisTeamsOk + '/8 pass, next try in 40 ticks)')
+  __pneVisMock.sbFault.set = false
+  __pneMock.tick(srv, 40)
+  pneVisT(pneVisTeamsReady && srv.sb.teams.pne_clade_1.friendlyFire === true && srv.sb.teams.pne_clade_2_named.nametagVisibility === 'always',
+    'the retry repairs them')
+  pneVisEnsureTeams = origEnsure
+
+  // ---- a restart (or /reload): Recruits resets the teams' friendly-fire options in its start listener, after KubeJS's
+  // loaded event; VISUAL's fresh state sets them again on the first tick after the start, not before
+  for (i = 0; i < names.length; i++) {
+    srv.sb.teams[names[i]].friendlyFire = false
+    srv.sb.teams[names[i]].seeFriendlyInvisibles = false
+  }
+  pneVisTeamsReady = false   // a fresh load of pne_visual.js
+  pneVisTeamsRetryAt = 0
+  pneVisTeamsFails = 0
+  sb0 = __pneVisMock.sbLog.length
+  before = __pneVisMock.log.length
+  __pneMock.fire('ServerEvents.loaded', { server: srv })
+  jh = __pneMock.mob(srv, 'epca:ripper', { uuid: pneVisTU(9), x: 6, z: 6 })
+  pneVisTFresh()
+  pneVisApply(jh, pneVisTI(3, false, 0, 2))
+  pneVisT(__pneVisMock.sbLog.length === sb0 && __pneVisMock.log.length === before && pneVisApplyOrder.length === 1,
+    'after the restart load: no scoreboard write, no command, the apply waits')
+  __pneMock.tick(srv, 1)
+  ok = true
+  for (i = 0; i < names.length; i++) {
+    if (srv.sb.teams[names[i]].friendlyFire !== true || srv.sb.teams[names[i]].seeFriendlyInvisibles !== true) ok = false
+  }
+  pneVisT(ok && pneVisTeamsReady, 'the first tick after the restart re-applies friendly fire and seeing invisibles on all 8 teams')
+  pneVisT(__pneVisMock.teamOf(srv, jh.uuid) === 'pne_clade_3', 'and the waiting apply joins its team')
+
+  // ---- a team that disappears while the teams are ready (an operator's /team remove, another mod) is set up again: a
+  // join to it fails without being recorded and clears pneVisTeamsReady, and the next tick recreates it
+  for (k in srv.sb.byEntry) {
+    if (srv.sb.byEntry.hasOwnProperty(k) && srv.sb.byEntry[k] === 'pne_clade_3_named') delete srv.sb.byEntry[k]
+  }
+  delete srv.sb.teams.pne_clade_3_named
+  pneVisT(pneVisTeamsReady === true && pneVisStatusLine(null).indexOf('teams 7/8, ') === 0, 'a deleted team drops out of the status count')
+  sb0 = __pneVisMock.sbLog.length
+  pneVisT(pneVisTeamJoin(srv, jh.uuid, 'pne_clade_3_named') === false && pneVisTeamsReady === false &&
+    __pneVisMock.teamOf(srv, jh.uuid) === 'pne_clade_3' && pneVisTSbSince(sb0, 'join').length === 0,
+    'a join to a missing team writes nothing, fails and clears the ready flag')
+  __pneMock.tick(srv, 1)
+  pneVisT(pneVisTeamsReady === true && srv.sb.teams.hasOwnProperty('pne_clade_3_named') &&
+    srv.sb.teams.pne_clade_3_named.nametagVisibility === 'always' && pneVisTSbSince(sb0, 'addTeam').length === 1,
+    'the next tick sets the missing team up again (one team added)')
+  pneVisT(pneVisTeamJoin(srv, jh.uuid, 'pne_clade_3_named') === true && __pneVisMock.teamOf(srv, jh.uuid) === 'pne_clade_3_named' &&
+    pneVisTeamJoin(srv, jh.uuid, 'pne_clade_3') === true && __pneVisMock.teamOf(srv, jh.uuid) === 'pne_clade_3',
+    'joins to the recreated team read back')
+
+  // ---- joins and leaves count only when the scoreboard reads them back (a Recruits-style interception answers "done")
+  __pneVisMock.sbFault.join = true
+  pneVisTFresh()
+  pneVisApply(jh, pneVisTI(1, false, 0, 2))
+  pneVisT(pneVisTSbSince(sb0, 'join', /./).length >= 2 && __pneVisMock.teamOf(srv, jh.uuid) === 'pne_clade_3' && pneVisHosts[jh.uuid].team === 'pne_clade_3',
+    'a join that did not stick is not recorded: rec.team is what the scoreboard shows (' + pneVisHosts[jh.uuid].team + ')')
+  __pneVisMock.sbFault.join = false
+  pneVisTCycles(srv)
+  pneVisT(__pneVisMock.teamOf(srv, jh.uuid) === 'pne_clade_1' && pneVisHosts[jh.uuid].team === 'pne_clade_1', 'the scan retries the join until it reads back')
+  __pneVisMock.sbFault.leave = true
+  pneVisTFresh()
+  pneVisApply(jh, pneVisTI(9, false, 0, 2))
+  pneVisT(__pneVisMock.teamOf(srv, jh.uuid) === 'pne_clade_1' && pneVisHosts[jh.uuid].team === 'pne_clade_1', 'a leave that did not stick is not recorded')
+  __pneVisMock.sbFault.leave = false
+  pneVisRemove(jh)
+  pneVisT(__pneVisMock.teamOf(srv, jh.uuid) === '', 'remove takes the entry off')
+  pneVisT(__pneVisMock.teamCmds.length === 0, 'no console command named a team so far')
+  // the Recruits model itself: a team command after the start is cancelled but answers 1
+  pneVisT(srv.runCommandSilent('team join pne_clade_1 ' + jh.uuid) === 1 && __pneVisMock.teamOf(srv, jh.uuid) === '' && __pneVisMock.teamCmds.length === 1,
+    'Recruits model: a console team join answers 1 and changes nothing (why rule 15 (c) reads state back)')
+  __pneVisMock.log[__pneVisMock.log.length - 1].probe = true
+  __pneVisMock.teamCmds = []
+  __pneVisMock.teamText = []
   pneVisT(typeof pneVisApply === 'function' && typeof pneVisRemove === 'function' && typeof pneVisSweep === 'function' && PNE_VIS_API === 1,
     'contract API present (pneVisApply, pneVisRemove, pneVisSweep, PNE_VIS_API = 1)')
   pneVisT(pneCoreLoaded('visual') === true, 'core sees the visual module as loaded')
@@ -249,23 +461,23 @@ function pneVisTRun() {
 
   // ---- a team that is not ours is respected (another mod's or an operator's)
   h = __pneMock.mob(srv, 'epca:ripper', { uuid: pneVisTU(2), x: 3, z: 4 })
-  srv.runCommandSilent('team add someone_elses')
-  srv.runCommandSilent('team join someone_elses ' + h.uuid)
+  __pneVisMock.join(srv, 'someone_elses', h.uuid)
   pneVisTFresh()
   pneVisApply(h, pneVisTI(2, false, 0, 2))
   pneVisT(__pneVisMock.teamOf(srv, h.uuid) === 'someone_elses', 'apply never moves a mob off a foreign team')
+  pneVisT(pneVisHosts[h.uuid].foreign === true && pneVisHosts[h.uuid].team === '', 'the record knows the host is on a foreign team')
   pneVisTCycles(srv)
   pneVisT(__pneVisMock.teamOf(srv, h.uuid) === 'someone_elses', 'the scan never moves a mob off a foreign team')
   pneVisRemove(h)
   pneVisT(__pneVisMock.teamOf(srv, h.uuid) === 'someone_elses', 'remove never takes a mob off a foreign team')
-  srv.runCommandSilent('team leave ' + h.uuid)
+  __pneVisMock.leave(srv, h.uuid)
 
   // ---- removal
   pneVisRemove(m1)
   pneVisT(__pneVisMock.teamOf(srv, m1.uuid) === '' && !pneVisHosts.hasOwnProperty(m1.uuid), 'remove: team entry and record gone')
-  before = __pneVisMock.log.length
+  before = __pneVisMock.sbLog.length
   pneVisRemove(m1)
-  pneVisT(pneVisTLogSince(before, /^team leave/).length === 0, 'removing twice issues no team leave (scoreboard read first)')
+  pneVisT(pneVisTSbSince(before, 'leave').length === 0, 'removing twice writes nothing (scoreboard read first)')
   pneVisT(pneVisHostN === 0 && pneVisEngN === 0 && pneVisGraftN === 0, 'no records left before the graft tests')
 
   // ---- grafts exist only while the host is engaged, at stage 4 and up (7 engaged hosts give room for 1 graft)
@@ -402,13 +614,20 @@ function pneVisTRun() {
   pneVisT(!pneVisHosts.hasOwnProperty(orphanHost.uuid), 'the scan dropped the vanished host record')
 
   // ---- stale team entries (leaks): entries whose entity is not loaded are removed; live ones stay
-  srv.runCommandSilent('team join pne_clade_1 ' + ghost)
-  srv.runCommandSilent('team join pne_clade_2 not-a-uuid-entry')
+  __pneVisMock.join(srv, 'pne_clade_1', ghost)
+  __pneVisMock.join(srv, 'pne_clade_2', 'not-a-uuid-entry')
+  // a leave that does not read back is not counted, and the entry stays for the next sweep
+  __pneVisMock.sbFault.leave = true
+  sweptBefore = pneVisSwept
   n = pneVisSweep(srv)
+  pneVisT(__pneVisMock.teamOf(srv, ghost) === 'pne_clade_1' && pneVisSwept === sweptBefore + n, 'a stale leave that did not stick stays')
+  __pneVisMock.sbFault.leave = false
+  k = pneVisSweep(srv)
   pneVisT(__pneVisMock.teamOf(srv, ghost) === '', 'leak sweep removes an entry whose entity does not exist')
+  pneVisT(n === 0 && k === 1, 'and counts it only once the scoreboard reads it back (' + n + ' then ' + k + ')')
   pneVisT(__pneVisMock.teamOf(srv, 'not-a-uuid-entry') === 'pne_clade_2', 'non-UUID entries (not ours) are left alone')
   pneVisT(__pneVisMock.teamOf(srv, still.uuid) !== '', 'a live host keeps its entry')
-  srv.runCommandSilent('team leave not-a-uuid-entry')
+  __pneVisMock.leave(srv, 'not-a-uuid-entry')
 
   // ---- rejoin after a chunk unload: entry swept while unloaded, graft rides back, re-apply restores the team
   rej = still
@@ -570,8 +789,15 @@ function pneVisTRun() {
   pneVisApply(tagHost, pneVisTI(2, false, 0, 5))
   pneVisT(__pneVisMock.teamOf(srv, tagHost.uuid) === 'pne_clade_2', 'unnamed host on pne_clade_2')
   tagHost.customName = { text: 'Bob', key: null }
+  // the scan's move reads back too: while the join does not stick, the record keeps the team the scoreboard shows, so
+  // the scan tries again
+  __pneVisMock.sbFault.join = true
   pneVisTCycles(srv)
-  pneVisT(__pneVisMock.teamOf(srv, tagHost.uuid) === 'pne_clade_2_named' && tagHost.customName.text === 'Bob',
+  pneVisT(__pneVisMock.teamOf(srv, tagHost.uuid) === 'pne_clade_2' && pneVisHosts[tagHost.uuid].team === 'pne_clade_2',
+    'a scan move that did not stick is not recorded (' + pneVisHosts[tagHost.uuid].team + ')')
+  __pneVisMock.sbFault.join = false
+  pneVisTCycles(srv)
+  pneVisT(__pneVisMock.teamOf(srv, tagHost.uuid) === 'pne_clade_2_named' && pneVisHosts[tagHost.uuid].team === 'pne_clade_2_named' && tagHost.customName.text === 'Bob',
     'a name tag given later moves the host to pne_clade_2_named within one scan cycle')
   tagHost.customName = null
   pneVisTCycles(srv)
@@ -669,13 +895,25 @@ function pneVisTRun() {
   }
   pneVisT(ok, 'over 800 ticks: 12 sweep phases, all on even ticks (' + phaseTicks.slice(0, 6).join(',') + ')')
   // the stale phase is windowed: a flood of leaked entries is removed over several cycles, never all at once
-  for (i = 0; i < 70; i++) srv.runCommandSilent('team join pne_clade_3 dead0000-0000-4000-8000-0000000' + (10000 + i))
-  before = __pneVisMock.log.length
+  for (i = 0; i < 70; i++) __pneVisMock.join(srv, 'pne_clade_3', 'dead0000-0000-4000-8000-0000000' + (10000 + i))
+  before = __pneVisMock.sbLog.length
+  k = __pneVisMock.log.length
+  sweptBefore = pneVisSwept
   pneVisTTickTo(srv, 200, 111)
-  n = pneVisTLogSince(before, /^team leave dead0000/).length
+  n = pneVisTSbSince(before, 'leave', /^dead0000/).length
   pneVisT(n <= PNE_VIS_STALE_LOOKUPS, 'one scheduled stale phase removes at most ' + PNE_VIS_STALE_LOOKUPS + ' unknown entries (' + n + ')')
-  for (i = 0; i < 30 && pneVisTLogSince(before, /^team leave dead0000/).length < 70; i++) pneVisTTickTo(srv, 200, 111)
-  pneVisT(__pneVisMock.teamSize(srv, 'pne_clade_3') >= 0 && pneVisTLogSince(before, /^team leave dead0000/).length === 70, 'later cycles remove the rest')
+  for (i = 0; i < 30 && pneVisTSbSince(before, 'leave', /^dead0000/).length < 70; i++) pneVisTTickTo(srv, 200, 111)
+  // the swept counter = orphan displays killed + stale entries whose removal read back (every leave here sticks)
+  logs = pneVisTLogSince(k, /^kill @e\[type=minecraft:item_display,tag=pne_graft_chk\]$/)
+  orphanKills = 0
+  for (i = 0; i < logs.length; i++) orphanKills += logs[i].r
+  n = 0
+  for (k in srv.sb.byEntry) {
+    if (srv.sb.byEntry.hasOwnProperty(k) && k.indexOf('dead0000') === 0) n++
+  }
+  pneVisT(n === 0 && pneVisTSbSince(before, 'leave', /^dead0000/).length === 70, 'later cycles remove the rest, one write each')
+  pneVisT(pneVisSwept - sweptBefore === orphanKills + pneVisTSbSince(before, 'leave').length,
+    'the sweep counted the orphans plus exactly the removals it read back (' + (pneVisSwept - sweptBefore) + ' = ' + orphanKills + ' + ' + pneVisTSbSince(before, 'leave').length + ')')
 
   // ---- multi-dimension host
   nether = __pneVisMock.addLevel(srv, 'minecraft:the_nether')
@@ -719,8 +957,57 @@ function pneVisTRun() {
   pneVisT(brig.run('pne visual sweep', src) === 0 && srv.cmds.join('\n').indexOf('operator') >= 0, '/pne visual sweep needs operator rights')
   src = __pneMock.source(srv, player, 2)
   srv.cmds.length = 0
-  pneVisT(brig.run('pne visual sweep', src) === 1 && srv.cmds.join('\n').indexOf('visual sweep removed') >= 0, 'admin /pne visual sweep runs')
+  pneVisT(brig.run('pne visual sweep', src) === 1 && srv.cmds.join('\n').indexOf('visual sweep cleared') >= 0, 'admin /pne visual sweep runs')
   pneVisT(pneCoreStatusLines(null).join('\n').indexOf('visual: teams ') >= 0, '/pne status carries the visual line')
+  // every reply is a tellraw command: none of VISUAL's texts may make Recruits take it over ("team" plus add, remove,
+  // join or leave anywhere in the command)
+  ok = true
+  for (i = 0; i < pneCoreCmds.visual.length; i++) {
+    if (/team/.test(pneCoreCmds.visual[i].help) || /add|remove|join|leave/.test(pneCoreCmds.visual[i].help)) ok = false
+  }
+  pneVisT(ok && !/add|remove|join|leave/.test(pneVisStatusLine(null)) && __pneVisMock.teamCmds.length === 0,
+    'help, status and sweep texts never pair "team" with add/remove/join/leave (Recruits would swallow the reply)')
+  // Replies with Recruits installed (review finding VIS-1). Recruits takes over a console command whose text holds
+  // "team" and also add, remove, join or leave anywhere, the tellraw target UUID included, and about 1 UUID in 140
+  // contains "add". VISUAL's texts avoid "team" except the status line, which says "teams N/8" (spec E), so the core's
+  // pneCoreTellraw has to escape "team" in the JSON it sends (lead request): the "t" as the six characters backslash, u,
+  // 0, 0, 7, 4. Minecraft reads the component with Gson's JsonReader, which decodes the escape, so the chat text is the
+  // same. (1) The escape itself, on VISUAL's real texts in this engine (Node or Rhino): no "team" left in the command,
+  // and the JSON reads back to exactly the text.
+  // (the backslash is written as its character code, so that no layer of quoting can turn the escape back into a t)
+  esc = function (json) { return String(json).replace(/team/g, String.fromCharCode(92) + 'u0074eam') }
+  texts = ['visual: ' + pneVisStatusLine(null), 'visual: teams 8/8 (setting up), Team team TEAM "teams"']
+  ok = esc('{"text":"teams"}').length === '{"text":"teams"}'.length + 5
+  for (i = 0; i < texts.length; i++) {
+    k = esc(JSON.stringify({ text: texts[i], color: 'gold' }))
+    if (k.indexOf('team') >= 0 || JSON.parse(k).text !== texts[i]) ok = false
+  }
+  pneVisT(ok, 'the requested tellraw escape leaves no "team" in the command and reads back to the same text')
+  // (2) Through the hub, for a player whose UUID contains "add": both visual status lines ("/pne visual status" and the
+  // visual line of "/pne status") must arrive, and no reply may name a team. Until the core escapes, this is reported
+  // as PENDING after the PASS line (it needs a change in pne_00_core.js), not counted as a VISUAL failure.
+  addy = __pneMock.player(srv, 'Addy', 'cadd0000-0000-4000-8000-00000000add0', { x: 5000, y: 64, z: 5000 })
+  src = __pneMock.source(srv, addy, 0)
+  n = __pneVisMock.teamCmds.length
+  srv.cmds.length = 0
+  brig.run('pne visual status', src)
+  brig.run('pne status', src)
+  rp = pneVisTReplies(srv.cmds, addy.uuid)
+  k = 0
+  for (i = 0; i < rp.texts.length; i++) {
+    if (rp.texts[i].indexOf('visual: teams 8/8, ') === 0) k++
+  }
+  if (rp.team.length === 0) {
+    pneVisT(k === 2 && __pneVisMock.teamCmds.length === n,
+      'a player whose UUID contains "add" gets both visual status lines, and Recruits takes no reply over (' + k + ' lines, ' + (__pneVisMock.teamCmds.length - n) + ' taken)')
+  } else {
+    vis1Pending = true
+    pneVisTestPending.push('VIS-1 (lead: pne_00_core.js pneCoreTellraw): ' + rp.team.length + ' of ' + rp.n + ' replies put "team" in the command text; with Recruits, ' +
+      (__pneVisMock.teamCmds.length - n) + ' were taken over for a player whose UUID contains "add"')
+    __pneVisMock.teamCmds.length = n
+  }
+  srv.players.splice(srv.players.indexOf(addy), 1)
+  addy.removed = true
 
   // ---- visual OFF: no new entries or grafts; the next sweep removes grafts, empties teams, removes our names, also
   // from an apex host that was unloaded at the switch and loads later
@@ -738,13 +1025,19 @@ function pneVisTRun() {
   pneCoreVisApply(h, pneVisTI(1, true, 1, 9))
   pneVisApply(h, pneVisTI(1, true, 1, 9))
   pneVisT(__pneVisMock.log.length === before, 'pillar off: apply issues nothing (wrapper and direct call)')
+  // the first off sweep's leaves answer "done" but change nothing: the teams must not count as emptied
+  n = 0
+  for (i = 0; i < names.length; i++) n += __pneVisMock.teamSize(srv, names[i])
+  pneVisT(n > 0, 'entries on the clade teams before the off sweep (' + n + ')')
+  __pneVisMock.sbFault.leave = true
+  sb0 = __pneVisMock.sbLog.length
   __pneMock.tick(srv, 2)
+  __pneVisMock.sbFault.leave = false
   pneVisT(__pneVisMock.displays('pne_graft').length === 0, 'pillar off: the next sweep removed every graft')
-  ok = true
-  for (i = 0; i < names.length; i++) {
-    if (__pneVisMock.teamSize(srv, names[i]) !== 0) ok = false
-  }
-  pneVisT(ok, 'pillar off: clade teams emptied')
+  k = 0
+  for (i = 0; i < names.length; i++) k += __pneVisMock.teamSize(srv, names[i])
+  pneVisT(pneVisTSbSince(sb0, 'leave').length === n && k === n && pneVisOffClean === false,
+    'pillar off: leaves that do not read back leave the teams counted as not emptied (' + k + ' entries left, clean ' + pneVisOffClean + ')')
   pneVisT(apex.customName === null && !apex.tagSet.hasOwnProperty('pne_vis_apex'), 'pillar off: our apex names and tags removed')
   pneVisT(named.customName !== null && named.customName.text === 'What was once Steve', 'pillar off: foreign names untouched')
   pneVisT(apexU2.customName !== null && apexU2.customName.text === 'Rex', 'pillar off: a player name on a former apex untouched')
@@ -752,7 +1045,12 @@ function pneVisTRun() {
   pneVisT(apexU.customName !== null && apexU.tagSet.hasOwnProperty('pne_vis_apex'), 'the unloaded apex loads again, still named')
   pneVisTTickTo(srv, 200, 107)
   pneVisT(apexU.customName === null && !apexU.tagSet.hasOwnProperty('pne_vis_apex'), 'the next off sweep removes its name and tag too')
-  srv.runCommandSilent('team join pne_clade_0 ' + h.uuid)
+  ok = true
+  for (i = 0; i < names.length; i++) {
+    if (__pneVisMock.teamSize(srv, names[i]) !== 0) ok = false
+  }
+  pneVisT(ok && pneVisOffClean === true, 'pillar off: the next off sweep empties the clade teams, and only then counts them clean')
+  __pneVisMock.join(srv, 'pne_clade_0', h.uuid)
   pneCoreVisRemove(h)
   pneVisT(__pneVisMock.teamOf(srv, h.uuid) === '', 'pillar off: remove still works (cleanup)')
   pneVisT(pneCoreSetPillar(srv, 'visual', true) === true, 'visual switched on again')
@@ -761,14 +1059,19 @@ function pneVisTRun() {
   pneVisApply(h, pneVisTI(1, false, 0, 9))
   pneVisT(__pneVisMock.teamOf(srv, h.uuid) === 'pne_clade_1', 'pillar on again: apply works')
 
-  // ---- degraded platform: no readable scoreboard still assigns teams and never throws
+  // ---- degraded platform: an unreadable scoreboard never throws and records no team; once readable, the scan joins
   srv.noScoreboard = true
   h = __pneMock.mob(srv, 'epca:ripper', { uuid: pneVisTU(901), x: 2, z: 9 })
+  before = __pneVisMock.log.length
   pneVisTFresh()
   pneVisApply(h, pneVisTI(2, false, 0, 1))
-  pneVisT(__pneVisMock.teamOf(srv, h.uuid) === 'pne_clade_2', 'without a readable scoreboard the join is still issued')
+  pneVisT(__pneVisMock.teamOf(srv, h.uuid) === '' && pneVisHosts[h.uuid].team === '' && pneVisTLogSince(before, /team/).length === 0,
+    'without a readable scoreboard: no team recorded and no console fallback')
   pneVisT(pneVisSweep(srv) >= 0, 'sweep without a readable scoreboard does not throw')
+  pneVisT(pneVisStatusLine(null).indexOf('teams ?/8') === 0, 'status line shows teams ?/8 while the scoreboard is unreadable')
   srv.noScoreboard = false
+  pneVisTCycles(srv)
+  pneVisT(__pneVisMock.teamOf(srv, h.uuid) === 'pne_clade_2' && pneVisHosts[h.uuid].team === 'pne_clade_2', 'readable again: the scan joins the host')
 
   // ---- species that fight differently while something rides them never get a graft (PNE_VIS_NO_GRAFT)
   filler = pneVisTMobs(srv, 60, 1000, 'epca:ripper', { x: 40 })
@@ -885,12 +1188,39 @@ function pneVisTRun() {
   pneVisT(n === pneVisGraftN && k === pneVisEngN && left === pneVisHostN, 'running counters equal a recount (' + n + '/' + k + '/' + left + ')')
   pneVisT(pneVisTRiding() === pneVisGraftN, 'every counted graft rides its host (' + pneVisTRiding() + ' vs ' + pneVisGraftN + ')')
 
+  // ---- start gating and Recruits over the whole run: no command before a start, no console command naming a team
+  // (the one planted to test the Recruits model was cleared), every scoreboard write after a start, and the only
+  // collision rule ever written is ALWAYS
+  pneVisT(__pneVisMock.early.length === 0, 'no command before a start: ' + (__pneVisMock.early.length ? __pneVisMock.early[0].c : ''))
+  pneVisT(__pneVisMock.teamCmds.length === 0, 'no console command Recruits takes over: ' + (__pneVisMock.teamCmds.length ? __pneVisMock.teamCmds[0].c : ''))
+  // rule 15 (b): no console command text holds "team" at all (the Recruits-model probe was cleared); a core tellraw reply
+  // is tolerated only while VIS-1 is pending (the core does not escape yet, reported after PASS)
+  bad = []
+  for (i = 0; i < __pneVisMock.teamText.length; i++) {
+    ev = __pneVisMock.teamText[i].c
+    if (!(vis1Pending && ev.indexOf('tellraw ') === 0)) bad.push(ev)
+  }
+  pneVisT(bad.length === 0, 'rule 15 (b): no console command text contains "team": ' + bad.slice(0, 2).join(' | '))
+  ok = __pneVisMock.sbLog.length > 0
+  bad = []
+  for (i = 0; i < __pneVisMock.sbLog.length; i++) {
+    ev = __pneVisMock.sbLog[i]
+    if (!ev.started) ok = false
+    if (ev.op === 'collision' && ev.b !== 'ALWAYS') bad.push(ev.a + ' ' + ev.b)
+    if ((ev.op === 'friendlyFire' || ev.op === 'seeInvisibles') && ev.b !== 'true') bad.push(ev.op + ' ' + ev.a + ' ' + ev.b)
+    if (ev.op === 'removeTeam') bad.push('removeTeam ' + ev.a)
+  }
+  pneVisT(ok, 'every scoreboard write came after a start (' + __pneVisMock.sbLog.length + ' writes)')
+  pneVisT(bad.length === 0, 'scoreboard writes: collision always, friendly options on, no team removed: ' + bad.slice(0, 3).join(' | '))
+
   // ---- nothing ever moves a camera or applies an effect; every command was one the module is meant to issue
   bad = []
   for (i = setupLog; i < __pneVisMock.log.length; i++) {
     ev = __pneVisMock.log[i].c
     if (/\beffect\b|teleport|spectate|camera|\bnausea\b|\bblindness\b|flash|firework|end_rod|@[apr]\b/.test(ev)) bad.push(ev)
-    if (/collisionRule (?!always$)/.test(ev)) bad.push(ev)
+    // no command names a team (rule 15 (b); the tellraw replies are checked through __pneVisMock.teamText above); the
+    // Recruits-model probe the test planted is the one exception
+    if (ev.indexOf('team') >= 0 && !(vis1Pending && ev.indexOf('tellraw ') === 0) && !__pneVisMock.log[i].probe) bad.push(ev)
     // The only tp allowed: a graft display turning itself in place (execute as <display> at @s run tp @s ~ ~ ~ <yaw> 0).
     if (/\btp\b/.test(ev)) {
       k = /^execute as ([0-9a-f-]{36}) at @s run tp @s ~ ~ ~ -?[0-9.]+ 0$/.exec(ev)
@@ -904,7 +1234,7 @@ function pneVisTRun() {
   pneVisT(PNE_CORE_B_API.visual.total === 0, 'core API breaker saw no visual error')
 
   if (pneVisTestFails.length) return 'FAIL ' + pneVisTestFails.length + ' of ' + pneVisTestN + ': ' + pneVisTestFails.join(' || ')
-  return 'PASS ' + pneVisTestN + ' visual assertions'
+  return 'PASS ' + pneVisTestN + ' visual assertions' + (pneVisTestPending.length ? '; PENDING ' + pneVisTestPending.join('; ') : '')
 }
 
 var pneVisTestResult = (function () {

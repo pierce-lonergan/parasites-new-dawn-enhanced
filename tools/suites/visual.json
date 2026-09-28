@@ -15,6 +15,7 @@
     {"name": "visual-emf-tools", "cmd": ["{python}", "tools/visual/test_emf_parts.py"], "needs": ["jdk17"], "expect": "PASS"},
     {"name": "visual-kjs-renames", "cmd": ["{python}", "tools/visual/kjs_renames.py"], "needs": [], "expect": "PASS", "timeout": 300},
     {"name": "visual-passenger-scan", "cmd": ["{python}", "tools/visual/test_passenger_scan.py"], "needs": ["jdk17"], "expect": "PASS", "timeout": 600},
+    {"name": "visual-scoreboard-api", "cmd": ["{python}", "tools/visual/scoreboard_api.py"], "needs": ["jdk17", "mcjar"], "expect": "PASS", "timeout": 600},
     {"name": "visual-rhino-bench",
      "cmd": ["{python}", "tools/rhino/pne_rhino.py", "run", "pneVisBenchResult", "tools/tests/kjs_mocks.js", "tools/visual/vis_prelude.js",
              "overrides/kubejs/server_scripts/pne_00_core.js", "overrides/kubejs/server_scripts/pne_visual.js", "tools/visual/bench_visual.js"],

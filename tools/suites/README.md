@@ -6,13 +6,14 @@ Do not edit `tools/run_tests.py` to add a suite. The format and the placeholders
 
 | File | Owner |
 | --- | --- |
+| `core.json` | CORE (lead): the contract 1.5 suites of the core (`core-diff-node`, `core-diff-rhino`, `diff-events-rhino`, `pack-lint-recruits`); its older suites stay built into `tools/run_tests.py` |
 | `ga-core.json` | GA-CORE |
 | `hive.json` | HIVE-RUNTIME |
 | `resonance.json` | RESONANCE-PIPELINE |
 | `director.json` | DIRECTOR |
 | `oracle.json` | ORACLE |
 | `visual.json` | VISUAL |
-| `pack.json` | lead / integration: the pack-level suites of `tools/tests/pack` (smoke and degradation runs, plain and `-strict`; the lint's duplicate-name and hidden-name tests; the install steps) |
+| `pack.json` | lead / integration: the pack-level suites of `tools/tests/pack` (smoke, degradation and, since 1.5, difficulty runs, plain and `-strict`; the lint's duplicate-name and hidden-name tests; the install steps) |
 | `milestones.json` | lead: the suite names each milestone requires, and per milestone the items no suite can decide (`pending`) |
 
 Suite names are binding: `docs/IMPLEMENTATION.md` section 9.4 lists the names each module must register, and
