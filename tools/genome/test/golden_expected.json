@@ -1,0 +1,18 @@
+{
+  "_comment": "GA-CORE golden values. Node and the instance's Rhino jar must both produce exactly these (ga-core-node, ga-core-golden-rhino, ga-core-replay). Regenerate only for a deliberate change to the GA core, with: node tools/genome/test/golden.js and node tools/genome/test/replay_golden.js, and say why in the commit. Last change: save().base values carry the LRU rank as a fifth integer (liveFinal and replay hash the whole save; every event stream and every other digest is unchanged).",
+  "golden": {
+    "prim": "1d48985d",
+    "liveChain": "2c4a5ec6",
+    "liveFinal": "49b8a9f9",
+    "liveHash": "aa109c71",
+    "liveGov": "0.6",
+    "liveSigma": "0.049049",
+    "batchChain": "a335e9fd",
+    "batchFinalPop": "58b83f15",
+    "batchElite": "e1159c3343d98671ae319c35fc0bac5e32eb35e33319488a620ccb8a",
+    "batchProbe": "225687053114150/746009000000000/438449053610315",
+    "steadyChain": "c0226773",
+    "steadyProbe": "395336247367436"
+  },
+  "replay": "3c31188f"
+}

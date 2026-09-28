@@ -1,0 +1,11 @@
+{
+  "module": "hive",
+  "suites": [
+    {"name": "hive-node", "cmd": ["{python}", "tools/hive/run_hive.py", "node"], "needs": ["node"], "expect": "PASS", "timeout": 600},
+    {"name": "hive-rhino", "cmd": ["{python}", "tools/hive/run_hive.py", "rhino"], "needs": ["rhino"], "expect": "PASS", "timeout": 900},
+    {"name": "hive-kmercy-rhino", "cmd": ["{python}", "tools/hive/run_hive.py", "kmercy"], "needs": ["rhino"], "expect": "PASS", "timeout": 900},
+    {"name": "hive-conversion-replay", "cmd": ["{python}", "tools/hive/run_hive.py", "conv"], "needs": ["node", "rhino"], "expect": "PASS", "timeout": 900},
+    {"name": "hive-nbt-size", "cmd": ["{python}", "tools/hive/run_hive.py", "nbt"], "needs": ["rhino", "mcjar"], "expect": "PASS", "timeout": 900},
+    {"name": "hive-rhino-bench", "cmd": ["{python}", "tools/hive/run_hive.py", "bench"], "needs": ["rhino", "mcjar"], "expect": "PASS", "timeout": 1800}
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "module": "pack",
+  "_comment": "Lead / integration. Pack-level checks across every module (tools/tests/pack): all server scripts in one scope and the startup scripts in their own, sharing one global, in the instance's Rhino jar; the degradation matrix of IMPLEMENTATION.md 8 (absent, off and broken modules) and the pillar switches of 6.2; the -strict runs expose only the method names KubeJS leaves visible in game (F37), the plain runs both those and the Mojang names; the lint's duplicate-name and hidden-name checks; the Hive Remembers install steps of tools/apply.py.",
+  "suites": [
+    {"name": "pack-smoke", "cmd": ["{python}", "tools/tests/pack/run_pack.py", "full"], "needs": ["rhino"], "expect": "PASS", "timeout": 1500},
+    {"name": "pack-smoke-strict", "cmd": ["{python}", "tools/tests/pack/run_pack.py", "full", "--strict"], "needs": ["rhino"], "expect": "PASS", "timeout": 1500},
+    {"name": "pack-degradation", "cmd": ["{python}", "tools/tests/pack/run_pack.py", "matrix"], "needs": ["rhino"], "expect": "PASS", "timeout": 2400},
+    {"name": "pack-degradation-strict", "cmd": ["{python}", "tools/tests/pack/run_pack.py", "matrix", "--strict"], "needs": ["rhino"], "expect": "PASS", "timeout": 2400},
+    {"name": "pack-lint-duplicates", "cmd": ["{python}", "tools/tests/pack/test_lint_dupes.py"], "needs": [], "expect": "PASS", "timeout": 120},
+    {"name": "pack-lint-hidden-names", "cmd": ["{python}", "tools/tests/pack/test_lint_hidden.py"], "needs": [], "expect": "PASS", "timeout": 120},
+    {"name": "pack-apply", "cmd": ["{python}", "tools/tests/pack/test_apply.py"], "needs": [], "expect": "PASS", "timeout": 300}
+  ]
+}

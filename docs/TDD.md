@@ -29,7 +29,7 @@ We are building three coupled systems for a horror-first Minecraft modpack whose
 | Field | Value |
 | --- | --- |
 | Version | 1.1 (final design baseline; replaces 1.0 after the science/safety and engineering reviews) |
-| Status | Research and design complete. No pack or repo file has been changed. Prototypes exist only in the scratch directory (Appendix B). |
+| Status | Research and design complete. Milestones M0-M5 are built on the branch feat/hive-remembers and tested offline (not yet run in game); where the build had to differ from this document, Appendix E records it. The binding module contract is docs/IMPLEMENTATION.md. |
 | Target | *Parasites New Dawn - Enhanced*: Minecraft 1.20.1, Forge 47.4.10, KubeJS 2001.6.5 (Rhino fork `rhino-forge-2001.2.3`), EPCA 0.147i (`epca`, GeckoLib), Fungal Infection: Spore 2.2.0j (`spore`, vanilla EntityModels), Dynamic Surroundings 1.3.1, AmbientSounds 6.3.8, ETF 7.2.4, EMF 3.3.9 |
 | Transfer target | A standalone engine with a real-time audio graph, skeletal animation and native IPC. Each section puts the general-engine design next to the Minecraft build. |
 | Machine | Ryzen 9 9950X (16C/32T), 61.6 GB RAM, RTX 5070, Windows 11 Pro build 26200. Google Coral USB Accelerator, currently in bootloader mode `1A6E:089A` with no driver. |
@@ -290,7 +290,7 @@ LUFS values are integrated (BS.1770-4, gated) per file, ±1 LU unless stated. �
 
 #### 2.3.3 Layer notes
 
-- **L1 Hollow.** Calibrated to the AmbientSounds bed median of -29.0 LUFS (**measured**). The 2.5 kHz dip clears the band where mob cues and L8 sit (M11). Stereo variants use independent left and right seeds. A decorrelated stereo pair loses about 3 dB when Dynamic Surroundings averages it to mono, so mono variants are rendered and measured separately. The low-pass state variants have explicit loudness targets (dry -30, Dread -32, Muffled -36) instead of inheriting the filter's raw loss (measured raw loss 1.4 / 4.2 / 5.8 LU at 8 kHz / 2 kHz / 800 Hz). **Routing:** beds go through AmbientSounds regions first. The director's positional segments are the fallback (see “Positional placement” below).
+- **L1 Hollow.** Calibrated to the AmbientSounds bed median of -29.0 LUFS (**measured**). The 2.5 kHz dip clears the band where mob cues and L8 sit (M11). Stereo variants use independent left and right seeds. A decorrelated stereo pair loses about 3 dB when Dynamic Surroundings averages it to mono, so mono variants are rendered and measured separately. The low-pass state variants have explicit loudness targets (dry -30, Dread -32, Muffled -36) instead of inheriting the filter's raw loss (measured raw loss 1.4 / 4.2 / 5.8 LU at 8 kHz / 2 kHz / 800 Hz). **Routing:** beds go through AmbientSounds regions first. The director's positional segments are the fallback (see “Positional placement” below). *Build: no regions ship, so the positional segments are the bed (Appendix E).*
 - **L2 Undertone.** At -32 LUFS with a crest factor of about 13 dB, peaks sit near -19 dBFS, so the limiter never engages and the envelope stays intact. Playback pitch is fixed at 1.00 ±0.03, because pitch scales the envelope rate (pitch 0.8 turns 19 Hz into 15.2 Hz, **measured**). Instances are ≤ 10 s, so L2 obeys the A8 per-instance cap.
 - **L3 Pulse.** For sinusoidal AM the sideband level is 20·log10(m/2): m = 1 → -6.0 dB (measured 6.2), m = 0.6 → -10.5 dB, m = 0.3 → -16.5 dB. Only one low-frequency periodic source may play at a time per player. That includes L2, L3, Spore `heart_beat` and EPCA `slam`. `slam` puts 66-77% of its power below 100 Hz (**measured**), so L2 and L3 are suppressed within 10 s of a gore slam.
 - **L4 Beat.** Binaural presentation is not used (§2.1). The beat is physical, so it survives every device and every downmix.
@@ -554,7 +554,7 @@ The genome has fourteen genes. Each is an unsigned 16-bit integer q ∈ \[0, 655
 | 1 | ACU acuity | 0.8 | `generic.follow_range` +24·e, absolute cap 48 blocks (vanilla TargetGoal reads it, **verified-in-code**) | Vision half-angle 45-80°, range 12-40 m, hearing threshold -6 to -24 dB |
 | 2 | SCT scent | 0.8 | Tier floor(4e) as a tag; breadcrumb pursuit to the player's position 3 s ago (needs navigation access, M3 test) | Scent-trail half-life 10-40 s; last-known-position memory 4-20 s |
 | 3 | LUX light tolerance | 0.6 | Raises the light-aversion threshold by tier (§3.2) | Path-cost weight on light, 3 → 0 m-equivalent |
-| 4 | FLK flank bias | 0.6 | Reinforcements and ambient spawns biased to the player's rear 120° arc at low block light | Flank waypoint offset 60-120°; view-cone path cost |
+| 4 | FLK flank bias | 0.6 | Reinforcements and ambient spawns biased to the player's rear 120° arc at low block light (as built: scripted reinforcement beckons only; see Integration notes, 3.1) | Flank waypoint offset 60-120°; view-cone path cost |
 | 5 | SIL silent approach | 0.7 | At e ≥ 0.5: `Silent:1b` until the first attack or within 3 blocks. **L8 Tell** every ≤ 5 s within 12 blocks, plus an ash-particle tell every 20 ticks. At most 30% of the engaged hive silent at once. | Footstep emission 1.0 → 0.2; a distinct audible tell ≥ 150 ms before impact is mandatory |
 | 6 | KBR knockback resistance | 0.8 | `generic.knockback_resistance` +0.5·e | Physics impulse scale |
 | 7 | PRJ projectile armour | 0.9 | Startup `LivingHurtEvent`: projectile damage x (1 - 0.45·e) | Per-damage-type resistance |
@@ -839,7 +839,7 @@ flowchart TD
 | Death rate after the shift vs target 0.040 | 0.041 | 0.024 (governor pinned at 1.06) |
 | Mean effectiveness gen 0 → pre-shift → post-shift | 0.297 → 0.459 → 0.445, with the governor falling to 0.76: smarter, not stronger | n/a |
 
-**Live (steady-state) mode is sample-starved** (**measured**; pool 32, 40% of spawns engage, 1,200 evaluations per phase). Alignment moved from 0.339 to 0.365 at λ 0, and to 0.414 at λ 0.3. With the dawn dream it reached 0.524 (λ 0) and **0.615** (λ 0.3); four times the data without the dream reached only 0.495. The pack ships λ = 0.3 plus the dawn dream. These figures predate `insertDreamed` and the per-event k\_mercy weighting, so both are re-measured at M0 with the same harness.
+**Live (steady-state) mode is sample-starved** (**measured**; pool 32, 40% of spawns engage, 1,200 evaluations per phase). Alignment moved from 0.339 to 0.365 at λ 0, and to 0.414 at λ 0.3. With the dawn dream it reached 0.524 (λ 0) and **0.615** (λ 0.3); four times the data without the dream reached only 0.495. The pack ships λ = 0.3 plus the dawn dream. These figures predate `insertDreamed` and the per-event k\_mercy weighting, so both are re-measured at M0 with the same harness. **Re-measured (M3, pool 48, `insertDreamed`)**: 0.461 at 3000 spawns (0.391 without the dream) and 0.542 at 6000. The gate is therefore "dream alignment ≥ 0.5 within the 6000-spawn phase", with the dream adding ≥ 0.05 at both points (Appendix E).
 
 **New GA tests (M0).**
 
@@ -1299,9 +1299,9 @@ M0-M5 need no downloads. M6 and M7 wait on the download list in §6.5.
 | --- | --- | --- | --- |
 | M0 | Harnesses into the repo: `pne_meter`, the Rhino golden harness (JDK 17 pinned), the Node test runner, the director/ledger and feature cores; per-player telemetry benchmark in MockWorld with 150 entities; GA tests (mercy, interleaved replay, NaN guard); NbtIo size test | All prototype tests pass from the repo; golden hashes match; per-player telemetry cost measured and within its budget, or its cadence adjusted | No |
 | M1 | Resonance render + verify pipeline (V1-V16 + ledger simulation); first asset set (≥ 6 variants per layer, 12 + 12 whispers, L8 tells); `sounds.json` generator with `attenuation_distance` values | 100% of assets pass | No |
-| M2 | Director (pacing FSM + audio controller + ledger) in KubeJS with heuristics only; **route every `pne_horror.js` playsound through `pneResEmit`**; comfort default and notice; per-layer switches; parasite volume trims; retire the old whisper pool; AmbientSounds bed regions; checkSpawn gate | In game: spark ≤ 0.2 ms/tick for the director; one in-game capture confirming L\_eff within ±3 dB for a whisper and a director layer; hive spawns near a player in mercy over 10 min ≈ 0; listening sign-off by the user in comfort mode; bell and beckon levels measured | No |
+| M2 | Director (pacing FSM + audio controller + ledger) in KubeJS with heuristics only; **route every `pne_horror.js` playsound through `pneResEmit`**; comfort default and notice; per-layer switches; parasite volume trims; retire the old whisper pool; AmbientSounds bed regions (*not shipped, Appendix E*); checkSpawn gate | In game: spark ≤ 0.2 ms/tick for the director; one in-game capture confirming L\_eff within ±3 dB for a whisper and a director layer; hive spawns near a player in mercy over 10 min ≈ 0; listening sign-off by the user in comfort mode; bell and beckon levels measured | No |
 | M3 | Hive Genome core + expression + telemetry (startup ForgeEvents), persistence, light aversion, intra-day governor. **Entry:** sharing cache implemented and benchmarked in Rhino. | Node/Rhino golden parity. In game: modifiers survive a chunk reload (HP not clipped); `pne_gp` set after infecting a villager (conversion order); effect immunity checked; spark budget met during Hive Night | No |
-| M4 | Visual phenotype: clade teams + static ETF variants authored from scratch; display grafts; Spore EMF; Spore empty-model axe | In game: ETF on GeckoLib EPCA confirmed or a fallback chosen; no orphan displays after 2 h; no visible axe on Spore | No |
+| M4 | Visual phenotype: clade teams + static ETF variants authored from scratch (*build: generated locally at install time from the user's own jars, Appendix E*); display grafts; Spore EMF (*deferred, Appendix E*); Spore empty-model axe | In game: ETF on GeckoLib EPCA confirmed or a fallback chosen; no orphan displays after 2 h; no visible axe on Spore | No |
 | M5 | Oracle supervisor (Python 3.13 + numpy, `cpu_np`), file bridge with pseudonyms, per-player logging opt-in, export exclusions | 20/20 verdicts in game within 1 s. Staleness fallback verified by stopping the sidecar **with `stop.flag` or `--exit-after 120`, never by PID**. Stale-lock test: a lock naming a live non-sidecar PID is treated as stale, and nothing is killed. CI export check passes. | No |
 | M6 | WSL training + PTQ + S4b + compile pipeline | G0-G4 and S4b pass | **Yes** (WSL items) |
 | M7 | Coral enablement (the user installs the driver); TPU worker subprocess | G5 and G6 pass, and a worker crash test (kill the worker from inside its own code path) shows the supervisor demoting to CPU within 1 s. Otherwise the pack stays on CPU. | **Yes** (Windows items) |
@@ -1326,9 +1326,9 @@ Instance paths are shown; in the repo, `kubejs/` lives under `overrides/kubejs/`
 | `kubejs/assets/pne/lang/en_us.json` | Subtitles (`subtitles.pne.*`, including the L8 tell) |
 | `kubejs/assets/{spore,epca}/sounds.json` | `replace: true` volume trims for hot events (references only) |
 | `kubejs/assets/minecraft/models/item/iron_axe.json` + `pne/models/item/empty.json` | CustomModelData 7301 → empty model (Spore hosts) |
-| `kubejs/assets/ambientsounds/.../regions/pne_*.json` | Bed regions (exact folder path confirmed in game) |
-| `kubejs/assets/epca/optifine/random/entity/**.properties`, `*.png` | ETF clade variants (original art only, static emissive, no blink) |
-| `kubejs/assets/spore/emf/...` or `optifine/cem/...` | EMF `.jem` for Spore |
+| `kubejs/assets/ambientsounds/.../regions/pne_*.json` | Bed regions (exact folder path confirmed in game). *Not shipped (Appendix E).* |
+| `kubejs/assets/epca/optifine/random/entity/**.properties`, `*.png` | ETF clade variants (original art only, static emissive, no blink). *Build: the textures are generated locally at install time (Appendix E).* |
+| `kubejs/assets/spore/emf/...` or `optifine/cem/...` | EMF `.jem` for Spore. *Deferred (Appendix E).* |
 | `kubejs/data/pne/tags/entity_types/hive.json` | Hive membership tag |
 | `local/pne_oracle/.keep` | The bridge folder must pre-exist; this is the only file from the folder that ships |
 | `.gitignore`, `tools/ci/check_overrides.py` | Export and publish exclusions for `local/pne_oracle/**` |
@@ -1349,7 +1349,7 @@ Instance paths are shown; in the repo, `kubejs/` lives under `overrides/kubejs/`
 
 | Layer | Tests | Gate |
 | --- | --- | --- |
-| GA core | ES5/determinism lint; same seed identical, seed+1 diverges; golden hashes in Node **and** Rhino; interleaved replay golden; adaptation (crossover ≤ 3 generations in ≥ 18/20 seeds); diversity (mean L1 ≥ 0.15); governor tracks target ± 0.01; live mode with dream alignment ≥ 0.5 (re-measured with insertDreamed); mercy test; NaN guard | CI |
+| GA core | ES5/determinism lint; same seed identical, seed+1 diverges; golden hashes in Node **and** Rhino; interleaved replay golden; adaptation (crossover ≤ 3 generations in ≥ 18/20 seeds); diversity (mean L1 ≥ 0.15); governor tracks target ± 0.01; live mode with dream alignment ≥ 0.5 within the 6000-spawn phase and a dream gain ≥ 0.05 at 3000 and 6000 spawns (re-measured with insertDreamed; amended, Appendix E); mercy test; NaN guard | CI |
 | Hive runtime | Mock-world Rhino benchmarks within the token table; NbtIo size test; join-before-leave conversion replay | CI |
 | Audio | V1-V16 on every decoded asset; manifest diff on change | CI |
 | Director and ledger | FSM invariants (dwell, PANIC exits, 45 s cap, spawn ≤ 0.2 in PANIC, RELEASE and mercy); the audio ceiling never raises the tier; comfort envelope rule; A8 duty including existing sounds; level-jump limits for every source; no early `stopsound`; JS/Python parity 100% | CI |
@@ -1357,7 +1357,7 @@ Instance paths are shown; in the repo, `kubejs/` lives under `overrides/kubejs/`
 | Oracle deploy | G2-G6; worker crash → CPU demotion < 1 s; stale-lock safety (no kill) | Manual |
 | Closed loop | deaths/hr ≤ 1.25 with the natural-spawn gate at a 60% natural share; repeat deaths ≈ 0; encounters ≥ 85% of the no-director figure; flips ≤ 1.5/min; PANIC ≤ 45 s; with audio coupling k = 0.3, mean arousal increase ≤ 0.04 and 0% dread audio outside encounters | CI (simulation) |
 | Online (real, opt-in logs) | Self-supervised flee/engage F1 tracked; event-locked arousal response (E rises within 3 s of damage and decays within 30 s); style flips < 6/hr; input drift against training μ/σ | Dashboard |
-| In game | spark budgets and the bridge-write p99 gate; L\_eff capture; modifier persistence over chunk reload; conversion `pne_gp`; mercy spawn count; ETF on GeckoLib; AmbientSounds region discovery; Mob navigation access from Rhino; display-graft cleanup; effect immunity; comfort listening sign-off by the user | Milestone exits |
+| In game | spark budgets and the bridge-write p99 gate; L\_eff capture; modifier persistence over chunk reload; conversion `pne_gp`; mercy spawn count; ETF on GeckoLib; Spore EMF model export (before any `.jem`); Mob navigation access from Rhino; display-graft cleanup; effect immunity; comfort listening sign-off by the user | Milestone exits |
 
 ### 6.4 What needs the user's hands
 
@@ -1607,3 +1607,104 @@ All paths are relative to the `tdd/` folder in this session's scratch directory.
 | Engineering: director beds via a large attenuation\_distance, shorter segments, or AmbientSounds | All three, with AmbientSounds primary for beds and 12-block elevation for director layers | Elevation keeps the pan centred while walking straight, and AmbientSounds avoids positional drift for long beds. |
 | Engineering: CTRL\_BREAK to a launcher-created process group as a stop path | Not adopted; stop.flag only | A console process-group signal from a separate launcher is fragile on Windows, and the cooperative flag covers every case without touching any process. |
 | Science: V10 pass condition at file level | Redefined at a reference in-game geometry, as the review proposed | Adopted in full; noted here only because the nominal -28 LUFS file target became a derived value. |
+
+## Appendix E. Integration notes (M0-M5 build)
+
+The M0-M5 build (branch feat/hive-remembers) keeps this design. Where a measurement, a gate or the platform forced a
+different number or rule, the shipped behaviour is recorded here, next to the section it amends; the binding module
+contract is docs/IMPLEMENTATION.md v1.3. Nothing below has been run in game yet: docs/TESTING.md lists the in-game checks.
+
+**Platform (all pillars)**
+- KubeJS hides several Mojang method names behind its own (IMPLEMENTATION F37): scripts must call `Level.getTime()`,
+  `DamageSource.getType()/getActual()/getImmediate()`, `Entity.getYaw()`. Where this document writes `getGameTime`,
+  `getMsgId` or `getEntity` for script code, read the KubeJS name. `Math.PI` and the other Math constants are undefined in
+  the Rhino fork (literals are used).
+- JsonIO.write truncates and rewrites the file in place (it never deletes it first), so the usual failure a reader sees is
+  a torn (empty or partial) file, not a missing one (4.4.2 "Sidecar read").
+
+**The Resonance (2.3-2.6)**
+- M-max, S-max and the V15 rises are measured on a 10 ms hop; V4 counts 0-20 Hz including DC, worst channel; V15 is not
+  applicable when the post-onset windows span less than 0.1 s (the catalog's `mmax` is then the onset step for the
+  ledger); the vacuum transition segment is capped at a 6 LU drop; heartbeat m is measured by a carrier-reference fit.
+- Deviations pinned in tools/resonance/tdd_pins.py: L2 is encoded at compression 0.0 (at 0.3 libvorbis adds a sub-20 Hz
+  floor that fails V4); the L4 Slow delta is 1.34-1.5 Hz (a slower beat breaks the comfort V15 limit with V9's depth);
+  the optional 2f1 partial is a beating pair (2f1, 2f1 + delta) at -12 dB; tells run 0.45-0.59 s with 4-6 clicks 80-140 ms
+  apart; L6 and L7 use attenuation 128. The bed LRA (2-4 LU) comes from a solved slow level walk; V10 is solved on the
+  decoded file, so whisper files sit near -38.5 (ambiguous) and -32.2 (near) LUFS and the ledger uses the catalog's `lufs`.
+- 2.5.3: RELEASE leaves to CALM/UNEASE only when e < 0.50 as well (otherwise RELEASE holds), exactly as the measured
+  prototype (tdd/final/cl/director.py) does; the shipped FSM matches it on 43,200 steps.
+- Section 1 data flows, "Sound onsets": Resonance onsets keep at least 2 s after any other onset (beds excepted);
+  existing pack sounds are limited by the level-jump, bus and LF rules, not by spacing (the ledger never drops a pack sound
+  for spacing).
+- **Open**: the comfort envelope rule as written flags the L5 whisper burst rhythm (0.65-1.44 at 2.0-3.5 Hz) and the L8
+  tell click trains (1.62-1.81 at 8.5-10.9 Hz). 2.3.2 says L5 passes, counting only its syllabic AM (measured and binding:
+  0.447-0.479). Either exempt phrase-level gating and click trains explicitly with a reason, or require an inter-burst
+  breath floor for whispers (about 0.5 of burst level) and decide the tells. 30 comfort assets are reported PENDING.
+- **Decided (lead, contract 1.3)**: AmbientSounds bed regions (the L1 primary route, 2.3.3 "Routing", 6.1 M2, 6.2) are
+  not shipped. A client-side region cannot follow the server's pacing state (PANIC drain, vacuum, RELEASE silence), comfort
+  mode or the ledger, so a region-played bed would break I5 and the comfort rules. The director's positional mono segments
+  are the L1 bed; the stereo beds stay local pipeline output (tools/resonance/out) for a later client-side route, and the
+  M2 in-game check for regions is dropped.
+- The comfort envelope question above stays **open for the user**: the 30 PENDING comfort assets play by default until
+  the comfort-mode listening sign-off (docs/TESTING.md M2) decides between an explicit exemption and a re-render.
+
+**The Hive Genome (3.1-3.7)**
+- 3.1: FLK never steers mobs live. **As built (contract 1.4)**: `pne_horror.js` places scripted reinforcement beckons in
+  the player's rear 120° arc (24-40 blocks, from the facing) at block light ≤ 7 with probability FLK
+  (`pneHiveInfo(mob).flk`); it moves a beckon only when the unchanged chain would summon one at the dying mob, so it never
+  adds any. The "and ambient spawns" half is not implemented: in 1.20.1 / Forge 47.4.10 the pack's hooks can only deny or
+  discard a natural spawn, and the one pre-join hook that could move it (`MobSpawnEvent$FinalizeSpawn`) would skip the
+  spawn rules, the light check, the spawn gate and pacing at the new position. L8 tells reach every survival player
+  within 12 blocks (each through their own ledger); SCT steering runs only with config `debug` 1, at most one per tick. Genome ids carry a load
+  epoch (`<GA id>.<epoch>`, salted, declared by the GA core since contract 1.4), so a /reload rollback cannot reuse the id
+  of a mob still in the world (after a crash before the next world save only by chance, about 1 in 1000).
+- 3.2: teamPressure is the k_mercy-weighted hive damage dealt to the mob's target while it was engaged, divided by the
+  genome mobs engaged on that target (the runtime has no attack-attempt counts). `outcome()` caps dmg at 12 HP per
+  encounter. The dawn's T_est input is normalised to sum 1.
+- 3.3.3 and 6.3: re-measured in live mode with `insertDreamed` at pool 48: alignment 0.461 at 3000 spawns (0.391 without
+  the dream) and 0.542 at 6000. The earlier 0.615 relied on crowding inserts. **Decided (lead, contract 1.3)**: the 6.3
+  gate reads "dream alignment ≥ 0.5 within the 6000-spawn phase" (from a fresh pool), and the dream must still add ≥ 0.05
+  over the same runs without it at 3000 and at 6000 spawns and at the end of the post-shift phase (there the
+  re-adaptation reaches 0.463 against 0.387 without the dream after 6000 more spawns, so 0.5 is a first-phase figure). The insertDreamed eligibility rule stays as written (a prediction never
+  displaces a well-measured entry: the surrogate-exploitation mitigation of 7.1); relaxing it would reach about 0.535 at
+  1,200 evaluations but give up that mitigation.
+- 3.7 persistence table, `pne_hive.base`: each IntArray is `[3 x EMA*1e6, count, lruRank]` (a CompoundTag returns its keys
+  in hash order, so the rank keeps eviction after a reload, and replay from a save, identical to the live run); the
+  compound also holds `v`, `hv` and, for an unreadable old state, `prev`.
+- 3.6/3.7: outcomes are charged their measured cost (0.33 ms), not a breed's; `breed()` alone costs about 0.1 ms warm
+  (the budget constant is 0.5); the GA save at the maximum state takes 2.6-5 ms once per 6000 ticks and is confined to a
+  tick of its own (a known I9 exception until the GA core offers an incremental save).
+- 3.5.2: grafts use collision `always` (`pushOtherTeams` breaks pushing between players and parasites, MC-87984). A
+  passenger is not invisible to the host's AI: a vehicle refuses vanilla stroll and leap goals and is not pushed by other
+  entities, so grafts exist only while the host is engaged (target is a player), never on the 20 combat-sensitive species,
+  and 15% of the engaged hive means a fight needs 7 or more engaged genome mobs before one carries a graft.
+
+**Visual phenotype (3.5.2, 6.1 M4, 6.2)**
+- ETF clade variants: the repo ships only the `.properties`; the textures are generated at install time by
+  tools/visual/etf_variants_local.py (tools/apply.py step 8), which derives them from the user's own EPCA and Spore jars
+  and writes them only into the user's instance. No art is in the repo (the 6.1 wording "authored from scratch" is
+  replaced by this generator).
+- Spore EMF is **deferred** until in-game model export: which file names EMF loads for each Spore layer, and whether a
+  scale-only `.jem` keeps Spore's geometry, cannot be seen offline. docs/TESTING.md M4 has the export step
+  (`tools/visual/emf_spore_parts.py --summary` for the comparison); VISUAL authors scale-only `.jem` files after it. M4 is
+  met for its automated criteria only.
+
+**Implementation plan (6.2 file list)**: three rows name paths the build does not use. `kubejs/data/pne/tags/entity_types/hive.json`
+is the `#pne:hive` tag defined in `kubejs/server_scripts/pne_tags.js`; `tools/resonance/ledger_sim.js` is
+`tools/director/ledger_sim.js` (DIRECTOR owns the ledger simulation); `tools/director/test_features.js` is
+`tools/oracle/test_features.js` (ORACLE owns the feature extractor).
+
+**Budget and safety rules (3.7, I10)**
+- The token table gained `outcome` (0.33 ms, the measured outcome insert) and `steer` (1.0 ms, a placeholder until spark
+  measures one `Mob#getNavigation().moveTo`).
+- I10 ("no process is ever killed by PID or by name") is kept as written. Its one clarification: a test harness or local
+  tool may let a child process it started itself be ended through that child's own handle when the child exceeds its
+  timeout; never another process, never by PID or name, and a sidecar child gets stop.flag first
+  (docs/IMPLEMENTATION.md Appendix A rule 12; tools/ci/no_kill.py lists the harness files).
+
+**The Oracle (4.4)**
+- "Single instance": an OS-level guard lock (sidecar.lock.guard, released by the operating system however the process
+  ends) comes before the PID/nonce rules. "Logging": the self-service opt-in is two-step (`/pne oracle log on` sends a
+  one-time link, only the caller's own confirm enables it); retention is enforced whenever the sidecar runs; a purge is
+  acknowledged only after the files are gone.
+- The determinism boundary follows the contract: the style bucket needs max(styleP) >= 0.5.

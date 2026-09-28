@@ -1,5 +1,47 @@
 # Changelog
 
+## Unreleased: The Hive Remembers (milestones M0-M5, tested offline, not yet run in game)
+
+### The Resonance
+- 126 rendered and verified sound assets under `assets/pne` (8 layers; 5.87 MB of OGG). The 18 stereo AmbientSounds
+  beds (19.4 MB) are rendered into tools/resonance/out/ only and never ship: no AmbientSounds bed regions ship, because
+  a client-side region cannot follow the director's pacing, comfort mode or the sound ledger; the director's positional
+  segments are the bed. `sounds.json` with attenuation distances, subtitles and a generated catalog. Build: `python
+  tools/resonance/render.py`, then `python tools/resonance/verify.py --install`; `verify.py --committed` re-checks the
+  committed files (loudness, true peak, sub-20 Hz energy, modulation depth, comfort rules).
+- A per-player pacing director (CALM, UNEASE, DREAD, PANIC, RELEASE) with a sound ledger that every horror sound now goes
+  through, including the pack's existing ones; EPCA and Spore sounds trimmed to at most -20 LUFS.
+- A startup natural-spawn gate: no parasite spawns near a player at 30% health or less or in respawn grace.
+- Comfort mode on by default for every player; `/pne comfort`, `/pne audio`, per-layer switches.
+- Optional, local only: `tools/resonance/declip_local.py` writes a de-clipped Spore sound pack into your instance.
+
+### The Hive Genome
+- A deterministic genetic algorithm (`pne_hive_core.js`) and its runtime (`pne_hive.js`): 14 genes expressed as
+  attribute modifiers, silence with fair tells (every survival player within 12 blocks hears a silent parasite's tell), a
+  hidden axe for shield-breakers, projectile resistance, light aversion, conversions that inherit genomes, a dawn dream,
+  a survivability governor, persistence in the world's KubeJS data (saved a small piece per tick, so a save never
+  causes a lag spike; genome ids carry a load epoch so a `/reload` never reuses one).
+- Flankers: at low light, reinforcement beckons rooted by parasites with a strong FLK gene appear behind you (24-40
+  blocks, in your rear 120 degrees) instead of where the parasite died; never more of them than before.
+- A spawn discard backstop for fresh parasites near players in mercy or grace (Hordes waves included).
+- Visual phenotype (`pne_visual.js`): clade teams, display grafts on engaged hosts, apex names; clade texture variants
+  generated locally from your own jars (`tools/visual/etf_variants_local.py`, run by `apply.py`).
+
+### The Oracle
+- Telemetry features and a file bridge (`pne_oracle_bridge.js`); an optional sidecar (`oracle/`, installed by `apply.py`
+  into `<instance>/local/pne_oracle`, started with `launch_oracle.cmd`, stopped only through `stop_oracle.cmd`).
+- Per-player opt-in logging with a chat confirmation; pseudonymous ids; purge on request; 7-day retention.
+
+### Shared
+- `/pne` command hub, pillar switches, a shared 2.5 ms per-tick budget (constants set from Rhino benchmarks), the module
+  contract `docs/IMPLEMENTATION.md`, and `python tools/run_tests.py` with 69 suites, including a pack-level smoke test
+  that runs every script together in the instance's own Rhino jar over two in-game days, with each module removed,
+  switched off or broken, and again with only the method names KubeJS leaves visible in game (the test mocks now have
+  that shape and the lint rejects hidden Minecraft names such as `getGameTime`).
+- `python tools/run_tests.py --milestone Mn` lists what no suite can decide (the comfort listening sign-off for M1/M2,
+  Spore EMF for M4) and then reports "MET for the automated criteria".
+- `validate.py` now also checks the pack's sound assets, the generated catalog and the EPCA/Spore volume trims.
+
 ## 1.0.0 — 2026-09-27
 
 First public release. Built on *parasites new dawn - 100 days with parasites* (CurseForge project

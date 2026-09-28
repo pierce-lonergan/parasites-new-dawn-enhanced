@@ -1,0 +1,21 @@
+{
+  "module": "oracle",
+  "suites": [
+    {"name": "oracle-features-node", "cmd": ["{node}", "tools/tests/kjs_node.js", "pneOraFeatResult", "tools/tests/kjs_mocks.js", "tools/oracle/ora_mocks.js",
+      "overrides/kubejs/server_scripts/pne_00_core.js", "overrides/kubejs/server_scripts/pne_oracle_bridge.js", "tools/oracle/ref/features_proto.js",
+      "tools/oracle/fixtures/raw_trace.js", "tools/oracle/test_features.js"], "needs": ["node"], "expect": "PASS", "timeout": 300},
+    {"name": "oracle-features-rhino", "cmd": ["{python}", "tools/rhino/pne_rhino.py", "run", "pneOraFeatResult", "tools/tests/kjs_mocks.js", "tools/oracle/ora_mocks.js",
+      "overrides/kubejs/server_scripts/pne_00_core.js", "overrides/kubejs/server_scripts/pne_oracle_bridge.js", "tools/oracle/ref/features_proto.js",
+      "tools/oracle/fixtures/raw_trace.js", "tools/oracle/test_features.js"], "needs": ["rhino"], "expect": "PASS", "timeout": 300},
+    {"name": "oracle-bridge", "cmd": ["{python}", "tools/oracle/run_js_tests.py", "bridge"], "needs": ["node", "rhino"], "expect": "PASS", "timeout": 600},
+    {"name": "oracle-sidecar", "cmd": ["{python}", "oracle/tests/test_sidecar.py"], "needs": ["numpy"], "expect": "PASS", "timeout": 900},
+    {"name": "oracle-stale-lock", "cmd": ["{python}", "oracle/tests/test_lock.py"], "needs": ["numpy"], "expect": "PASS", "timeout": 300},
+    {"name": "oracle-check-overrides", "cmd": ["{python}", "oracle/tests/test_check_overrides.py"], "needs": [], "expect": "PASS", "timeout": 120},
+    {"name": "oracle-telemetry-bench", "cmd": ["{python}", "tools/oracle/run_bench.py", "--rounds", "6", "--calls", "2000"], "needs": ["rhino", "jdk17"],
+      "expect": "PASS", "timeout": 900},
+    {"name": "oracle-worker", "cmd": ["{python}", "oracle/tests/test_worker.py"], "needs": ["numpy"], "expect": "PASS", "timeout": 600},
+    {"name": "oracle-logs", "cmd": ["{python}", "oracle/tests/test_logs.py"], "needs": ["numpy"], "expect": "PASS", "timeout": 300},
+    {"name": "oracle-offline", "cmd": ["{python}", "oracle/tests/test_offline.py"], "needs": ["numpy"], "expect": "PASS", "timeout": 600},
+    {"name": "oracle-bridge-e2e", "cmd": ["{python}", "tools/oracle/run_e2e.py"], "needs": ["rhino", "jdk17", "numpy"], "expect": "PASS", "timeout": 600}
+  ]
+}

@@ -1,0 +1,228 @@
+{
+ "schema": 1,
+ "model": "oracle-mlp-496-64-32-11",
+ "feature_names": [
+  "speed_h",
+  "accel",
+  "heading_rate",
+  "look_rate",
+  "vy",
+  "health",
+  "dhealth",
+  "food",
+  "light",
+  "sky",
+  "depth",
+  "sneak",
+  "sprint",
+  "t_since_dmg",
+  "t_since_sight",
+  "n16",
+  "n32",
+  "nearest",
+  "dnearest",
+  "held_melee",
+  "held_ranged",
+  "held_tool",
+  "held_block",
+  "held_food",
+  "held_light",
+  "held_other",
+  "place30",
+  "enclosure",
+  "torch_rate",
+  "dealt",
+  "night"
+ ],
+ "window": 16,
+ "input_layout": "time-major [16 x 31] flattened to 496, oldest second first; x_n = (x - mu) / sd per feature; zero-padded in normalised space until the window is full",
+ "heads": {
+  "arousal": [
+   "calm",
+   "uneasy",
+   "tense",
+   "panic"
+  ],
+  "style": [
+   "hide",
+   "kite",
+   "turtle",
+   "explore"
+  ],
+  "fe": [
+   "neither",
+   "flee",
+   "engage"
+  ]
+ },
+ "output_layout": {
+  "arousal": [
+   0,
+   4
+  ],
+  "style": [
+   4,
+   8
+  ],
+  "fe": [
+   8,
+   11
+  ]
+ },
+ "postprocess": "per-head softmax on the host; conf = max(arousal); E_O = (p1 + 2 p2 + 3 p3) / 3",
+ "mu": [
+  0.4600238502025604,
+  0.3293648660182953,
+  0.06723760813474655,
+  0.19396479427814484,
+  9.679030335973948e-05,
+  0.9145470857620239,
+  -0.0005591250373981893,
+  0.8516141176223755,
+  0.5293236970901489,
+  0.3211909234523773,
+  0.09983781725168228,
+  0.12130864709615707,
+  0.1811235100030899,
+  0.8614490032196045,
+  0.7435136437416077,
+  0.011312587186694145,
+  0.011419106274843216,
+  0.943615198135376,
+  -0.005662559065967798,
+  0.1862408071756363,
+  0.15778623521327972,
+  0.17686405777931213,
+  0.25045648217201233,
+  0.043486081063747406,
+  0.10802127420902252,
+  0.0771450474858284,
+  0.12644174695014954,
+  0.42746707797050476,
+  0.11822295933961868,
+  0.011633234098553658,
+  0.41438812017440796
+ ],
+ "sd": [
+  0.39149174094200134,
+  0.3233325481414795,
+  0.1243293285369873,
+  0.1914590448141098,
+  0.126686692237854,
+  0.2036283314228058,
+  0.017687927931547165,
+  0.09226175397634506,
+  0.3256823420524597,
+  0.4663682281970978,
+  0.29304102063179016,
+  0.3281632959842682,
+  0.38413164019584656,
+  0.20051752030849457,
+  0.2549518048763275,
+  0.05519288405776024,
+  0.041368454694747925,
+  0.19773873686790466,
+  0.2041221410036087,
+  0.3866903483867645,
+  0.3691381812095642,
+  0.38252145051956177,
+  0.4342690706253052,
+  0.2020227015018463,
+  0.3122556209564209,
+  0.2677675783634186,
+  0.18647554516792297,
+  0.3006365895271301,
+  0.23390676081180573,
+  0.08770632743835449,
+  0.4893335700035095
+ ],
+ "backends": {
+  "cpu_np": {
+   "file": "oracle_mlp.npz",
+   "sha256": "87df623a0231d054e3f8ddd5bebc4872da1c1dc4456f96d74c2a13bcce61df17",
+   "dtype": "float32",
+   "layers": [
+    [
+     496,
+     64
+    ],
+    [
+     64,
+     32
+    ],
+    [
+     32,
+     11
+    ]
+   ],
+   "npz_order": [
+    "W0",
+    "W1",
+    "b0",
+    "b1",
+    "Wo",
+    "bo"
+   ],
+   "params": 34251
+  },
+  "cpu_tfl": {
+   "file": "oracle_mlp_int8.tflite",
+   "sha256": null,
+   "input": {
+    "dtype": "int8",
+    "shape": [
+     1,
+     496
+    ],
+    "scale": null,
+    "zero_point": null
+   },
+   "output": {
+    "dtype": "int8",
+    "shape": [
+     1,
+     11
+    ],
+    "scale": null,
+    "zero_point": null
+   },
+   "op_versions": null
+  },
+  "edgetpu": {
+   "file": "oracle_mlp_int8_edgetpu.tflite",
+   "sha256": null,
+   "input": {
+    "dtype": "int8",
+    "shape": [
+     1,
+     496
+    ],
+    "scale": null,
+    "zero_point": null
+   },
+   "output": {
+    "dtype": "int8",
+    "shape": [
+     1,
+     11
+    ],
+    "scale": null,
+    "zero_point": null
+   },
+   "op_versions": null,
+   "compiler_log_sha256": null
+  }
+ },
+ "training": {
+  "source": "oracle/train/train.py (numpy) on the synthetic simulator oracle/sim/sim.py; measured results in TDD 4.3",
+  "seeds": {
+   "train_data": 11,
+   "val_data": 12,
+   "test_data": 13,
+   "model": 2
+  },
+  "data_hash": null,
+  "tf_version": null
+ },
+ "generated_by": "oracle/train/make_manifest.py"
+}

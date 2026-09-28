@@ -1,0 +1,2040 @@
+{
+  "adventurer_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:adventurer_ambient1",
+        "volume": 0.59
+      },
+      {
+        "name": "spore:adventurer_ambient2",
+        "volume": 0.65
+      },
+      {
+        "name": "spore:adventurer_ambient3",
+        "volume": 0.61
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "assassin_bullet_entity": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:assassin_bullet_entity",
+        "volume": 0.97
+      },
+      {
+        "name": "spore:assassin_bullet_entity2",
+        "volume": 0.99
+      }
+    ],
+    "subtitle": "sounds.spore.weapon_use"
+  },
+  "assassin_shot": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:assassin_shot1",
+        "volume": 0.07
+      },
+      {
+        "name": "spore:assassin_shot2",
+        "volume": 0.05
+      }
+    ],
+    "subtitle": "sounds.spore.weapon_use"
+  },
+  "bairn": {
+    "replace": true,
+    "sounds": [
+      "spore:bairn_ambient1",
+      {
+        "name": "spore:bairn_ambient2",
+        "volume": 0.38
+      },
+      {
+        "name": "spore:bairn_ambient3",
+        "volume": 0.38
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "bane_of_settlement": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:events/bane_of_settlement",
+        "volume": 0.48
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "bicentennial": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:pre_proto/bicentennial",
+        "volume": 0.77
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "bile_blaster_shot": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:bile_blaster_shot1",
+        "volume": 0.39
+      },
+      {
+        "name": "spore:bile_blaster_shot2",
+        "volume": 0.34
+      }
+    ],
+    "subtitle": "sounds.spore.weapon_use"
+  },
+  "biogun_hit_player": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:biogun_hitmark_player",
+        "volume": 0.28
+      }
+    ],
+    "subtitle": "sounds.spore.weapon_use"
+  },
+  "biogun_out_of_ammo": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:biogun_out_of_ammo",
+        "volume": 0.78
+      }
+    ],
+    "subtitle": "sounds.spore.weapon_use"
+  },
+  "biogun_reload": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:biogun_reload",
+        "volume": 0.3
+      }
+    ],
+    "subtitle": "sounds.spore.weapon_use"
+  },
+  "braiomil_attack": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:braiomil_attack",
+        "volume": 0.83
+      }
+    ],
+    "subtitle": "sounds.spore.braiomil_attack"
+  },
+  "braurei_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:braurei_ambient",
+        "volume": 0.73
+      }
+    ],
+    "subtitle": "sounds.spore.braurei_ambient"
+  },
+  "broken_reflection": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:post_proto/broken_reflection",
+        "volume": 0.41
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "broken_screams": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:broken_screams",
+        "volume": 0.65
+      }
+    ],
+    "subtitle": "sounds.spore.proto_ambient"
+  },
+  "calamity_damage": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:calamity_damage1",
+        "volume": 0.8
+      },
+      {
+        "name": "spore:calamity_damage2",
+        "volume": 0.85
+      }
+    ],
+    "subtitle": "sounds.spore.damage"
+  },
+  "calamity_death": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:calamity_death",
+        "volume": 0.37
+      }
+    ],
+    "subtitle": "sounds.spore.damage"
+  },
+  "calamity_incoming": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:calamity_incoming",
+        "volume": 0.42
+      }
+    ],
+    "subtitle": "sounds.spore.proto_ambient"
+  },
+  "calamity_spawn": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:calamity_spawn",
+        "volume": 0.55
+      }
+    ],
+    "subtitle": "sounds.spore.proto_ambient"
+  },
+  "chemist_fuse": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:chemist_fuse",
+        "volume": 0.63
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "cleaver_spin": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:cleaver_spin",
+        "volume": 0.71
+      }
+    ],
+    "subtitle": "sounds.spore.weapon_use"
+  },
+  "corrupted_record": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:corrupted_record",
+        "volume": 0.54
+      }
+    ],
+    "subtitle": "sounds.spore.record"
+  },
+  "cycle_of_evolution": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:pre_proto/cycle_of_evolution",
+        "volume": 0.66
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "decay": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:post_proto/decay",
+        "volume": 0.93
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "desolation": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:pre_proto/desolation",
+        "volume": 0.65
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "drowned_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:drowned_ambient1",
+        "volume": 0.66
+      },
+      {
+        "name": "spore:drowned_ambient2",
+        "volume": 0.51
+      },
+      {
+        "name": "spore:drowned_ambient3",
+        "volume": 0.5
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "electric_discharge": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:conductor_big_shock",
+        "volume": 0.1
+      }
+    ],
+    "subtitle": "sounds.spore.saw_sound"
+  },
+  "electric_spark": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:conductor_shock",
+        "volume": 0.2
+      },
+      {
+        "name": "spore:conductor_shock2",
+        "volume": 0.22
+      }
+    ],
+    "subtitle": "sounds.spore.saw_sound"
+  },
+  "evoker_suck": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:evoker_suck",
+        "volume": 0.36
+      },
+      {
+        "name": "spore:evoker_suck_2",
+        "volume": 0.34
+      },
+      {
+        "name": "spore:evoker_suck_3",
+        "volume": 0.32
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "falling_bomb": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:falling_bomb",
+        "volume": 0.89
+      }
+    ],
+    "subtitle": "sounds.spore.falling_bomb"
+  },
+  "fire_explosion": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:ignited1",
+        "volume": 0.59
+      },
+      {
+        "name": "spore:ignited2",
+        "volume": 0.44
+      },
+      {
+        "name": "spore:ignited3",
+        "volume": 0.55
+      }
+    ],
+    "subtitle": "sounds.spore.weapon_use"
+  },
+  "forgotten_patient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:forgotten_patient",
+        "volume": 0.58
+      }
+    ],
+    "subtitle": "sounds.spore.forgotten_patient"
+  },
+  "forsaken_future": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:forsaken_future",
+        "volume": 0.41
+      }
+    ],
+    "subtitle": "sounds.spore.forsaken_future"
+  },
+  "fungal_boom": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:spore_explosion1",
+        "volume": 0.43
+      },
+      {
+        "name": "spore:spore_explosion2",
+        "volume": 0.29
+      },
+      {
+        "name": "spore:spore_explosion3",
+        "volume": 0.43
+      }
+    ],
+    "subtitle": "sounds.spore.tumor"
+  },
+  "gast_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:gast_ambient",
+        "volume": 0.7
+      }
+    ],
+    "subtitle": "sounds.spore.gast_ambient"
+  },
+  "gazen_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:gazen_ambient",
+        "volume": 0.47
+      },
+      {
+        "name": "spore:gazen_ambient2",
+        "volume": 0.38
+      }
+    ],
+    "subtitle": "sounds.spore.gazen_ambient"
+  },
+  "gorgon_spew": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:gorgon_attack_1",
+        "volume": 0.14
+      },
+      {
+        "name": "spore:gorgon_attack_2",
+        "volume": 0.14
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "grober_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:groberfub_ambient1",
+        "volume": 0.23
+      },
+      {
+        "name": "spore:groberfub_ambient2",
+        "volume": 0.27
+      },
+      {
+        "name": "spore:groberfub_ambient3",
+        "volume": 0.24
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "grober_charge": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:groberfub_charge",
+        "volume": 0.15
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "grober_choke": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:grober_charge_hit",
+        "volume": 0.22
+      },
+      {
+        "name": "spore:grober_charge_hit2",
+        "volume": 0.23
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "grober_kick": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:grober_kick",
+        "volume": 0.11
+      },
+      {
+        "name": "spore:grober_kick2",
+        "volume": 0.11
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "grober_slap": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:grober_slap",
+        "volume": 0.21
+      },
+      {
+        "name": "spore:grober_slap2",
+        "volume": 0.26
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "grober_smash": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:grober_overhead",
+        "volume": 0.09
+      },
+      {
+        "name": "spore:grober_overhead2",
+        "volume": 0.12
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "hevoker_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:hevoker_ambient",
+        "volume": 0.83
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "hexen_blow": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:hexen_blow",
+        "volume": 0.29
+      },
+      {
+        "name": "spore:hexen_blow_2",
+        "volume": 0.22
+      },
+      {
+        "name": "spore:hexen_blow_3",
+        "volume": 0.2
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "hexen_suck": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:hexen_suck",
+        "volume": 0.25
+      },
+      {
+        "name": "spore:hexen_suck_2",
+        "volume": 0.23
+      },
+      {
+        "name": "spore:hexen_suck_3",
+        "volume": 0.22
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "hinden_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:hinden_ambient",
+        "volume": 0.92
+      }
+    ],
+    "subtitle": "sounds.spore.hinden_ambient"
+  },
+  "hindicator_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:hindicator_ambient",
+        "volume": 0.46
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "hohl_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:hohl_ambient",
+        "volume": 0.34
+      },
+      {
+        "name": "spore:hohl_ambient2",
+        "volume": 0.58
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "hollen_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:hollen_ambient",
+        "volume": 0.14
+      },
+      {
+        "name": "spore:hollen_ambient2",
+        "volume": 0.14
+      },
+      {
+        "name": "spore:hollen_ambient3",
+        "volume": 0.15
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "hollen_spit": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:hollen_spit1",
+        "volume": 0.27
+      },
+      {
+        "name": "spore:hollen_spit2",
+        "volume": 0.26
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "hollen_stab": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:hollen_stab",
+        "volume": 0.3
+      },
+      {
+        "name": "spore:hollen_stab2",
+        "volume": 0.3
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "howitzer_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:howitzer_ambient",
+        "volume": 0.38
+      }
+    ],
+    "subtitle": "sounds.spore.howitzer_ambient"
+  },
+  "howler_growl": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:howler",
+        "volume": 0.22
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "husk_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:husk_ambient1",
+        "volume": 0.58
+      },
+      {
+        "name": "spore:husk_ambient2",
+        "volume": 0.63
+      },
+      {
+        "name": "spore:husk_ambient3",
+        "volume": 0.71
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "hyper_damage": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:hyper_damage1",
+        "volume": 0.63
+      },
+      {
+        "name": "spore:hyper_damage2",
+        "volume": 0.61
+      }
+    ],
+    "subtitle": "sounds.spore.damage"
+  },
+  "inf_evoker_growl": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:evoker_ambient1",
+        "volume": 0.53
+      },
+      {
+        "name": "spore:evoker_ambient2",
+        "volume": 0.25
+      },
+      {
+        "name": "spore:evoker_ambient3",
+        "volume": 0.78
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "inf_growl": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:growl",
+        "volume": 0.9
+      },
+      {
+        "name": "spore:growl2",
+        "volume": 0.67
+      },
+      {
+        "name": "spore:growl3",
+        "volume": 0.55
+      },
+      "spore:growl4",
+      "spore:growl5"
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "inf_villager_death": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:infected_villager_death",
+        "volume": 0.45
+      }
+    ],
+    "subtitle": "sounds.spore.damage"
+  },
+  "infected_gear_break": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:infected_gear_break",
+        "volume": 0.86
+      }
+    ],
+    "subtitle": "sounds.spore.weapon_use"
+  },
+  "infected_weapon_hit_entity": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:infected_weapon_hit_entity",
+        "volume": 0.66
+      }
+    ],
+    "subtitle": "sounds.spore.weapon_use"
+  },
+  "inquisitor_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:inquisitor_ambient",
+        "volume": 0.61
+      }
+    ],
+    "subtitle": "sounds.spore.inquisitor_ambient"
+  },
+  "insolence": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:events/insolence",
+        "volume": 0.54
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "insolence_intro": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:events/insolence_intro",
+        "volume": 0.84
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "kraken_growl": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:kraken_growl1",
+        "volume": 0.66
+      },
+      {
+        "name": "spore:kraken_growl2",
+        "volume": 0.7
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "lacerator_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:lacerator_ambient1",
+        "volume": 0.5
+      },
+      {
+        "name": "spore:lacerator_ambient2",
+        "volume": 0.43
+      },
+      {
+        "name": "spore:lacerator_ambient3",
+        "volume": 0.39
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "landing": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:landing",
+        "volume": 0.31
+      }
+    ],
+    "subtitle": "sounds.spore.landing"
+  },
+  "leviathan_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:leviathan_ambient",
+        "volume": 0.59
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "limb_slash": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:limb_slash",
+        "volume": 0.48
+      }
+    ],
+    "subtitle": "sounds.spore.limb_slash"
+  },
+  "madness": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:madness_whisper1",
+        "volume": 0.34
+      },
+      "spore:madness_whisper2",
+      "spore:madness_whisper3",
+      "spore:madness_whisper4"
+    ],
+    "subtitle": "sounds.spore.proto_ambient"
+  },
+  "manmade_horrors": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:pre_proto/manmade_horrors",
+        "volume": 0.61
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "mental_mutilation": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:post_proto/mental_mutilation",
+        "volume": 0.45
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "mistmaker_bite": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:mistmaker_bite",
+        "volume": 0.67
+      },
+      {
+        "name": "spore:mistmaker_bite2",
+        "volume": 0.59
+      }
+    ],
+    "subtitle": "sounds.spore.weapon_use"
+  },
+  "mistmaker_bullet_entity": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:mistmaker_bullet_entity",
+        "volume": 0.62
+      },
+      {
+        "name": "spore:mistmaker_bullet_entity2",
+        "volume": 0.54
+      }
+    ],
+    "subtitle": "sounds.spore.weapon_use"
+  },
+  "mistmaker_deploy": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:mistmaker_deploy",
+        "volume": 0.44
+      }
+    ],
+    "subtitle": "sounds.spore.weapon_use"
+  },
+  "mistmaker_retract": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:mistmaker_retract",
+        "volume": 0.47
+      }
+    ],
+    "subtitle": "sounds.spore.weapon_use"
+  },
+  "mistmaker_shot": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:mistmaker_shot1",
+        "volume": 0.11
+      },
+      {
+        "name": "spore:mistmaker_shot2",
+        "volume": 0.11
+      }
+    ],
+    "subtitle": "sounds.spore.weapon_use"
+  },
+  "myconoclast": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:pre_proto/myconoclast",
+        "volume": 0.8
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "mycophobia": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:events/mycophobia",
+        "volume": 0.8
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "natural_occurance": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:post_proto/natural_occurance",
+        "volume": 0.44
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "neurogenesis": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:post_proto/neurogenesis",
+        "volume": 0.64
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "nourishment": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:pre_proto/nourishment",
+        "volume": 0.53
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "nuke": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:nuke",
+        "volume": 0.28
+      }
+    ],
+    "subtitle": "sounds.spore.nuke"
+  },
+  "omni_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:groberfub_omni1",
+        "volume": 0.25
+      },
+      {
+        "name": "spore:groberfub_omni2",
+        "volume": 0.24
+      },
+      {
+        "name": "spore:groberfub_omni3",
+        "volume": 0.19
+      },
+      {
+        "name": "spore:groberfub_omni4",
+        "volume": 0.27
+      },
+      {
+        "name": "spore:groberfub_omni5",
+        "volume": 0.25
+      },
+      {
+        "name": "spore:groberfub_omni6",
+        "volume": 0.22
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "organoid_damage": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:organoid_damage1",
+        "volume": 0.87
+      },
+      {
+        "name": "spore:organoid_damage2",
+        "volume": 0.99
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "pci_inject": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:pci_inject",
+        "volume": 0.63
+      }
+    ],
+    "subtitle": "sounds.spore.weapon_use"
+  },
+  "phayres_screech": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:phayres_screech",
+        "volume": 0.16
+      },
+      {
+        "name": "spore:phayres_screech2",
+        "volume": 0.11
+      },
+      {
+        "name": "spore:phayres_screech3",
+        "volume": 0.13
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "pillager_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:pillager_ambient1",
+        "volume": 0.42
+      },
+      {
+        "name": "spore:pillager_ambient2",
+        "volume": 0.86
+      },
+      {
+        "name": "spore:pillager_ambient3",
+        "volume": 0.56
+      },
+      {
+        "name": "spore:pillager_ambient4",
+        "volume": 0.46
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "plagued_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:plagued_ambient1",
+        "volume": 0.71
+      },
+      {
+        "name": "spore:plagued_ambient2",
+        "volume": 0.56
+      },
+      {
+        "name": "spore:plagued_ambient3",
+        "volume": 0.75
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "project_regenesis": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:pre_proto/project_regenesis",
+        "volume": 0.6
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "prototype": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:post_proto/prototype",
+        "volume": 0.65
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "reaper_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:reaper_idle1",
+        "volume": 0.24
+      },
+      {
+        "name": "spore:reaper_idle2",
+        "volume": 0.24
+      },
+      {
+        "name": "spore:reaper_idle3",
+        "volume": 0.25
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "reaper_attack": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:reaper_attack1",
+        "volume": 0.22
+      },
+      {
+        "name": "spore:reaper_attack2",
+        "volume": 0.22
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "reaper_compost": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:reaper_composter",
+        "volume": 0.25
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "reaper_harvest": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:reaper_harvest1",
+        "volume": 0.33
+      },
+      {
+        "name": "spore:reaper_harvest2",
+        "volume": 0.34
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "reaper_spit": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:reaper_spit1",
+        "volume": 0.21
+      },
+      {
+        "name": "spore:reaper_spit2",
+        "volume": 0.23
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "reclaimation": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:pre_proto/reclaimation",
+        "volume": 0.54
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "repurposed": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:post_proto/repurpose",
+        "volume": 0.64
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "restless_reach": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:pre_proto/restless_reach",
+        "volume": 0.37
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "roads_once_travelled": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:pre_proto/roads_once_travelled",
+        "volume": 0.55
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "saugling_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:saugling_ambient1",
+        "volume": 0.46
+      },
+      {
+        "name": "spore:saugling_ambient2",
+        "volume": 0.64
+      },
+      {
+        "name": "spore:saugling_ambient3",
+        "volume": 0.54
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "saugling_jumpscare": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:saugling_jumpscare",
+        "volume": 0.29
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "saw_sound": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:saw_sound",
+        "volume": 0.58
+      }
+    ],
+    "subtitle": "sounds.spore.saw_sound"
+  },
+  "scamper_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:scamper_ambient1",
+        "volume": 0.54
+      },
+      {
+        "name": "spore:scamper_ambient2",
+        "volume": 0.58
+      },
+      "spore:scamper_ambient3"
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "scientist_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:scientist_ambient1",
+        "volume": 0.35
+      },
+      {
+        "name": "spore:scientist_ambient2",
+        "volume": 0.33
+      },
+      {
+        "name": "spore:scientist_ambient3",
+        "volume": 0.43
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "scientist_fuse": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:scientist_fuse",
+        "volume": 0.63
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "shield_bash": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:shield_bash",
+        "volume": 0.38
+      }
+    ],
+    "subtitle": "sounds.spore.weapon_use"
+  },
+  "sieger_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:sieger_ambient",
+        "volume": 0.48
+      },
+      {
+        "name": "spore:sieger_ambient2",
+        "volume": 0.29
+      }
+    ],
+    "subtitle": "sounds.spore.sieger_ambient"
+  },
+  "sieger_bite": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:sieger_bite",
+        "volume": 0.57
+      }
+    ],
+    "subtitle": "sounds.spore.sieger_bite"
+  },
+  "signal": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:signal",
+        "volume": 0.49
+      }
+    ],
+    "subtitle": "sounds.spore.signal"
+  },
+  "slasher_pull": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:slasher_pull",
+        "volume": 0.57
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "sleepless_dreaming": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:pre_proto/sleepless_dreaming",
+        "volume": 0.95
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "something_once_great": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:post_proto/something_once_great",
+        "volume": 0.41
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "sonar": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:sonar",
+        "volume": 0.54
+      }
+    ],
+    "subtitle": "sounds.spore.sonar"
+  },
+  "specter_cloak": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:specter_cloak",
+        "volume": 0.45
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "specter_uncloak": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:specter_uncloak",
+        "volume": 0.27
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "spitter_spit": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:spitter_spit1",
+        "volume": 0.24
+      },
+      {
+        "name": "spore:spitter_spit2",
+        "volume": 0.16
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "spitter_vomit": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:spitter_minigun",
+        "volume": 0.28
+      },
+      {
+        "name": "spore:spitter_minigun2",
+        "volume": 0.33
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "spore_burst": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:spore_burst",
+        "volume": 0.19
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "spore_burst_song": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:post_proto/spore_burst",
+        "volume": 0.77
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "stahl_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:stahl_ambient",
+        "volume": 0.13
+      },
+      {
+        "name": "spore:stahl_ambient2",
+        "volume": 0.14
+      },
+      {
+        "name": "spore:stahl_ambient3",
+        "volume": 0.12
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "stahl_kick": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:stahl_kick",
+        "volume": 0.13
+      },
+      {
+        "name": "spore:stahl_kick2",
+        "volume": 0.12
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "stahl_slap": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:stahl_slap",
+        "volume": 0.21
+      },
+      {
+        "name": "spore:stahl_slap2",
+        "volume": 0.23
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "stahl_slash": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:stahl_slash",
+        "volume": 0.2
+      },
+      {
+        "name": "spore:stahl_slash2",
+        "volume": 0.2
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "start_anew": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:pre_proto/start_anew",
+        "volume": 0.38
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "synaptic_relapse": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:post_proto/synaptic_relapse",
+        "volume": 0.87
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "syringe_gun_inject": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:syringegun_inject",
+        "volume": 0.53
+      }
+    ],
+    "subtitle": "sounds.spore.weapon_use"
+  },
+  "syringe_reload": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:syringegun_reload",
+        "volume": 0.77
+      }
+    ],
+    "subtitle": "sounds.spore.weapon_use"
+  },
+  "syringe_spin": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:syringegun_spin",
+        "volume": 0.87
+      }
+    ],
+    "subtitle": "sounds.spore.weapon_use"
+  },
+  "terroriser_projectile": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:terroriser_projectile1",
+        "volume": 0.4
+      },
+      {
+        "name": "spore:terroriser_projectile2",
+        "volume": 0.56
+      }
+    ],
+    "subtitle": "sounds.spore.weapon_use"
+  },
+  "terroriser_shot": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:terroriser_shot_1",
+        "volume": 0.38
+      },
+      {
+        "name": "spore:terroriser_shot_2",
+        "volume": 0.38
+      }
+    ],
+    "subtitle": "sounds.spore.weapon_use"
+  },
+  "the_soil_talks": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:pre_proto/the_soil_talks",
+        "volume": 0.45
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "they_awaken": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:pre_proto/they_awaken",
+        "volume": 0.52
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "they_grow_below": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:pre_proto/they_grow_below",
+        "volume": 0.94
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "trader_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:trader_ambient1",
+        "volume": 0.64
+      },
+      {
+        "name": "spore:trader_ambient2",
+        "volume": 0.63
+      },
+      "spore:trader_ambient3"
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "tumor_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:hivetumor_ambient",
+        "volume": 0.2
+      },
+      {
+        "name": "spore:hivetumor_ambient2",
+        "volume": 0.17
+      },
+      {
+        "name": "spore:hivetumor_ambient3",
+        "volume": 0.2
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "tumor_spawn": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:hivetumor_spawn",
+        "volume": 0.38
+      }
+    ],
+    "subtitle": "sounds.spore.proto_ambient"
+  },
+  "tumoroid_explosion": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:tumoroid_nuke",
+        "volume": 0.24
+      }
+    ],
+    "subtitle": "sounds.spore.tumor"
+  },
+  "umarmer_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:umarmer_ambient",
+        "volume": 0.59
+      }
+    ],
+    "subtitle": "sounds.spore.umarmer_ambient"
+  },
+  "vanguard_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:vanguard_ambient",
+        "volume": 0.27
+      },
+      {
+        "name": "spore:vanguard_ambient_2",
+        "volume": 0.3
+      },
+      {
+        "name": "spore:vanguard_ambient_3",
+        "volume": 0.28
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "vanguard_call": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:vanguard_call",
+        "volume": 0.34
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "vanguard_fireworks": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:vanguard_fireworks",
+        "volume": 0.3
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "vanguard_grief": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:vanguard_grief",
+        "volume": 0.2
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "vanguard_raid": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:vanguard_raid",
+        "volume": 0.21
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "vanguard_shoot": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:vanguard_shoot",
+        "volume": 0.35
+      },
+      {
+        "name": "spore:vanguard_shoot_2",
+        "volume": 0.31
+      },
+      {
+        "name": "spore:vanguard_shoot_3",
+        "volume": 0.26
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "vanguard_slash": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:vanguard_slash",
+        "volume": 0.21
+      },
+      {
+        "name": "spore:vanguard_slash_2",
+        "volume": 0.2
+      },
+      {
+        "name": "spore:vanguard_slash_3",
+        "volume": 0.2
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "verfall_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:verfall_body_headless",
+        "volume": 0.27
+      },
+      {
+        "name": "spore:verfall_body_headless2",
+        "volume": 0.29
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "verfall_attack": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:verfall_tail_whip",
+        "volume": 0.31
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "verfall_electricity_attack": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:verfall_big_shock",
+        "volume": 0.07
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "verfall_flap": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:verfalldrache_flap_1",
+        "volume": 0.21
+      },
+      {
+        "name": "spore:verfalldrache_flap_2",
+        "volume": 0.27
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "verfall_head_regrow": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:verfall_head_regrow",
+        "volume": 0.1
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "verfall_neck_regrow": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:verfall_neck_regrow",
+        "volume": 0.23
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "verfall_sonic_head_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:verfall_sonic_ambient",
+        "volume": 0.14
+      },
+      {
+        "name": "spore:verfall_sonic_ambient2",
+        "volume": 0.14
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "verfall_special_attack": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:verfall_electric_tar_flame_blast",
+        "volume": 0.23
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "verfall_tar_attack": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:verfall_tar_spit",
+        "volume": 0.15
+      },
+      {
+        "name": "spore:verfall_tar_spit2",
+        "volume": 0.16
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "verfall_tar_head_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:verfall_tar_ambient",
+        "volume": 0.16
+      },
+      {
+        "name": "spore:verfall_tar_ambient2",
+        "volume": 0.2
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "villager_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:villager_ambient1",
+        "volume": 0.74
+      },
+      {
+        "name": "spore:villager_ambient2",
+        "volume": 0.68
+      },
+      {
+        "name": "spore:villager_ambient3",
+        "volume": 0.97
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "vindicator_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:vindicator_ambient1",
+        "volume": 0.31
+      },
+      {
+        "name": "spore:vindicator_ambient2",
+        "volume": 0.33
+      },
+      {
+        "name": "spore:vindicator_ambient3",
+        "volume": 0.35
+      },
+      {
+        "name": "spore:vindicator_ambient4",
+        "volume": 0.35
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "virulent_vigil": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:events/virulent_vigil",
+        "volume": 0.47
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "wendigo_screech": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:wendigo_screech",
+        "volume": 0.98
+      }
+    ],
+    "subtitle": "sounds.spore.wendigo_screech"
+  },
+  "what_we_become": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:post_proto/what_we_become",
+        "volume": 0.51
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "whispers": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:post_proto/whispers",
+        "volume": 0.49
+      }
+    ],
+    "subtitle": "sounds.spore.song"
+  },
+  "witch_ambient": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:witch_ambient1",
+        "volume": 0.56
+      },
+      {
+        "name": "spore:witch_ambient2",
+        "volume": 0.7
+      },
+      {
+        "name": "spore:witch_ambient3",
+        "volume": 0.65
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  },
+  "worm_digging": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "spore:worm_digging",
+        "volume": 0.67
+      }
+    ],
+    "subtitle": "sounds.spore.growl"
+  }
+}

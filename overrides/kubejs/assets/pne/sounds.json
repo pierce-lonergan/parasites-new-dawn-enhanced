@@ -1,0 +1,1142 @@
+{
+  "res.approach.c.v01": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/approach/c_v01"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.approach"
+  },
+  "res.approach.c.v02": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/approach/c_v02"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.approach"
+  },
+  "res.approach.c.v03": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/approach/c_v03"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.approach"
+  },
+  "res.approach.c.v04": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/approach/c_v04"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.approach"
+  },
+  "res.approach.c.v05": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/approach/c_v05"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.approach"
+  },
+  "res.approach.c.v06": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/approach/c_v06"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.approach"
+  },
+  "res.approach.n.v01": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/approach/n_v01"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.approach"
+  },
+  "res.approach.n.v02": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/approach/n_v02"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.approach"
+  },
+  "res.approach.n.v03": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/approach/n_v03"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.approach"
+  },
+  "res.approach.n.v04": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/approach/n_v04"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.approach"
+  },
+  "res.approach.n.v05": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/approach/n_v05"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.approach"
+  },
+  "res.approach.n.v06": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/approach/n_v06"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.approach"
+  },
+  "res.beat.slow.v01": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/beat/slow_v01"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.beat"
+  },
+  "res.beat.slow.v02": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/beat/slow_v02"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.beat"
+  },
+  "res.beat.slow.v03": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/beat/slow_v03"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.beat"
+  },
+  "res.beat.slow.v04": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/beat/slow_v04"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.beat"
+  },
+  "res.beat.slow.v05": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/beat/slow_v05"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.beat"
+  },
+  "res.beat.slow.v06": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/beat/slow_v06"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.beat"
+  },
+  "res.beat.tense.v01": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/beat/tense_v01"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.beat"
+  },
+  "res.beat.tense.v02": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/beat/tense_v02"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.beat"
+  },
+  "res.beat.tense.v03": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/beat/tense_v03"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.beat"
+  },
+  "res.beat.tense.v04": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/beat/tense_v04"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.beat"
+  },
+  "res.beat.tense.v05": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/beat/tense_v05"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.beat"
+  },
+  "res.beat.tense.v06": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/beat/tense_v06"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.beat"
+  },
+  "res.hollow.dread.v01": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/dread_v01"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.dread.v02": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/dread_v02"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.dread.v03": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/dread_v03"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.dread.v04": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/dread_v04"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.dread.v05": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/dread_v05"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.dread.v06": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/dread_v06"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.dry.v01": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/dry_v01"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.dry.v02": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/dry_v02"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.dry.v03": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/dry_v03"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.dry.v04": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/dry_v04"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.dry.v05": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/dry_v05"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.dry.v06": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/dry_v06"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.muffled.v01": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/muffled_v01"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.muffled.v02": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/muffled_v02"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.muffled.v03": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/muffled_v03"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.muffled.v04": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/muffled_v04"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.muffled.v05": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/muffled_v05"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.muffled.v06": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/muffled_v06"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.t_dread_muffled.v01": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/t_dread_muffled_v01"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.t_dread_muffled.v02": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/t_dread_muffled_v02"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.t_dread_muffled.v03": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/t_dread_muffled_v03"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.t_dread_muffled.v04": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/t_dread_muffled_v04"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.t_dread_muffled.v05": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/t_dread_muffled_v05"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.t_dread_muffled.v06": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/t_dread_muffled_v06"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.t_dry_dread.v01": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/t_dry_dread_v01"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.t_dry_dread.v02": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/t_dry_dread_v02"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.t_dry_dread.v03": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/t_dry_dread_v03"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.t_dry_dread.v04": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/t_dry_dread_v04"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.t_dry_dread.v05": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/t_dry_dread_v05"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.t_dry_dread.v06": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/t_dry_dread_v06"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.t_dry_muffled.v01": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/t_dry_muffled_v01"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.t_dry_muffled.v02": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/t_dry_muffled_v02"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.t_dry_muffled.v03": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/t_dry_muffled_v03"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.t_dry_muffled.v04": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/t_dry_muffled_v04"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.t_dry_muffled.v05": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/t_dry_muffled_v05"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.hollow.t_dry_muffled.v06": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/hollow/t_dry_muffled_v06"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.hollow"
+  },
+  "res.pulse.flutter.v01": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/pulse/flutter_v01"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.pulse"
+  },
+  "res.pulse.flutter.v02": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/pulse/flutter_v02"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.pulse"
+  },
+  "res.pulse.flutter.v03": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/pulse/flutter_v03"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.pulse"
+  },
+  "res.pulse.flutter.v04": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/pulse/flutter_v04"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.pulse"
+  },
+  "res.pulse.flutter.v05": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/pulse/flutter_v05"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.pulse"
+  },
+  "res.pulse.flutter.v06": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/pulse/flutter_v06"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.pulse"
+  },
+  "res.pulse.heartbeat.v01": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/pulse/heartbeat_v01"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.pulse"
+  },
+  "res.pulse.heartbeat.v02": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/pulse/heartbeat_v02"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.pulse"
+  },
+  "res.pulse.heartbeat.v03": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/pulse/heartbeat_v03"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.pulse"
+  },
+  "res.pulse.heartbeat.v04": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/pulse/heartbeat_v04"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.pulse"
+  },
+  "res.pulse.heartbeat.v05": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/pulse/heartbeat_v05"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.pulse"
+  },
+  "res.pulse.heartbeat.v06": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/pulse/heartbeat_v06"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.pulse"
+  },
+  "res.pulse.heartbeat_c.v01": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/pulse/heartbeat_c_v01"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.pulse"
+  },
+  "res.pulse.heartbeat_c.v02": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/pulse/heartbeat_c_v02"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.pulse"
+  },
+  "res.pulse.heartbeat_c.v03": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/pulse/heartbeat_c_v03"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.pulse"
+  },
+  "res.pulse.heartbeat_c.v04": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/pulse/heartbeat_c_v04"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.pulse"
+  },
+  "res.pulse.heartbeat_c.v05": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/pulse/heartbeat_c_v05"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.pulse"
+  },
+  "res.pulse.heartbeat_c.v06": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/pulse/heartbeat_c_v06"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.pulse"
+  },
+  "res.pulse.rough.v01": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/pulse/rough_v01"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.pulse"
+  },
+  "res.pulse.rough.v02": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/pulse/rough_v02"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.pulse"
+  },
+  "res.pulse.rough.v03": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/pulse/rough_v03"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.pulse"
+  },
+  "res.pulse.rough.v04": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/pulse/rough_v04"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.pulse"
+  },
+  "res.pulse.rough.v05": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/pulse/rough_v05"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.pulse"
+  },
+  "res.pulse.rough.v06": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/pulse/rough_v06"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.pulse"
+  },
+  "res.spike.a.v01": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/spike/a_v01",
+        "preload": true
+      }
+    ],
+    "subtitle": "subtitles.pne.res.spike"
+  },
+  "res.spike.a.v02": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/spike/a_v02",
+        "preload": true
+      }
+    ],
+    "subtitle": "subtitles.pne.res.spike"
+  },
+  "res.spike.a.v03": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/spike/a_v03",
+        "preload": true
+      }
+    ],
+    "subtitle": "subtitles.pne.res.spike"
+  },
+  "res.spike.a.v04": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/spike/a_v04",
+        "preload": true
+      }
+    ],
+    "subtitle": "subtitles.pne.res.spike"
+  },
+  "res.spike.a.v05": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/spike/a_v05",
+        "preload": true
+      }
+    ],
+    "subtitle": "subtitles.pne.res.spike"
+  },
+  "res.spike.a.v06": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/spike/a_v06",
+        "preload": true
+      }
+    ],
+    "subtitle": "subtitles.pne.res.spike"
+  },
+  "res.tell.a.v01": {
+    "sounds": [
+      {
+        "attenuation_distance": 24,
+        "name": "pne:res/tell/a_v01"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.tell"
+  },
+  "res.tell.a.v02": {
+    "sounds": [
+      {
+        "attenuation_distance": 24,
+        "name": "pne:res/tell/a_v02"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.tell"
+  },
+  "res.tell.a.v03": {
+    "sounds": [
+      {
+        "attenuation_distance": 24,
+        "name": "pne:res/tell/a_v03"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.tell"
+  },
+  "res.tell.a.v04": {
+    "sounds": [
+      {
+        "attenuation_distance": 24,
+        "name": "pne:res/tell/a_v04"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.tell"
+  },
+  "res.tell.a.v05": {
+    "sounds": [
+      {
+        "attenuation_distance": 24,
+        "name": "pne:res/tell/a_v05"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.tell"
+  },
+  "res.tell.a.v06": {
+    "sounds": [
+      {
+        "attenuation_distance": 24,
+        "name": "pne:res/tell/a_v06"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.tell"
+  },
+  "res.undertone.a.v01": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/undertone/a_v01"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.undertone"
+  },
+  "res.undertone.a.v02": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/undertone/a_v02"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.undertone"
+  },
+  "res.undertone.a.v03": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/undertone/a_v03"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.undertone"
+  },
+  "res.undertone.a.v04": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/undertone/a_v04"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.undertone"
+  },
+  "res.undertone.a.v05": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/undertone/a_v05"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.undertone"
+  },
+  "res.undertone.a.v06": {
+    "sounds": [
+      {
+        "attenuation_distance": 128,
+        "name": "pne:res/undertone/a_v06"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.undertone"
+  },
+  "res.whisper.amb.v01": {
+    "sounds": [
+      {
+        "attenuation_distance": 32,
+        "name": "pne:res/whisper/amb_v01"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.whisper"
+  },
+  "res.whisper.amb.v02": {
+    "sounds": [
+      {
+        "attenuation_distance": 32,
+        "name": "pne:res/whisper/amb_v02"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.whisper"
+  },
+  "res.whisper.amb.v03": {
+    "sounds": [
+      {
+        "attenuation_distance": 32,
+        "name": "pne:res/whisper/amb_v03"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.whisper"
+  },
+  "res.whisper.amb.v04": {
+    "sounds": [
+      {
+        "attenuation_distance": 32,
+        "name": "pne:res/whisper/amb_v04"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.whisper"
+  },
+  "res.whisper.amb.v05": {
+    "sounds": [
+      {
+        "attenuation_distance": 32,
+        "name": "pne:res/whisper/amb_v05"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.whisper"
+  },
+  "res.whisper.amb.v06": {
+    "sounds": [
+      {
+        "attenuation_distance": 32,
+        "name": "pne:res/whisper/amb_v06"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.whisper"
+  },
+  "res.whisper.amb.v07": {
+    "sounds": [
+      {
+        "attenuation_distance": 32,
+        "name": "pne:res/whisper/amb_v07"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.whisper"
+  },
+  "res.whisper.amb.v08": {
+    "sounds": [
+      {
+        "attenuation_distance": 32,
+        "name": "pne:res/whisper/amb_v08"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.whisper"
+  },
+  "res.whisper.amb.v09": {
+    "sounds": [
+      {
+        "attenuation_distance": 32,
+        "name": "pne:res/whisper/amb_v09"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.whisper"
+  },
+  "res.whisper.amb.v10": {
+    "sounds": [
+      {
+        "attenuation_distance": 32,
+        "name": "pne:res/whisper/amb_v10"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.whisper"
+  },
+  "res.whisper.amb.v11": {
+    "sounds": [
+      {
+        "attenuation_distance": 32,
+        "name": "pne:res/whisper/amb_v11"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.whisper"
+  },
+  "res.whisper.amb.v12": {
+    "sounds": [
+      {
+        "attenuation_distance": 32,
+        "name": "pne:res/whisper/amb_v12"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.whisper"
+  },
+  "res.whisper.near.v01": {
+    "sounds": [
+      {
+        "attenuation_distance": 32,
+        "name": "pne:res/whisper/near_v01"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.whisper"
+  },
+  "res.whisper.near.v02": {
+    "sounds": [
+      {
+        "attenuation_distance": 32,
+        "name": "pne:res/whisper/near_v02"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.whisper"
+  },
+  "res.whisper.near.v03": {
+    "sounds": [
+      {
+        "attenuation_distance": 32,
+        "name": "pne:res/whisper/near_v03"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.whisper"
+  },
+  "res.whisper.near.v04": {
+    "sounds": [
+      {
+        "attenuation_distance": 32,
+        "name": "pne:res/whisper/near_v04"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.whisper"
+  },
+  "res.whisper.near.v05": {
+    "sounds": [
+      {
+        "attenuation_distance": 32,
+        "name": "pne:res/whisper/near_v05"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.whisper"
+  },
+  "res.whisper.near.v06": {
+    "sounds": [
+      {
+        "attenuation_distance": 32,
+        "name": "pne:res/whisper/near_v06"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.whisper"
+  },
+  "res.whisper.near.v07": {
+    "sounds": [
+      {
+        "attenuation_distance": 32,
+        "name": "pne:res/whisper/near_v07"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.whisper"
+  },
+  "res.whisper.near.v08": {
+    "sounds": [
+      {
+        "attenuation_distance": 32,
+        "name": "pne:res/whisper/near_v08"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.whisper"
+  },
+  "res.whisper.near.v09": {
+    "sounds": [
+      {
+        "attenuation_distance": 32,
+        "name": "pne:res/whisper/near_v09"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.whisper"
+  },
+  "res.whisper.near.v10": {
+    "sounds": [
+      {
+        "attenuation_distance": 32,
+        "name": "pne:res/whisper/near_v10"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.whisper"
+  },
+  "res.whisper.near.v11": {
+    "sounds": [
+      {
+        "attenuation_distance": 32,
+        "name": "pne:res/whisper/near_v11"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.whisper"
+  },
+  "res.whisper.near.v12": {
+    "sounds": [
+      {
+        "attenuation_distance": 32,
+        "name": "pne:res/whisper/near_v12"
+      }
+    ],
+    "subtitle": "subtitles.pne.res.whisper"
+  }
+}

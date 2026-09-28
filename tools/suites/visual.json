@@ -1,0 +1,23 @@
+{
+  "module": "visual",
+  "suites": [
+    {"name": "visual-node",
+     "cmd": ["{node}", "tools/tests/kjs_node.js", "pneVisTestResult", "tools/tests/kjs_mocks.js", "tools/visual/vis_prelude.js",
+             "overrides/kubejs/server_scripts/pne_00_core.js", "overrides/kubejs/server_scripts/pne_visual.js", "tools/visual/test_visual.js"],
+     "needs": ["node"], "expect": "PASS"},
+    {"name": "visual-rhino",
+     "cmd": ["{python}", "tools/rhino/pne_rhino.py", "run", "pneVisTestResult", "tools/tests/kjs_mocks.js", "tools/visual/vis_prelude.js",
+             "overrides/kubejs/server_scripts/pne_00_core.js", "overrides/kubejs/server_scripts/pne_visual.js", "tools/visual/test_visual.js"],
+     "needs": ["rhino"], "expect": "PASS"},
+    {"name": "visual-json", "cmd": ["{python}", "tools/visual/check_models.py"], "needs": [], "expect": "PASS"},
+    {"name": "visual-art-check", "cmd": ["{python}", "tools/visual/art_check.py"], "needs": [], "expect": "PASS"},
+    {"name": "visual-etf-local", "cmd": ["{python}", "tools/visual/test_etf_local.py"], "needs": [], "expect": "PASS", "timeout": 600},
+    {"name": "visual-emf-tools", "cmd": ["{python}", "tools/visual/test_emf_parts.py"], "needs": ["jdk17"], "expect": "PASS"},
+    {"name": "visual-kjs-renames", "cmd": ["{python}", "tools/visual/kjs_renames.py"], "needs": [], "expect": "PASS", "timeout": 300},
+    {"name": "visual-passenger-scan", "cmd": ["{python}", "tools/visual/test_passenger_scan.py"], "needs": ["jdk17"], "expect": "PASS", "timeout": 600},
+    {"name": "visual-rhino-bench",
+     "cmd": ["{python}", "tools/rhino/pne_rhino.py", "run", "pneVisBenchResult", "tools/tests/kjs_mocks.js", "tools/visual/vis_prelude.js",
+             "overrides/kubejs/server_scripts/pne_00_core.js", "overrides/kubejs/server_scripts/pne_visual.js", "tools/visual/bench_visual.js"],
+     "needs": ["rhino"], "expect": "PASS", "timeout": 600}
+  ]
+}

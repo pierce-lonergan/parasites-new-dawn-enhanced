@@ -1,0 +1,30 @@
+{
+  "module": "director",
+  "suites": [
+    {"name": "director-node", "cmd": ["{node}", "tools/director/test_director.js"], "needs": ["node"], "expect": "PASS", "timeout": 600},
+    {"name": "director-parity", "cmd": ["{python}", "tools/director/parity.py"], "needs": ["node"], "expect": "PASS", "timeout": 900},
+    {"name": "director-ledger-sim", "cmd": ["{node}", "tools/director/ledger_sim.js"], "needs": ["node"], "expect": "PASS", "timeout": 900},
+    {"name": "director-closed-loop", "cmd": ["{python}", "tools/director/closed_loop2.py"], "needs": ["numpy"], "expect": "PASS", "timeout": 900},
+    {"name": "director-routing", "cmd": ["{node}", "tools/director/test_routing.js"], "needs": ["node"], "expect": "PASS", "timeout": 600},
+    {"name": "director-flank", "cmd": ["{node}", "tools/director/test_flank.js"], "needs": ["node"], "expect": "PASS", "timeout": 600},
+    {"name": "director-gate", "cmd": ["{python}", "tools/rhino/pne_rhino.py", "run", "pneGateResult",
+                                      "tools/tests/kjs_mocks.js", "overrides/kubejs/startup_scripts/pne_res_gate.js",
+                                      "tools/director/rhino_gate.js"],
+     "needs": ["rhino"], "expect": "PASS", "timeout": 600},
+    {"name": "director-gate-parity", "cmd": ["{python}", "tools/rhino/pne_rhino.py", "run", "pneGateParResult",
+                                             "tools/tests/kjs_mocks.js", "overrides/kubejs/server_scripts/pne_00_core.js",
+                                             "overrides/kubejs/startup_scripts/pne_res_gate.js", "tools/director/rhino_gate_parity.js"],
+     "needs": ["rhino"], "expect": "PASS", "timeout": 600},
+    {"name": "director-rhino", "cmd": ["{python}", "tools/rhino/pne_rhino.py", "run", "pneSmokeResult",
+                                       "tools/tests/kjs_mocks.js", "overrides/kubejs/server_scripts/pne_00_core.js",
+                                       "tools/director/fixtures/empty_catalog.js", "overrides/kubejs/server_scripts/pne_resonance.js",
+                                       "tools/director/rhino_smoke.js"],
+     "needs": ["rhino"], "expect": "PASS", "timeout": 600},
+    {"name": "director-horror-rhino", "cmd": ["{python}", "tools/rhino/pne_rhino.py", "run", "pneHorrorResult",
+                                              "tools/tests/kjs_mocks.js", "overrides/kubejs/server_scripts/pne_00_core.js",
+                                              "tools/director/fixtures/empty_catalog.js", "overrides/kubejs/server_scripts/pne_resonance.js",
+                                              "overrides/kubejs/server_scripts/pne_horror.js", "tools/director/rhino_horror.js"],
+     "needs": ["rhino"], "expect": "PASS", "timeout": 600},
+    {"name": "director-trims", "cmd": ["{python}", "tools/director/trims.py", "check"], "needs": [], "expect": "PASS", "timeout": 600}
+  ]
+}
