@@ -1,0 +1,4 @@
+{
+  "_comment": "Original art allowed under overrides/kubejs/assets/epca/** and assets/spore/** (tools/visual/art_check.py). Each entry: {\"path\": \"kubejs/assets/epca/optifine/random/entity/<file>.png\", \"author\": \"...\", \"method\": \"drawn from scratch on the UV layout / procedural generator ...\"}. Never add recolours or edits of EPCA or Spore textures: those are generated locally by tools/visual/etf_variants_local.py.",
+  "files": []
+}

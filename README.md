@@ -56,16 +56,38 @@ and camera possession are off, as is New Age's radiation nausea, and so are Nucl
 distortion shaders. FOV-effect, darkness-pulse, distortion and damage-tilt scaling are all zero.
 Radiation still hurts; it just doesn't move your screen. Details in [docs/DESIGN.md](docs/DESIGN.md).
 
-## What's next: The Hive Remembers
+## The Hive Remembers (built, not yet played)
 
-[docs/TDD.md](docs/TDD.md) is the technical design for the next phase. None of it is built yet. It
-covers three systems:
+The next phase, designed in [docs/TDD.md](docs/TDD.md), is built and tested offline (milestones M0-M5); it has not been
+run in game yet, so [docs/TESTING.md](docs/TESTING.md) has an in-game checklist for it. Three systems, each with its own
+switch (`/pne resonance|hive|oracle|visual off`, operator or single-player owner):
 
-- **The Resonance.** Procedurally rendered dread audio, driven by a pacing director. It uses no real
-  infrasound, and comfort mode is on by default.
-- **The Hive Genome.** A deterministic genetic algorithm that evolves the parasites to counter how
-  you play, without punishing you while you're weak.
-- **The Oracle.** A small player-state model, run on the CPU or on an optional Coral Edge TPU.
+- **The Resonance.** 126 procedurally rendered, loudness-verified sound files (5.9 MB of OGG; no real infrasound),
+  played by a per-player pacing director through a sound ledger that also tames the pack's existing horror sounds
+  (level-jump limits, low-frequency duty caps, EPCA and Spore volume trims). **Comfort mode is on for every player by
+  default**: no stingers, no scream, gentler layers. `/pne comfort off` opts out for yourself; per-layer switches with
+  `/pne resonance whispers|throb|approach|stingers off` and `/pne resonance self off`.
+- **The Hive Genome.** A deterministic genetic algorithm that evolves the parasites to counter how you play: faster,
+  tougher, silent or light-shy strains, visible as clade colours, display grafts and named apex mobs. Encounters while
+  you are at 30% health or less, or in the 120 s after a respawn, earn the hive nothing, and parasites are kept from
+  spawning near you then (a startup spawn gate plus a spawn discard backstop; docs/TESTING.md lists the two module fixes
+  this still needs in game). A governor keeps hive-caused deaths near one per player per three in-game days
+  (`/pne config gov_deaths` / `gov_days`).
+- **The Oracle.** An optional small player-state model in a separate program (`oracle/`, Python 3.9+ with numpy) that
+  the game talks to through two files. The pack works without it. Start it with `launch_oracle.cmd` in
+  `<instance>/local/pne_oracle`, stop it with `stop_oracle.cmd`; it also stops by itself after 10 idle minutes, and only
+  one runs per instance. Telemetry is pseudonymous (a random id, no name, UUID or coordinates). Logging to disk is off
+  unless a player opts in for themselves (`/pne oracle log on`, then click the confirmation in chat); logs stay on your
+  PC, files older than 7 days are deleted whenever the sidecar runs, and `/pne oracle purge` deletes yours.
+
+Local-only extras, never shipped in this repo: `tools/apply.py` generates the clade texture variants from your own EPCA
+and Spore jars into your instance, and `python tools/resonance/declip_local.py --instance "<instance>" --write`
+optionally writes a de-clipped Spore sound pack into your instance (it keeps each file's loudness and skips files the
+limiter would make more than 3 LU quieter: 84 of the 205 clipped files on the current jar).
+
+Automated tests: `python tools/run_tests.py` (77 suites; Node, Python and the instance's own Rhino jar), and
+`python tools/run_tests.py --milestone M0` up to `M5` for the milestone exit criteria (items only you can decide, such
+as the comfort listening sign-off, are listed as PENDING).
 
 ## Fixes to the base pack
 
@@ -91,13 +113,18 @@ You need Python 3.11+ and, for the syntax checks, Node.js.
    ```bash
    python tools/apply.py --instance "<path to your instance copy>" --download
    ```
+   This also installs the optional Oracle sidecar files into `<instance>/local/pne_oracle` (skip with `--no-oracle`;
+   stop a running sidecar with `stop_oracle.cmd` first) and generates the clade texture variants from your own jars
+   (skip with `--no-etf`).
 4. **Quit CurseForge fully** (tray icon too), then stop it restoring the original modpack:
    ```bash
    python tools/fix_instance.py --instance "<path to your instance copy>"
    ```
 5. Reopen CurseForge, launch, and create a **new** world so the ore changes apply from the first
-   chunk. EPCA *Expert* on vanilla *Hard* is the intended difficulty. Pick the **Cities** world type
-   for Lost Cities.
+   chunk. EPCA *Expert* on vanilla *Hard* is the intended difficulty; the pack follows the vanilla setting (Options >
+   Difficulty: Peaceful, Easy, Normal or Hard profiles, and EPCA's tier moves with it on a world whose EPCA button stayed
+   on its default), so pick Easy or Normal for a gentler game. `/pne difficulty` shows the active profile. Pick the
+   **Cities** world type for Lost Cities.
 
 To check the overrides at any time: `python tools/validate.py --instance "<path>"`.
 
@@ -134,11 +161,13 @@ Disabled: **Redirected**. Two of its patches were skipped due to conflicts, and 
 ## Repository layout
 
 ```
-overrides/   files copied into the instance: kubejs/, config/, defaultconfigs/
+overrides/   files copied into the instance: kubejs/, config/, defaultconfigs/, local/pne_oracle/.keep
 mods/        manifest.json: the added mods, with hashes
-tools/       apply.py, fix_instance.py, gen_loot_overrides.py, validate.py
-docs/        DESIGN.md (systems and decisions), TESTING.md (in-game checklist),
-             TDD.md (design for the next phase)
+oracle/      the optional Oracle sidecar (installed into <instance>/local/pne_oracle), its training and tests
+tools/       apply.py, fix_instance.py, gen_loot_overrides.py, validate.py, run_tests.py; the Resonance render and
+             verify pipeline (resonance/), module tests (genome/, hive/, director/, oracle/, visual/, tests/)
+docs/        DESIGN.md (systems and decisions), TESTING.md (in-game checklist), TDD.md (The Hive Remembers design),
+             IMPLEMENTATION.md (the module contract), modules/ (one note per module)
 ```
 
 ## Credits

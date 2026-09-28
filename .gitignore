@@ -15,7 +15,10 @@ crash-reports/
 saves/
 screenshots/
 essential/
-local/
+/local/
+# Oracle bridge folder: only the .keep placeholder ships (logs, telemetry and verdicts never do)
+overrides/local/pne_oracle/*
+!overrides/local/pne_oracle/.keep
 *.bak-pne
 *.log
 
@@ -24,3 +27,8 @@ __pycache__/
 *.pyc
 .vscode/
 .idea/
+
+# Resonance build output (rendered WAVs and intermediate files; verified OGGs are copied into overrides)
+tools/resonance/out/
+# Oracle runtime files if the sidecar is run from the repo
+oracle/**/*.ndjson

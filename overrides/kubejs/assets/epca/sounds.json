@@ -1,0 +1,843 @@
+{
+  "beckon_stage1": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/link/beckon/beckon_stage1",
+        "volume": 0.69
+      }
+    ],
+    "subtitle": "subtitles.epca.beckon_stage1"
+  },
+  "beckon_stage2": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/link/beckon/beckon_stage2",
+        "volume": 0.51
+      }
+    ],
+    "subtitle": "subtitles.epca.beckon_stage2"
+  },
+  "big_explosion": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:random/big_explosion1",
+        "volume": 0.43
+      },
+      {
+        "name": "epca:random/big_explosion2",
+        "volume": 0.49
+      }
+    ],
+    "subtitle": "subtitles.epca.big_explosion"
+  },
+  "curbug_evolve": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/onesent/curbug/curbug_evolve",
+        "volume": 0.85
+      }
+    ],
+    "subtitle": "subtitles.epca.curbug_evolve"
+  },
+  "curbug_say": {
+    "replace": true,
+    "sounds": [
+      "epca:mob/onesent/curbug/curbug_say1",
+      {
+        "name": "epca:mob/onesent/curbug/curbug_say2",
+        "volume": 0.61
+      },
+      {
+        "name": "epca:mob/onesent/curbug/curbug_say3",
+        "volume": 0.71
+      }
+    ],
+    "subtitle": "subtitles.epca.curbug_say"
+  },
+  "full_adaptation": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:damage/adaptation/full_adaptation",
+        "volume": 0.48
+      }
+    ],
+    "subtitle": "subtitles.epca.full_adaptation"
+  },
+  "infested_cow_death": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/infested_cow/infested_cow_death",
+        "volume": 0.66
+      }
+    ],
+    "subtitle": "subtitles.epca.infested_cow_death"
+  },
+  "infested_cow_hurt": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/infested_cow/infested_cow_hurt1",
+        "volume": 0.42
+      },
+      {
+        "name": "epca:mob/infested/infested_cow/infested_cow_hurt2",
+        "volume": 0.46
+      },
+      {
+        "name": "epca:mob/infested/infested_cow/infested_cow_hurt3",
+        "volume": 0.57
+      }
+    ],
+    "subtitle": "subtitles.epca.infested_cow_hurt"
+  },
+  "infested_cow_idle": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/infested_cow/infested_cow_idle1",
+        "volume": 0.56
+      },
+      "epca:mob/infested/infested_cow/infested_cow_idle2",
+      {
+        "name": "epca:mob/infested/infested_cow/infested_cow_idle3",
+        "volume": 0.9
+      },
+      {
+        "name": "epca:mob/infested/infested_cow/infested_cow_idle4",
+        "volume": 0.72
+      }
+    ],
+    "subtitle": "subtitles.epca.infested_cow_idle"
+  },
+  "infested_cow_step": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/infested_cow/infested_cow_step1",
+        "volume": 0.62
+      },
+      "epca:mob/infested/infested_cow/infested_cow_step2",
+      "epca:mob/infested/infested_cow/infested_cow_step3",
+      {
+        "name": "epca:mob/infested/infested_cow/infested_cow_step4",
+        "volume": 0.88
+      }
+    ],
+    "subtitle": "subtitles.epca.infested_cow_step"
+  },
+  "infested_enderman_portal": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/infested_enderman/infested_enderman_portal1",
+        "volume": 0.61
+      },
+      {
+        "name": "epca:mob/infested/infested_enderman/infested_enderman_portal2",
+        "volume": 0.32
+      }
+    ],
+    "subtitle": "subtitles.epca.infested_enderman_portal"
+  },
+  "infested_enderman_scream": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/infested_enderman/infested_enderman_scream1",
+        "volume": 0.84
+      },
+      "epca:mob/infested/infested_enderman/infested_enderman_scream2",
+      {
+        "name": "epca:mob/infested/infested_enderman/infested_enderman_scream3",
+        "volume": 0.86
+      },
+      "epca:mob/infested/infested_enderman/infested_enderman_scream4"
+    ],
+    "subtitle": "subtitles.epca.infested_enderman_scream"
+  },
+  "infested_fox_aggro": {
+    "replace": true,
+    "sounds": [
+      "epca:mob/infested/infested_fox/infested_fox_aggro1",
+      "epca:mob/infested/infested_fox/infested_fox_aggro2",
+      {
+        "name": "epca:mob/infested/infested_fox/infested_fox_aggro3",
+        "volume": 0.83
+      },
+      {
+        "name": "epca:mob/infested/infested_fox/infested_fox_aggro4",
+        "volume": 0.76
+      },
+      {
+        "name": "epca:mob/infested/infested_fox/infested_fox_aggro5",
+        "volume": 0.74
+      },
+      {
+        "name": "epca:mob/infested/infested_fox/infested_fox_aggro6",
+        "volume": 0.82
+      },
+      "epca:mob/infested/infested_fox/infested_fox_aggro7"
+    ],
+    "subtitle": "subtitles.epca.infested_fox_aggro"
+  },
+  "infested_fox_bite": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/infested_fox/infested_fox_bite1",
+        "volume": 0.65
+      },
+      {
+        "name": "epca:mob/infested/infested_fox/infested_fox_bite2",
+        "volume": 0.63
+      },
+      {
+        "name": "epca:mob/infested/infested_fox/infested_fox_bite3",
+        "volume": 0.69
+      }
+    ],
+    "subtitle": "subtitles.epca.infested_fox_bite"
+  },
+  "infested_fox_death": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/infested_fox/infested_fox_death1",
+        "volume": 0.64
+      },
+      {
+        "name": "epca:mob/infested/infested_fox/infested_fox_death2",
+        "volume": 0.6
+      }
+    ],
+    "subtitle": "subtitles.epca.infested_fox_death"
+  },
+  "infested_fox_hurt": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/infested_fox/infested_fox_hurt1",
+        "volume": 0.66
+      },
+      {
+        "name": "epca:mob/infested/infested_fox/infested_fox_hurt2",
+        "volume": 0.82
+      },
+      "epca:mob/infested/infested_fox/infested_fox_hurt3",
+      {
+        "name": "epca:mob/infested/infested_fox/infested_fox_hurt4",
+        "volume": 0.94
+      }
+    ],
+    "subtitle": "subtitles.epca.infested_fox_hurt"
+  },
+  "infested_fox_screech": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/infested_fox/infested_fox_screech1",
+        "volume": 0.85
+      },
+      {
+        "name": "epca:mob/infested/infested_fox/infested_fox_screech2",
+        "volume": 0.88
+      },
+      {
+        "name": "epca:mob/infested/infested_fox/infested_fox_screech3",
+        "volume": 0.77
+      },
+      {
+        "name": "epca:mob/infested/infested_fox/infested_fox_screech4",
+        "volume": 0.93
+      }
+    ],
+    "subtitle": "subtitles.epca.infested_fox_screech"
+  },
+  "infested_pig_death": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/infested_pig/infested_pig_death",
+        "volume": 0.46
+      }
+    ],
+    "subtitle": "subtitles.epca.infested_pig_death"
+  },
+  "infested_pig_idle": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/infested_pig/infested_pig_idle1",
+        "volume": 0.48
+      },
+      "epca:mob/infested/infested_pig/infested_pig_idle2",
+      "epca:mob/infested/infested_pig/infested_pig_idle3",
+      {
+        "name": "epca:mob/infested/infested_pig/infested_pig_idle4",
+        "volume": 0.98
+      }
+    ],
+    "subtitle": "subtitles.epca.infested_pig_idle"
+  },
+  "infested_sheep_death": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/infested_sheep/infested_sheep_death1",
+        "volume": 0.82
+      },
+      {
+        "name": "epca:mob/infested/infested_sheep/infested_sheep_death2",
+        "volume": 0.94
+      }
+    ],
+    "subtitle": "subtitles.epca.infested_sheep_death"
+  },
+  "infested_sheep_hurt": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/infested_sheep/infested_sheep_hurt1",
+        "volume": 0.99
+      },
+      {
+        "name": "epca:mob/infested/infested_sheep/infested_sheep_hurt2",
+        "volume": 0.69
+      },
+      {
+        "name": "epca:mob/infested/infested_sheep/infested_sheep_hurt3",
+        "volume": 0.77
+      }
+    ],
+    "subtitle": "subtitles.epca.infested_sheep_hurt"
+  },
+  "infested_sheep_idle": {
+    "replace": true,
+    "sounds": [
+      "epca:mob/infested/infested_sheep/infested_sheep_idle1",
+      {
+        "name": "epca:mob/infested/infested_sheep/infested_sheep_idle2",
+        "volume": 0.63
+      },
+      {
+        "name": "epca:mob/infested/infested_sheep/infested_sheep_idle3",
+        "volume": 0.71
+      }
+    ],
+    "subtitle": "subtitles.epca.infested_sheep_idle"
+  },
+  "infested_skeleton_death": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/infested_skeleton/infested_skeleton_death",
+        "volume": 0.69
+      }
+    ],
+    "subtitle": "subtitles.epca.infested_skeleton_death"
+  },
+  "infested_skeleton_hurt": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/infested_skeleton/infested_skeleton_hurt1",
+        "volume": 0.76
+      },
+      {
+        "name": "epca:mob/infested/infested_skeleton/infested_skeleton_hurt2",
+        "volume": 0.97
+      },
+      {
+        "name": "epca:mob/infested/infested_skeleton/infested_skeleton_hurt3",
+        "volume": 0.98
+      },
+      "epca:mob/infested/infested_skeleton/infested_skeleton_hurt4"
+    ],
+    "subtitle": "subtitles.epca.infested_skeleton_hurt"
+  },
+  "infested_villager_death": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/infested_villager/infested_villager_death",
+        "volume": 0.93
+      }
+    ],
+    "subtitle": "subtitles.epca.infested_villager_death"
+  },
+  "infested_villager_hurt": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/infested_villager/infested_villager_hurt1",
+        "volume": 0.74
+      },
+      {
+        "name": "epca:mob/infested/infested_villager/infested_villager_hurt2",
+        "volume": 0.85
+      },
+      {
+        "name": "epca:mob/infested/infested_villager/infested_villager_hurt3",
+        "volume": 0.92
+      },
+      {
+        "name": "epca:mob/infested/infested_villager/infested_villager_hurt4",
+        "volume": 0.9
+      }
+    ],
+    "subtitle": "subtitles.epca.infested_villager_hurt"
+  },
+  "infested_vindicator_death": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/infested_vindicator/infested_vindicator_death1",
+        "volume": 0.81
+      },
+      {
+        "name": "epca:mob/infested/infested_vindicator/infested_vindicator_death2",
+        "volume": 0.79
+      }
+    ],
+    "subtitle": "subtitles.epca.infested_vindicator_death"
+  },
+  "infested_vindicator_hurt": {
+    "replace": true,
+    "sounds": [
+      "epca:mob/infested/infested_vindicator/infested_vindicator_hurt1",
+      "epca:mob/infested/infested_vindicator/infested_vindicator_hurt2",
+      {
+        "name": "epca:mob/infested/infested_vindicator/infested_vindicator_hurt3",
+        "volume": 0.92
+      }
+    ],
+    "subtitle": "subtitles.epca.infested_vindicator_hurt"
+  },
+  "infested_vindicator_idle": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/infested_vindicator/infested_vindicator_idle1",
+        "volume": 0.88
+      },
+      {
+        "name": "epca:mob/infested/infested_vindicator/infested_vindicator_idle2",
+        "volume": 0.91
+      },
+      "epca:mob/infested/infested_vindicator/infested_vindicator_idle3",
+      "epca:mob/infested/infested_vindicator/infested_vindicator_idle4",
+      "epca:mob/infested/infested_vindicator/infested_vindicator_idle5"
+    ],
+    "subtitle": "subtitles.epca.infested_vindicator_idle"
+  },
+  "infested_vindicator_targeting": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/infested_vindicator/infested_vindicator_targeting",
+        "volume": 0.66
+      }
+    ],
+    "subtitle": "subtitles.epca.infested_vindicator_targeting"
+  },
+  "infested_wolf_death": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/infested_wolf/infested_wolf_death",
+        "volume": 0.36
+      }
+    ],
+    "subtitle": "subtitles.epca.infested_wolf_death"
+  },
+  "infested_wolf_growl": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/infested_wolf/infested_wolf_growl1",
+        "volume": 0.63
+      },
+      {
+        "name": "epca:mob/infested/infested_wolf/infested_wolf_growl2",
+        "volume": 0.44
+      },
+      {
+        "name": "epca:mob/infested/infested_wolf/infested_wolf_growl3",
+        "volume": 0.47
+      }
+    ],
+    "subtitle": "subtitles.epca.infested_wolf_growl"
+  },
+  "infested_wolf_howl": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/infested_wolf/infested_wolf_howl1",
+        "volume": 0.24
+      },
+      {
+        "name": "epca:mob/infested/infested_wolf/infested_wolf_howl2",
+        "volume": 0.25
+      },
+      {
+        "name": "epca:mob/infested/infested_wolf/infested_wolf_howl3",
+        "volume": 0.44
+      }
+    ],
+    "subtitle": "subtitles.epca.infested_wolf_howl"
+  },
+  "infested_wolf_hurt": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/infested_wolf/infested_wolf_hurt1",
+        "volume": 0.43
+      },
+      {
+        "name": "epca:mob/infested/infested_wolf/infested_wolf_hurt2",
+        "volume": 0.72
+      },
+      {
+        "name": "epca:mob/infested/infested_wolf/infested_wolf_hurt3",
+        "volume": 0.38
+      }
+    ],
+    "subtitle": "subtitles.epca.infested_wolf_hurt"
+  },
+  "infested_wolf_whine": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/infested_wolf/infested_wolf_whine",
+        "volume": 0.61
+      }
+    ],
+    "subtitle": "subtitles.epca.infested_wolf_whine"
+  },
+  "infested_zombie_hurt": {
+    "replace": true,
+    "sounds": [
+      "epca:mob/infested/infested_zombie/infested_zombie_hurt1",
+      {
+        "name": "epca:mob/infested/infested_zombie/infested_zombie_hurt2",
+        "volume": 0.97
+      }
+    ],
+    "subtitle": "subtitles.epca.infested_zombie_hurt"
+  },
+  "mozzie_hurt": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/onesent/mozzie/mozzie_hurt1",
+        "volume": 0.86
+      },
+      "epca:mob/onesent/mozzie/mozzie_hurt2"
+    ],
+    "subtitle": "subtitles.epca.mozzie_hurt"
+  },
+  "nullthing_attack0": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:nullthing_attack0",
+        "volume": 0.78
+      }
+    ],
+    "subtitle": "subtitles.epca.nullthing_attack0"
+  },
+  "nullthing_stand1": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:nullthing_stand1",
+        "volume": 0.46
+      }
+    ],
+    "subtitle": "subtitles.epca.nullthing_stand1"
+  },
+  "nullthing_stand2": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:nullthing_stand2",
+        "volume": 0.35
+      }
+    ],
+    "subtitle": "subtitles.epca.nullthing_stand2"
+  },
+  "parcial_adaptation": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:damage/adaptation/parcial_adaptation",
+        "volume": 0.7
+      }
+    ],
+    "subtitle": "subtitles.epca.parcial_adaptation"
+  },
+  "phase10": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:event/phase10",
+        "volume": 0.73
+      }
+    ],
+    "subtitle": "subtitles.epca.phase10"
+  },
+  "phase2": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:event/phase2",
+        "volume": 0.72
+      }
+    ],
+    "subtitle": "subtitles.epca.phase2"
+  },
+  "phase3": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:event/phase3",
+        "volume": 0.63
+      }
+    ],
+    "subtitle": "subtitles.epca.phase3"
+  },
+  "phase4": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:event/phase4",
+        "volume": 0.51
+      }
+    ],
+    "subtitle": "subtitles.epca.phase4"
+  },
+  "phase7": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:event/phase7",
+        "volume": 0.94
+      }
+    ],
+    "subtitle": "subtitles.epca.phase7"
+  },
+  "phase8": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:event/phase8",
+        "volume": 0.6
+      }
+    ],
+    "subtitle": "subtitles.epca.phase8"
+  },
+  "reshape_longarms_hurt": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/reshape/longarms/reshape_longarms_hurt1",
+        "volume": 0.7
+      },
+      {
+        "name": "epca:mob/reshape/longarms/reshape_longarms_hurt2",
+        "volume": 0.73
+      },
+      {
+        "name": "epca:mob/reshape/longarms/reshape_longarms_hurt3",
+        "volume": 0.67
+      },
+      {
+        "name": "epca:mob/reshape/longarms/reshape_longarms_hurt4",
+        "volume": 0.84
+      }
+    ],
+    "subtitle": "subtitles.epca.reshape_longarms_hurt"
+  },
+  "reshape_longarms_idle": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/reshape/longarms/reshape_longarms_idle1",
+        "volume": 0.84
+      },
+      {
+        "name": "epca:mob/reshape/longarms/reshape_longarms_idle2",
+        "volume": 0.5
+      },
+      "epca:mob/reshape/longarms/reshape_longarms_idle3",
+      {
+        "name": "epca:mob/reshape/longarms/reshape_longarms_idle4",
+        "volume": 0.77
+      },
+      "epca:mob/reshape/longarms/reshape_longarms_idle5"
+    ],
+    "subtitle": "subtitles.epca.reshape_longarms_idle"
+  },
+  "reshape_step": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/reshape/reshape_step1",
+        "volume": 0.93
+      },
+      {
+        "name": "epca:mob/reshape/reshape_step2",
+        "volume": 0.94
+      },
+      {
+        "name": "epca:mob/reshape/reshape_step3",
+        "volume": 0.86
+      }
+    ],
+    "subtitle": "subtitles.epca.reshape_step"
+  },
+  "reshape_yelloweye_gassing": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/reshape/yelloweye/reshape_yelloweye_gassing",
+        "volume": 0.48
+      }
+    ],
+    "subtitle": "subtitles.epca.reshape_yelloweye_gassing"
+  },
+  "reshape_yelloweye_hurt": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/reshape/yelloweye/reshape_yelloweye_hurt1",
+        "volume": 0.85
+      },
+      {
+        "name": "epca:mob/reshape/yelloweye/reshape_yelloweye_hurt2",
+        "volume": 0.71
+      },
+      {
+        "name": "epca:mob/reshape/yelloweye/reshape_yelloweye_hurt3",
+        "volume": 0.84
+      }
+    ],
+    "subtitle": "subtitles.epca.reshape_yelloweye_hurt"
+  },
+  "ripper_death": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/onesent/ripper/ripper_death",
+        "volume": 0.94
+      }
+    ],
+    "subtitle": "subtitles.epca.ripper_death"
+  },
+  "ripper_hurt": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/onesent/ripper/ripper_hurt1",
+        "volume": 0.89
+      },
+      {
+        "name": "epca:mob/onesent/ripper/ripper_hurt2",
+        "volume": 0.84
+      }
+    ],
+    "subtitle": "subtitles.epca.ripper_hurt"
+  },
+  "ripper_idle": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/onesent/ripper/ripper_idle1",
+        "volume": 0.92
+      },
+      {
+        "name": "epca:mob/onesent/ripper/ripper_idle2",
+        "volume": 0.69
+      },
+      {
+        "name": "epca:mob/onesent/ripper/ripper_idle3",
+        "volume": 0.57
+      }
+    ],
+    "subtitle": "subtitles.epca.ripper_idle"
+  },
+  "slam": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:random/slam1",
+        "volume": 0.62
+      },
+      {
+        "name": "epca:random/slam2",
+        "volume": 0.63
+      },
+      {
+        "name": "epca:random/slam3",
+        "volume": 0.71
+      },
+      {
+        "name": "epca:random/slam4",
+        "volume": 0.58
+      }
+    ],
+    "subtitle": "subtitles.epca.slam"
+  },
+  "small_explosion": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:random/small_explosion1",
+        "volume": 0.52
+      },
+      {
+        "name": "epca:random/small_explosion2",
+        "volume": 0.62
+      },
+      {
+        "name": "epca:random/small_explosion3",
+        "volume": 0.67
+      }
+    ],
+    "subtitle": "subtitles.epca.small_explosion"
+  },
+  "walking_head_death": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/walking_head/walking_head_death",
+        "volume": 0.5
+      }
+    ],
+    "subtitle": "subtitles.epca.walking_head_death"
+  },
+  "walking_head_say": {
+    "replace": true,
+    "sounds": [
+      {
+        "name": "epca:mob/infested/walking_head/walking_head_say1",
+        "volume": 0.53
+      },
+      {
+        "name": "epca:mob/infested/walking_head/walking_head_say2",
+        "volume": 0.47
+      },
+      {
+        "name": "epca:mob/infested/walking_head/walking_head_say3",
+        "volume": 0.63
+      }
+    ],
+    "subtitle": "subtitles.epca.walking_head_say"
+  }
+}

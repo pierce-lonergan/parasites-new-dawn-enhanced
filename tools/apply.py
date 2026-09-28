@@ -15,9 +15,19 @@ What it does, in order:
   5. Applies the comfort settings to options.txt (no nausea wobble, no damage tilt,
      no FOV or darkness pulsing). Skip with --no-comfort.
   6. Disables the mods this pack turns off (renames them to .jar.disabled).
+  7. The Hive Remembers, optional Oracle sidecar: copies its program files (oracle/sidecar.py, sidecar_lock.py,
+     sidecar_logs.py, tpu_worker.py, launch_oracle.cmd, stop_oracle.cmd, backends/*.py, models/oracle_manifest.json,
+     models/oracle_mlp.npz) into <instance>/local/pne_oracle/. Never tests, sim, train, eval or caches, and never
+     anything the sidecar writes there (logs/, worlds/, telemetry.json, verdict.json, status.json, sidecar.lock,
+     sidecar.lock.guard, stop.flag). Skipped while a sidecar runs: stop it with stop_oracle.cmd first.
+     Skip with --no-oracle.
+  8. The Hive Remembers, clade texture variants: tools/visual/etf_variants_local.py reads the entity textures of
+     YOUR EPCA and Spore jars and writes the ETF variants into <instance>/kubejs/assets only (they never ship in the
+     repo). Skip with --no-etf; remove them later with
+     python tools/visual/etf_variants_local.py --instance "<instance>" --clean
 
 Usage:
-    python tools/apply.py --instance "<instance path>" [--download] [--no-comfort]
+    python tools/apply.py --instance "<instance path>" [--download] [--no-comfort] [--no-oracle] [--no-etf]
 """
 import argparse
 import hashlib
@@ -31,6 +41,11 @@ import urllib.request
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 import gen_loot_overrides  # noqa: E402
+
+# Oracle sidecar program files (TDD 6.2: oracle/ is repo-only; the launcher runs from the bridge folder).
+ORACLE_FILES = ["sidecar.py", "sidecar_lock.py", "sidecar_logs.py", "tpu_worker.py", "launch_oracle.cmd", "stop_oracle.cmd",
+                "models/oracle_manifest.json", "models/oracle_mlp.npz"]
+ORACLE_KEEP = {"logs", "worlds", "telemetry.json", "verdict.json", "status.json", "sidecar.lock", "sidecar.lock.guard", "stop.flag"}
 
 UA = {"User-Agent": "parasites-new-dawn-enhanced-installer/1.0"}
 COMFORT = {"screenEffectScale": "0.0", "damageTiltStrength": "0.0", "fovEffectScale": "0.0", "darknessEffectScale": "0.0"}
@@ -119,11 +134,67 @@ def disable_mods(instance, names):
             print(f"  disabled {jar}")
 
 
+def oracle_files():
+    """(source, relative destination) for every sidecar program file."""
+    src_root = os.path.join(ROOT, "oracle")
+    rels = list(ORACLE_FILES)
+    bdir = os.path.join(src_root, "backends")
+    rels += ["backends/" + n for n in sorted(os.listdir(bdir)) if n.endswith(".py")]
+    return [(os.path.join(src_root, *r.split("/")), r) for r in rels]
+
+
+def sidecar_running(bridge):
+    """True while a sidecar holds its OS-level guard lock on <bridge>/sidecar.lock.guard (nothing is signalled)."""
+    guard_path = os.path.join(bridge, "sidecar.lock.guard")
+    if not os.path.exists(guard_path):
+        return False
+    sys.path.insert(0, os.path.join(ROOT, "oracle"))
+    try:
+        import sidecar_lock
+    finally:
+        sys.path.pop(0)
+    guard = sidecar_lock.Guard(guard_path)
+    if guard.acquire(0.0):
+        guard.release()
+        return False
+    return True
+
+
+def install_oracle(instance):
+    bridge = os.path.join(instance, "local", "pne_oracle")
+    os.makedirs(bridge, exist_ok=True)
+    if sidecar_running(bridge):
+        print("  the Oracle sidecar is running: run stop_oracle.cmd in local/pne_oracle, then apply again (sidecar files not updated)")
+        return
+    n = 0
+    for src, rel in oracle_files():
+        if rel.split("/")[0] in ORACLE_KEEP:
+            continue
+        dest = os.path.join(bridge, *rel.split("/"))
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        shutil.copy2(src, dest)
+        n += 1
+    print(f"  copied {n} sidecar files to local/pne_oracle (optional: start it with launch_oracle.cmd; Python 3.9+ with numpy)")
+
+
+def install_etf(instance):
+    sys.path.insert(0, os.path.join(ROOT, "tools", "visual"))
+    try:
+        import etf_variants_local
+        rc = etf_variants_local.main(["--instance", instance])
+    finally:
+        sys.path.pop(0)
+    if rc not in (0, 3):
+        print(f"  the clade texture variants were not written (exit {rc})")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--instance", required=True, help="path to the CurseForge instance folder")
     ap.add_argument("--download", action="store_true", help="download the added mods from Modrinth")
     ap.add_argument("--no-comfort", action="store_true", help="leave options.txt alone")
+    ap.add_argument("--no-oracle", action="store_true", help="do not install the optional Oracle sidecar files")
+    ap.add_argument("--no-etf", action="store_true", help="do not generate the local clade texture variants")
     args = ap.parse_args()
 
     if not os.path.isdir(os.path.join(args.instance, "mods")):
@@ -149,6 +220,16 @@ def main():
         apply_comfort(args.instance)
     print("6. Disabled mods")
     disable_mods(args.instance, [m["file"] for m in manifest.get("disabled", [])])
+    print("7. Oracle sidecar (optional)")
+    if args.no_oracle:
+        print("  skipped (--no-oracle)")
+    else:
+        install_oracle(args.instance)
+    print("8. Clade texture variants (local, from your own EPCA and Spore jars)")
+    if args.no_etf:
+        print("  skipped (--no-etf)")
+    else:
+        install_etf(args.instance)
     print("\nDone. Close CurseForge fully, then run tools/fix_instance.py so CurseForge stops")
     print("restoring the original modpack over these changes.")
     return 0

@@ -41,7 +41,8 @@
 	#Amount of mobs to spawn per wave.
 	spawnAmount = 12
 	#Multiplier by which the spawn amount increases by each time the event naturally spawns. (Set to 1 to disable scaling.)
-	#PNE: per-wave amount = floor(12 * (1 + (n-1) * 0.31)) for the n-th horde -> 12 on day 7, 34 on day 49, 60 on day 98.
+	#PNE: per-wave amount = floor(12 * (1 + floor(day / 7) * 0.31)) (HordeSpawnData, javap): 15 on day 7, 38 on day 49, 64 on day 98.
+	#PNE 1.5: kubejs/startup_scripts/pne_diff_events.js scales it by the difficulty profile: day-7 waves 15 (Hard), 12 (Normal), 9 (Easy); Peaceful skips the horde.
 	hordeSpawnMultiplier = 1.31
 	#Time in ticks the event lasts for
 	hordeSpawnDuration = 6000

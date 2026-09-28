@@ -1,0 +1,15 @@
+{
+  "module": "ga-core",
+  "suites": [
+    {"name": "ga-core-node", "cmd": ["{node}", "tools/genome/test/run_tests.js"], "needs": ["node"], "expect": "PASS", "timeout": 600},
+    {"name": "ga-core-golden-rhino", "cmd": ["{python}", "tools/genome/rhino/run.py", "golden"], "needs": ["node", "rhino"], "expect": "PASS", "timeout": 900},
+    {"name": "ga-core-replay", "cmd": ["{python}", "tools/genome/rhino/run.py", "replay"], "needs": ["node", "rhino"], "expect": "PASS", "timeout": 1500},
+    {"name": "ga-core-save-parts", "cmd": ["{python}", "tools/genome/rhino/run.py", "saveparts"], "needs": ["node", "rhino"], "expect": "PASS", "timeout": 900},
+    {"name": "ga-core-mercy", "cmd": ["{node}", "tools/genome/test/test_mercy.js"], "needs": ["node"], "expect": "PASS", "timeout": 600},
+    {"name": "ga-core-guard", "cmd": ["{node}", "tools/genome/test/test_guard.js"], "needs": ["node"], "expect": "PASS", "timeout": 300},
+    {"name": "ga-core-adaptation", "cmd": ["{node}", "tools/genome/test/test_adapt.js"], "needs": ["node"], "expect": "PASS", "timeout": 600},
+    {"name": "ga-core-governor", "cmd": ["{node}", "tools/genome/test/test_governor.js"], "needs": ["node"], "expect": "PASS", "timeout": 600},
+    {"name": "ga-core-dream-align", "cmd": ["{node}", "tools/genome/test/sweep_steady.js"], "needs": ["node"], "expect": "PASS", "timeout": 600},
+    {"name": "ga-core-breed-bench", "cmd": ["{python}", "tools/genome/rhino/run.py", "bench"], "needs": ["rhino"], "expect": "PASS", "timeout": 1800}
+  ]
+}

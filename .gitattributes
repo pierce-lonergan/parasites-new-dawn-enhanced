@@ -1,0 +1,16 @@
+# Line endings. The repository stores LF and every checkout keeps LF, whatever core.autocrlf says, so the
+# byte-level checks (tools/resonance/manifest.json, the generated catalog, sounds.json, lang) see the same bytes on
+# every machine. Windows batch and PowerShell files keep CRLF (cmd.exe mishandles labels in LF-only batch files).
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary assets: never converted, never diffed as text
+*.ogg binary
+*.png binary
+*.npz binary
+*.jar binary
+*.nbt binary
+*.wav binary
+*.zip binary

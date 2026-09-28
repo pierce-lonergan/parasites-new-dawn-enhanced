@@ -1,0 +1,33 @@
+{
+  "_comment": "Lead-owned. Suites each milestone's automated exit criteria require (docs/IMPLEMENTATION.md 9.4 and 10). python tools/run_tests.py --milestone M0 fails when any listed suite is not registered, is skipped or fails. Integration round: the modules' extra suites that cover the same exit criteria (Rhino runs of the Node tests, contract 9.3; gate tests and determinism for M1; gate parity, horror in Rhino and trims for M2; watchdog, logging, offline tools and the real bridge round trip for M5) and the pack-level suites for M5. Round 2: the strict pack runs (only the names KubeJS leaves visible in game, F37) for M2, M3 and M5, and the lint's hidden-name test for M0. 'pending' lists, per milestone, what no suite can decide (user decisions, deferred scope); --milestone prints them and says 'MET for the automated criteria' while any are open. Polish round (contract 1.4): director-flank (the FLK placement of reinforcement beckons in pne_horror.js) for M2 and M3, ga-core-save-parts (the incremental save HIVE adopted) for M3. Contract 1.5 (difficulty profiles and the Recruits-safe start): the core's core-diff-node, core-diff-rhino and diff-events-rhino for M0; director-diff (Hard byte-identical to release 1.4, profiles 0-2, docs/modules/director.md in step with the table) for M2; visual-scoreboard-api (the ServerScoreboard names in the SRG jar under the KubeJS remapper, pne_visual.js against the real Scoreboard classes) for M4; HIVE's profile tests and Hard baseline run inside hive-node / hive-rhino (already in M3); the new pack suites (pack-difficulty and pack-difficulty-strict: the whole pack at vanilla Peaceful, Easy, Normal and Hard, through a mid-run switch and, on Easy, across a /reload and a world restart; pack-lint-recruits: the lint's recruits-team rule) for every milestone. The existing pack runs now enforce spec D's invariants (a)-(e) and gained the no-epca and no-diff-events rows; spec F puts the pack suites in every milestone, so pack-smoke-strict (the Hard restart, invariants (b) and (e) after it) and pack-degradation-strict (the matrix with the EPCA-absent and no-diff-events rows) join M0, M1 and M4 as well (they were in M2, M3 and M5 already; M5 also keeps the plain runs).",
+  "milestones": {
+    "M0": ["kjs-lint", "validate", "rhino-compile", "core-node", "core-rhino", "core-hub-brigadier", "no-process-kill",
+           "ga-core-node", "ga-core-golden-rhino", "ga-core-replay", "ga-core-mercy", "ga-core-guard",
+           "director-node", "oracle-features-node", "oracle-telemetry-bench", "hive-nbt-size", "pack-lint-hidden-names",
+           "core-diff-node", "core-diff-rhino", "diff-events-rhino", "pack-lint-recruits", "pack-difficulty", "pack-difficulty-strict",
+           "pack-smoke-strict", "pack-degradation-strict"],
+    "M1": ["resonance-meter-selftest", "resonance-verify", "resonance-consistency",
+           "resonance-gates", "resonance-determinism", "resonance-catalog-rhino", "resonance-tdd-pins",
+           "pack-lint-recruits", "pack-difficulty", "pack-difficulty-strict", "pack-smoke-strict", "pack-degradation-strict"],
+    "M2": ["director-node", "director-parity", "director-ledger-sim", "director-closed-loop", "director-routing",
+           "director-gate", "director-rhino", "director-gate-parity", "director-horror-rhino", "director-trims",
+           "director-flank", "pack-smoke-strict", "pack-degradation-strict",
+           "director-diff", "pack-lint-recruits", "pack-difficulty", "pack-difficulty-strict"],
+    "M3": ["ga-core-golden-rhino", "ga-core-adaptation", "ga-core-governor", "ga-core-dream-align", "ga-core-breed-bench",
+           "ga-core-save-parts", "hive-node", "hive-rhino", "hive-rhino-bench", "hive-kmercy-rhino", "hive-nbt-size", "hive-conversion-replay",
+           "director-flank", "pack-smoke-strict", "pack-degradation-strict",
+           "pack-lint-recruits", "pack-difficulty", "pack-difficulty-strict"],
+    "M4": ["visual-node", "visual-rhino", "visual-json", "visual-art-check",
+           "visual-scoreboard-api", "pack-lint-recruits", "pack-difficulty", "pack-difficulty-strict", "pack-smoke-strict",
+           "pack-degradation-strict"],
+    "M5": ["oracle-sidecar", "oracle-bridge", "oracle-check-overrides", "oracle-stale-lock", "no-process-kill",
+           "oracle-worker", "oracle-logs", "oracle-offline", "oracle-bridge-e2e", "oracle-features-rhino",
+           "pack-smoke", "pack-degradation", "pack-smoke-strict", "pack-degradation-strict", "pack-lint-duplicates",
+           "pack-apply", "pack-lint-recruits", "pack-difficulty", "pack-difficulty-strict"]
+  },
+  "pending": {
+    "M1": ["comfort envelope rule: 30 comfort-mode assets (whisper.amb x12, whisper.near x12, tell.a x6) are measured and await the user's comfort-mode listening sign-off (docs/IMPLEMENTATION.md Open decisions; docs/TESTING.md M2 'Comfort')"],
+    "M2": ["comfort-mode listening sign-off by the user, including the 30 PENDING comfort-envelope assets (docs/TESTING.md M2 'Comfort')"],
+    "M4": ["EMF for Spore: deferred until 2-3 Spore models are exported in game (docs/TESTING.md M4 'EMF'); no .jem ships yet"]
+  }
+}

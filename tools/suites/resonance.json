@@ -1,0 +1,23 @@
+{
+  "module": "resonance",
+  "_comment": "RESONANCE-PIPELINE (M1). Required by milestones.json: resonance-meter-selftest, resonance-verify, resonance-consistency. The others are extra checks of the same module (resonance-tdd-pins pins spec/layers.json to the TDD numbers; its lead request asks for it in M1).",
+  "suites": [
+    {"name": "resonance-meter-selftest", "cmd": ["{python}", "tools/resonance/tests/test_meter.py"],
+     "needs": ["numpy", "scipy"], "expect": "PASS", "timeout": 300},
+    {"name": "resonance-verify", "cmd": ["{python}", "tools/resonance/verify.py", "--committed"],
+     "needs": ["numpy", "scipy", "soundfile"], "expect": "PASS", "timeout": 900},
+    {"name": "resonance-consistency", "cmd": ["{python}", "tools/resonance/tests/test_consistency.py"],
+     "needs": ["soundfile", "node"], "expect": "PASS", "timeout": 300},
+    {"name": "resonance-gates", "cmd": ["{python}", "tools/resonance/tests/test_gates.py"],
+     "needs": ["numpy", "scipy", "soundfile"], "expect": "PASS", "timeout": 300},
+    {"name": "resonance-determinism", "cmd": ["{python}", "tools/resonance/tests/test_determinism.py"],
+     "needs": ["numpy", "scipy", "soundfile"], "expect": "PASS", "timeout": 1800},
+    {"name": "resonance-catalog-rhino", "cmd": ["{python}", "tools/rhino/pne_rhino.py", "run", "pneResCatalogCheck",
+                                              "overrides/kubejs/server_scripts/pne_res_catalog.js", "tools/resonance/tests/catalog_check.js"],
+     "needs": ["rhino"], "expect": "PASS", "timeout": 300},
+    {"name": "resonance-declip", "cmd": ["{python}", "tools/resonance/tests/test_declip.py"],
+     "needs": ["numpy", "scipy", "soundfile", "ffmpeg"], "expect": "PASS", "timeout": 600},
+    {"name": "resonance-tdd-pins", "cmd": ["{python}", "tools/resonance/tests/test_tdd_pins.py"],
+     "needs": ["numpy", "scipy", "soundfile"], "expect": "PASS", "timeout": 120}
+  ]
+}

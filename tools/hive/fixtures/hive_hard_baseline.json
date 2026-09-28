@@ -1,0 +1,30 @@
+{
+  "_comment": "Hard-profile baseline of the hive runtime (contract 1.5, lead decision L5). Recorded by tools/hive/run_hive.py hard-record from the release 1.4 overrides/kubejs/server_scripts/pne_hive.js (git 8e2f433, sha256 below) with the current core, mocks and GA core, in Node and in the instance's Rhino jar (identical). Never regenerate it from a later pne_hive.js: a Hard digest that differs is a failure (difficulty spec, risk 5). tools/hive/run_hive.py compares every part and names the ones that differ.",
+  "recorded_from": {
+    "file": "overrides/kubejs/server_scripts/pne_hive.js",
+    "git": "8e2f433",
+    "sha256": "7e817169d39115f0fd443961f3a72643d5a91c2ae6736a23202b84d444faa479"
+  },
+  "parts": {
+    "digest": "1e07e0dc",
+    "b": "51e1aa2d",
+    "ev": "e7cd681a",
+    "ga": "ce56651f",
+    "mobs": "160ea152",
+    "vis": "5f6edcb2",
+    "cmds": "dbb79ab0",
+    "stored": "6d16568b"
+  },
+  "counts": {
+    "n_b": "223",
+    "n_ev": "434",
+    "n_cmds": "31",
+    "n_mobs": "36",
+    "dawns": "1",
+    "gov": "1.12",
+    "dream": "107",
+    "light": "4",
+    "govSteps": "1",
+    "guard": "431"
+  }
+}
